@@ -32,6 +32,7 @@ The script fetches:
 - `bx`
 - `bimg`
 - `glfw`
+- `katana-parser`
 
 This explicit layout avoids slow or fragile recursive submodule fetching during CMake configure.
 
@@ -157,3 +158,27 @@ private:
 ```
 
 External/member children auto-detach when they are destroyed. OUIF-owned children are deleted by their parent. Widgets are non-movable so registered addresses stay valid.
+
+## CSS Styling
+
+`set_style()` remains the simplest C++ styling path. For stylesheet-driven UI, call `set_stylesheet()` on a widget tree:
+
+```cpp
+row.set_stylesheet(R"css(
+    .tile {
+        background: #2f6c9c;
+        background-hovered: #4692c4;
+        width: 50%;
+        height: 120px;
+        border-radius: 10px;
+        border: #e8edf3 2px;
+    }
+
+    .tile:selected {
+        background: #4692c4;
+        border: #e8edf3 4px;
+    }
+)css");
+```
+
+Use `add_class("tile")`, `set_name("primary")`, and `set_type_name("Panel")` for selectors. Supported state selectors include `:hover`, `:active`, `:selected`, `:checked`, and `:focus`.

@@ -3,6 +3,29 @@
 #include <algorithm>
 
 namespace ouif {
+namespace {
+
+float fixed_width_for(const Widget& child, Size available)
+{
+    const auto rules = child.layout_rules();
+    if (!rules.width_value.automatic()) {
+        return rules.width_value.resolve(available, true);
+    }
+    const auto child_bounds = child.bounds();
+    return child_bounds.width > 0.0f && rules.width != SizePolicy::Fill ? child_bounds.width : rules.preferred_size.width;
+}
+
+float fixed_height_for(const Widget& child, Size available)
+{
+    const auto rules = child.layout_rules();
+    if (!rules.height_value.automatic()) {
+        return rules.height_value.resolve(available, false);
+    }
+    const auto child_bounds = child.bounds();
+    return child_bounds.height > 0.0f && rules.height != SizePolicy::Fill ? child_bounds.height : rules.preferred_size.height;
+}
+
+} // namespace
 
 void LinearLayout::set_alignment(Align alignment) noexcept
 {
@@ -57,7 +80,7 @@ void LinearLayout::on_layout(Rect content)
         const auto rules = child->layout_rules();
         const bool fills_main = rules.flex > 0.0f || (row ? rules.width == SizePolicy::Fill : rules.height == SizePolicy::Fill);
         const float main = row ? child_bounds.width : child_bounds.height;
-        const float preferred_main = row ? rules.preferred_size.width : rules.preferred_size.height;
+        const float preferred_main = row ? fixed_width_for(*child, { content.width, content.height }) : fixed_height_for(*child, { content.width, content.height });
         const float margin_main = row ? rules.margin.left + rules.margin.right : rules.margin.top + rules.margin.bottom;
 
         if (fills_main) {
@@ -80,7 +103,6 @@ void LinearLayout::on_layout(Rect content)
     cursor = std::max(cursor, row ? content.x : content.y);
 
     for (const auto& child : items) {
-        const auto child_bounds = child->bounds();
         const auto rules = child->layout_rules();
         const bool fills_main = rules.flex > 0.0f || (row ? rules.width == SizePolicy::Fill : rules.height == SizePolicy::Fill);
         const bool fills_cross = row ? rules.height == SizePolicy::Fill : rules.width == SizePolicy::Fill;
@@ -89,8 +111,8 @@ void LinearLayout::on_layout(Rect content)
         const float margin_after = row ? rules.margin.right : rules.margin.bottom;
         const float margin_cross_before = row ? rules.margin.top : rules.margin.left;
         const float margin_cross_after = row ? rules.margin.bottom : rules.margin.right;
-        const float preferred_width = child_bounds.width > 0.0f && rules.width != SizePolicy::Fill ? child_bounds.width : rules.preferred_size.width;
-        const float preferred_height = child_bounds.height > 0.0f && rules.height != SizePolicy::Fill ? child_bounds.height : rules.preferred_size.height;
+        const float preferred_width = fixed_width_for(*child, { content.width, content.height });
+        const float preferred_height = fixed_height_for(*child, { content.width, content.height });
         const float weighted_main = total_flex > 0.0f && fills_main ? remaining * (flex / total_flex) : 0.0f;
         const float cross_space = std::max(0.0f, available_cross - margin_cross_before - margin_cross_after);
         const float width = row

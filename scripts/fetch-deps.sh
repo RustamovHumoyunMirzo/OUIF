@@ -23,5 +23,6 @@ sync_repo "https://github.com/bkaradzic/bgfx.git" "$bgfx_cmake/bgfx"
 sync_repo "https://github.com/bkaradzic/bx.git" "$bgfx_cmake/bx"
 sync_repo "https://github.com/bkaradzic/bimg.git" "$bgfx_cmake/bimg"
 sync_repo "https://github.com/glfw/glfw.git" "$deps_dir/glfw"
+sync_repo "https://github.com/hackers-painters/katana-parser.git" "$deps_dir/katana"
 
-printf 'OUIF dependencies are ready in %s\n' "$bgfx_cmake"
+printf 'OUIF dependencies are ready in %s\n' "$deps_dir"

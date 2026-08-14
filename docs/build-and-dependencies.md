@@ -18,6 +18,7 @@ external/
     bx/
     bimg/
   glfw/
+  katana/
 ```
 
 This mirrors what `bgfx.cmake` expects, but avoids recursive submodule fetches during CMake configure.
@@ -41,6 +42,7 @@ Useful options:
 - `OUIF_BUILD_TESTS`: build tests
 - `OUIF_FETCH_BGFX`: use `external/bgfx.cmake`
 - `OUIF_FETCH_GLFW`: use `external/glfw`
+- `OUIF_USE_KATANA`: build Katana CSS parser from `external/katana`
 - `OUIF_INSTALL`: generate install targets
 - `OUIF_DEPS_DIR`: dependency source directory
 
@@ -100,6 +102,7 @@ The renderer currently supports:
 - frame begin/end
 - filled rectangles
 - stroked rectangles
+- rounded rectangles and rounded borders
 - internally compiled shaders
 
-Text, images, clipping, rounded corners, paths, and batching improvements are future work.
+Text, images, clipping, paths, and batching improvements are future work.

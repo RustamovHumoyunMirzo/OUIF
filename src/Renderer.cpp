@@ -81,6 +81,23 @@ void append_arc(std::vector<Point>& points, float cx, float cy, float radius, fl
     }
 }
 
+std::vector<Point> rounded_rect_points(Rect rect, CornerRadius radius)
+{
+    constexpr float pi = 3.14159265358979323846f;
+    const float top_left = clamp_radius(radius.top_left, rect);
+    const float top_right = clamp_radius(radius.top_right, rect);
+    const float bottom_right = clamp_radius(radius.bottom_right, rect);
+    const float bottom_left = clamp_radius(radius.bottom_left, rect);
+
+    std::vector<Point> points;
+    points.reserve(32);
+    append_arc(points, rect.x + rect.width - top_right, rect.y + top_right, top_right, -pi * 0.5f, 0.0f);
+    append_arc(points, rect.x + rect.width - bottom_right, rect.y + rect.height - bottom_right, bottom_right, 0.0f, pi * 0.5f);
+    append_arc(points, rect.x + bottom_left, rect.y + rect.height - bottom_left, bottom_left, pi * 0.5f, pi);
+    append_arc(points, rect.x + top_left, rect.y + top_left, top_left, pi, pi * 1.5f);
+    return points;
+}
+
 std::vector<char> read_file(const std::filesystem::path& path)
 {
     std::ifstream file(path, std::ios::binary);
@@ -315,13 +332,7 @@ void Renderer::fill_rounded_rect(Rect rect, CornerRadius radius, Color color)
         return;
     }
 
-    constexpr float pi = 3.14159265358979323846f;
-    std::vector<Point> points;
-    points.reserve(32);
-    append_arc(points, rect.x + rect.width - top_right, rect.y + top_right, top_right, -pi * 0.5f, 0.0f);
-    append_arc(points, rect.x + rect.width - bottom_right, rect.y + rect.height - bottom_right, bottom_right, 0.0f, pi * 0.5f);
-    append_arc(points, rect.x + bottom_left, rect.y + rect.height - bottom_left, bottom_left, pi * 0.5f, pi);
-    append_arc(points, rect.x + top_left, rect.y + top_left, top_left, pi, pi * 1.5f);
+    const auto points = rounded_rect_points(rect, radius);
 
     const std::uint32_t vertex_count = static_cast<std::uint32_t>(points.size() + 1);
     const std::uint32_t index_count = static_cast<std::uint32_t>(points.size() * 3);
@@ -370,6 +381,82 @@ void Renderer::stroke_rect(Rect rect, Color color, float width)
     fill_rect({ rect.x, rect.y + rect.height - width, rect.width, width }, color);
     fill_rect({ rect.x, rect.y, width, rect.height }, color);
     fill_rect({ rect.x + rect.width - width, rect.y, width, rect.height }, color);
+}
+
+void Renderer::stroke_rounded_rect(Rect rect, CornerRadius radius, Color color, float width)
+{
+#if OUIF_WITH_BGFX
+    const bool has_radius = radius.top_left > 0.0f || radius.top_right > 0.0f || radius.bottom_right > 0.0f || radius.bottom_left > 0.0f;
+    if (!has_radius) {
+        stroke_rect(rect, color, width);
+        return;
+    }
+
+    if (!bgfx::isValid(impl_->rect_program) || rect.width <= 0.0f || rect.height <= 0.0f || width <= 0.0f) {
+        return;
+    }
+
+    const float inset = std::min(width, std::min(rect.width, rect.height) * 0.5f);
+    const Rect inner_rect {
+        rect.x + inset,
+        rect.y + inset,
+        std::max(0.0f, rect.width - inset * 2.0f),
+        std::max(0.0f, rect.height - inset * 2.0f),
+    };
+    const CornerRadius inner_radius {
+        std::max(0.0f, radius.top_left - inset),
+        std::max(0.0f, radius.top_right - inset),
+        std::max(0.0f, radius.bottom_right - inset),
+        std::max(0.0f, radius.bottom_left - inset),
+    };
+
+    const auto outer = rounded_rect_points(rect, radius);
+    const auto inner = rounded_rect_points(inner_rect, inner_radius);
+    if (outer.size() != inner.size()) {
+        stroke_rect(rect, color, width);
+        return;
+    }
+
+    const std::uint32_t vertex_count = static_cast<std::uint32_t>(outer.size() * 2U);
+    const std::uint32_t index_count = static_cast<std::uint32_t>(outer.size() * 6U);
+    if (vertex_count > bgfx::getAvailTransientVertexBuffer(vertex_count, PosColorVertex::layout)
+        || index_count > bgfx::getAvailTransientIndexBuffer(index_count)) {
+        return;
+    }
+
+    bgfx::TransientVertexBuffer vertices;
+    bgfx::TransientIndexBuffer indices;
+    bgfx::allocTransientVertexBuffer(&vertices, vertex_count, PosColorVertex::layout);
+    bgfx::allocTransientIndexBuffer(&indices, index_count);
+
+    const auto abgr = pack_abgr(color);
+    auto* vertex_data = reinterpret_cast<PosColorVertex*>(vertices.data);
+    for (std::size_t index = 0; index < outer.size(); ++index) {
+        vertex_data[index] = vertex_from_point(outer[index], impl_->width, impl_->height, abgr);
+        vertex_data[index + outer.size()] = vertex_from_point(inner[index], impl_->width, impl_->height, abgr);
+    }
+
+    auto* index_data = reinterpret_cast<std::uint16_t*>(indices.data);
+    for (std::uint16_t index = 0; index < static_cast<std::uint16_t>(outer.size()); ++index) {
+        const std::uint16_t next = static_cast<std::uint16_t>((index + 1U) % outer.size());
+        const std::uint16_t inner_index = static_cast<std::uint16_t>(index + outer.size());
+        const std::uint16_t inner_next = static_cast<std::uint16_t>(next + outer.size());
+        index_data[index * 6U + 0U] = index;
+        index_data[index * 6U + 1U] = next;
+        index_data[index * 6U + 2U] = inner_index;
+        index_data[index * 6U + 3U] = next;
+        index_data[index * 6U + 4U] = inner_next;
+        index_data[index * 6U + 5U] = inner_index;
+    }
+
+    bgfx::setVertexBuffer(0, &vertices);
+    bgfx::setIndexBuffer(&indices);
+    bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
+    bgfx::submit(0, impl_->rect_program);
+#else
+    (void)radius;
+    stroke_rect(rect, color, width);
+#endif
 }
 
 void Renderer::end_frame()

@@ -5,7 +5,7 @@ project(
     VERSION 0.1.0
     DESCRIPTION "An Open User Interface Framework for modern C++"
     HOMEPAGE_URL "https://github.com/RustamovHumoyunMirzo/OUIF"
-    LANGUAGES CXX
+    LANGUAGES C CXX
 )
 
 include(GNUInstallDirs)
@@ -17,6 +17,7 @@ option(OUIF_BUILD_EXAMPLES "Build OUIF examples" ON)
 option(OUIF_BUILD_TESTS "Build OUIF tests" ON)
 option(OUIF_FETCH_BGFX "Fetch bgfx with CMake FetchContent" ON)
 option(OUIF_FETCH_GLFW "Fetch GLFW for OUIF's private window backend" ON)
+option(OUIF_USE_KATANA "Build Katana CSS parser for OUIF stylesheet support" ON)
 option(OUIF_INSTALL "Generate install targets" ON)
 set(OUIF_DEPS_DIR "${PROJECT_SOURCE_DIR}/external" CACHE PATH "Directory for OUIF-managed source dependencies")
 
@@ -60,6 +61,32 @@ if(OUIF_FETCH_GLFW)
     else()
         message(FATAL_ERROR
             "GLFW sources were not found at ${OUIF_GLFW_DIR}. "
+            "Run scripts/fetch-deps.ps1 or scripts/fetch-deps.sh, then configure again."
+        )
+    endif()
+endif()
+
+if(OUIF_USE_KATANA)
+    set(OUIF_KATANA_DIR "${OUIF_DEPS_DIR}/katana" CACHE PATH "Katana parser source directory")
+    if(EXISTS "${OUIF_KATANA_DIR}/src/katana.h")
+        add_library(
+            ouif_katana STATIC
+            "${OUIF_KATANA_DIR}/src/foundation.c"
+            "${OUIF_KATANA_DIR}/src/katana.lex.c"
+            "${OUIF_KATANA_DIR}/src/katana.tab.c"
+            "${OUIF_KATANA_DIR}/src/parser.c"
+            "${OUIF_KATANA_DIR}/src/selector.c"
+            "${OUIF_KATANA_DIR}/src/tokenizer.c"
+        )
+        target_include_directories(ouif_katana PUBLIC "${OUIF_KATANA_DIR}/src")
+        if(MSVC)
+            target_include_directories(ouif_katana PRIVATE "${OUIF_KATANA_DIR}/visualc/include")
+            target_compile_definitions(ouif_katana PRIVATE YY_NO_UNISTD_H)
+        endif()
+        set_target_properties(ouif_katana PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    else()
+        message(FATAL_ERROR
+            "Katana CSS parser sources were not found at ${OUIF_KATANA_DIR}. "
             "Run scripts/fetch-deps.ps1 or scripts/fetch-deps.sh, then configure again."
         )
     endif()
@@ -123,6 +150,13 @@ if(TARGET glfw)
     target_compile_definitions(ouif PRIVATE OUIF_WITH_GLFW=1)
 else()
     message(FATAL_ERROR "OUIF requires GLFW. Enable OUIF_FETCH_GLFW or provide a glfw target before adding OUIF.")
+endif()
+
+if(TARGET ouif_katana)
+    target_link_libraries(ouif PRIVATE ouif_katana)
+    target_compile_definitions(ouif PRIVATE OUIF_WITH_KATANA=1)
+else()
+    target_compile_definitions(ouif PRIVATE OUIF_WITH_KATANA=0)
 endif()
 
 if(TARGET bgfx AND TARGET shaderc)

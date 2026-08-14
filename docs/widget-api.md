@@ -10,6 +10,7 @@ Every widget has:
 
 - bounds: `set_bounds(Rect)` and `bounds()`
 - style: `set_style(Style)` and `style()`
+- stylesheet: `set_stylesheet(css)`, `join_stylesheet(css)`, and `get_stylesheet()`
 - layout rules: `set_layout(Layout)` and `layout_rules()`
 - child widgets: `add_child(widget)` or `add_child<T>(args...)`
 - visibility: `set_visible(bool)` and `visible()`
@@ -78,7 +79,7 @@ Use `remove_child(child)` to detach or destroy a child. Use `clear_children()` t
 - `radius`
 - `opacity`
 
-The current bgfx renderer draws filled rectangles and borders. `radius` is stored for API stability, but rounded rendering is not implemented yet.
+The current bgfx renderer draws filled rectangles, rounded rectangles, borders, and rounded borders.
 
 Styles support a fluent builder API:
 
@@ -126,6 +127,67 @@ auto translucent = ouif::Color::hexa(0xe8edf3dc);
 auto parsed = ouif::Color::from_hex("#2f6c9c");
 ```
 
+## Stylesheets
+
+OUIF builds Katana internally and exposes CSS styling through `Widget`; users still only include `OUIF/OUIF.h`.
+
+```cpp
+tile.add_class("tile");
+tile.set_name("primary");
+
+root.set_stylesheet(R"css(
+    .tile {
+        background: #2f6c9c;
+        background-hovered: #4692c4;
+        width: 50%;
+        height: 120px;
+        border-radius: 8px;
+        border: #e8edf3 2px;
+    }
+
+    #primary:selected {
+        background: #4692c4;
+        border: #e8edf3 4px;
+    }
+)css");
+```
+
+Selectors currently support:
+
+- `*`
+- `Widget` or a value set with `set_type_name(...)`
+- `.class` from `add_class(...)`
+- `#name` from `set_name(...)`
+- state pseudo classes: `:hover`, `:active`, `:pressed`, `:selected`, `:checked`, `:focus`
+
+CSS property names intentionally mirror `Style` naming:
+
+- `background`, `background-hovered`, `background-pressed`, `background-selected`, `background-focused`
+- `foreground` or `color`
+- `border`, `border-selected`, `border-focused`
+- `border-radius`, `radius`, and per-corner radius names
+- `width`, `height`, `flex`, `margin`, `padding`
+
+`width` and `height` support `px`, `%`, `vw`, and `vh`. `margin`, `padding`, and radius currently resolve as pixel values.
+
+`set_style()` is treated as explicit C++ styling and wins over stylesheet styling for that widget. This keeps runtime behavior deterministic when both APIs are used. Use `get_style()` to inspect the effective style and `get_stylesheet()` to inspect the CSS string. `join_stylesheet()` appends more CSS and reapplies it to the tree.
+
+For runtime changes, widgets also expose direct style setters and getters:
+
+```cpp
+tile.set_background("#2f6c9c");
+tile.set_background_hovered("#4692c4");
+tile.set_border("#e8edf3", 2.0f);
+tile.set_radius(8.0f);
+tile.set_opacity(0.85f);
+
+auto background = tile.get_background();
+auto border = tile.get_border();
+auto radius = tile.get_radius();
+```
+
+These convenience setters are C++ runtime style changes, so they also override stylesheet values for that widget.
+
 ## Layout
 
 `ouif::Layout` includes:
@@ -135,6 +197,8 @@ auto parsed = ouif::Color::from_hex("#2f6c9c");
 - `max_size`
 - `margin`
 - `padding`
+- `width_value`
+- `height_value`
 - `flex`
 - `width`
 - `height`
@@ -153,6 +217,13 @@ Use `set_size(Size)` for fixed-size widgets:
 set_size({ 160.0f, 120.0f });
 ```
 
+Use web-like lengths when a value depends on the available space:
+
+```cpp
+set_width(ouif::Length::percent(50.0f));
+set_height(ouif::Length::vh(25.0f));
+```
+
 Use `set_layout_policy(width, height)` for fill/content behavior:
 
 ```cpp
@@ -164,6 +235,8 @@ Spacing helpers:
 ```cpp
 set_margin(ouif::Insets(12.0f));
 set_padding(24.0f);
+auto margin = get_margin();
+auto padding = get_padding();
 ```
 
 Flex/weight works like Android weight or CSS flex grow:
@@ -171,6 +244,7 @@ Flex/weight works like Android weight or CSS flex grow:
 ```cpp
 left.set_flex(1.0f);
 right.set_flex(2.0f);
+auto weight = right.get_flex();
 ```
 
 The second widget receives twice as much remaining main-axis space as the first.

@@ -140,6 +140,72 @@ int main()
     assert(weighted_b.focused());
 
     {
+        ouif::RowLayout root;
+        root.set_bounds({ 0.0f, 0.0f, 400.0f, 100.0f });
+        root.set_gap(0.0f);
+
+        auto& tile = root.add_child<ouif::Widget>();
+        tile.add_class("tile");
+        tile.set_name("primary");
+        root.set_stylesheet(R"css(
+            .tile {
+                background: #203040;
+                background-hovered: #304050;
+                width: 50%;
+                height: 40px;
+                border-radius: 8px;
+                border: #e8edf3 2px;
+            }
+
+            #primary:selected {
+                background: #506070;
+                border: #ffffff 4px;
+            }
+        )css");
+
+        root.layout({ 400.0f, 100.0f });
+        assert(std::fabs(tile.bounds().width - 200.0f) < 0.01f);
+        assert(std::fabs(tile.bounds().height - 40.0f) < 0.01f);
+        assert(std::fabs(tile.get_style().radius.top_left - 8.0f) < 0.01f);
+        assert(std::fabs(tile.get_style().border.width - 2.0f) < 0.01f);
+        assert(std::fabs(tile.get_style().border_selected.width - 4.0f) < 0.01f);
+        assert(!root.get_stylesheet().empty());
+    }
+
+    {
+        ouif::Widget widget;
+        widget.add_class("tile");
+        widget.set_style(ouif::Style().with_background(ouif::Color::hex(0x010203)));
+        widget.set_stylesheet(".tile { background: #ffffff; }");
+        assert(widget.get_style().background.r < 0.01f);
+        widget.join_stylesheet(".tile:hover { background: #111111; }");
+        assert(widget.get_stylesheet().find(":hover") != std::string_view::npos);
+    }
+
+    {
+        ouif::Widget widget;
+        widget.add_class("tile");
+        widget.set_stylesheet(".tile { background: #ffffff; border: #222222 2px; border-radius: 4px; }");
+        widget.set_background(ouif::Color::hex(0x010203));
+        widget.set_background_hovered(ouif::Color::hex(0x040506));
+        widget.set_border(ouif::Color::hex(0x070809), 3.0f);
+        widget.set_radius({ 1.0f, 2.0f, 3.0f, 4.0f });
+        widget.set_opacity(2.0f);
+        widget.set_margin(ouif::Insets(8.0f));
+        widget.set_padding(ouif::Insets(4.0f));
+        widget.set_flex(3.0f);
+
+        assert(widget.get_background().r < 0.01f);
+        assert(widget.get_background_hovered().g > 0.01f);
+        assert(std::fabs(widget.get_border().width - 3.0f) < 0.01f);
+        assert(std::fabs(widget.get_radius().bottom_left - 4.0f) < 0.01f);
+        assert(std::fabs(widget.get_opacity() - 1.0f) < 0.01f);
+        assert(std::fabs(widget.get_margin().left - 8.0f) < 0.01f);
+        assert(std::fabs(widget.get_padding().top - 4.0f) < 0.01f);
+        assert(std::fabs(widget.get_flex() - 3.0f) < 0.01f);
+    }
+
+    {
         ouif::Application app;
         ouif::Widget parent;
         ouif::Widget child;

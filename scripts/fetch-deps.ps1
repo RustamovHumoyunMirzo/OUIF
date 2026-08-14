@@ -36,5 +36,6 @@ Sync-Repo "https://github.com/bkaradzic/bgfx.git" (Join-Path $BgfxCMake "bgfx")
 Sync-Repo "https://github.com/bkaradzic/bx.git" (Join-Path $BgfxCMake "bx")
 Sync-Repo "https://github.com/bkaradzic/bimg.git" (Join-Path $BgfxCMake "bimg")
 Sync-Repo "https://github.com/glfw/glfw.git" (Join-Path $Deps "glfw")
+Sync-Repo "https://github.com/hackers-painters/katana-parser.git" (Join-Path $Deps "katana")
 
-Write-Host "OUIF dependencies are ready in $BgfxCMake"
+Write-Host "OUIF dependencies are ready in $Deps"

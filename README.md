@@ -20,6 +20,8 @@ OUIF is early and intentionally raw. The current API exposes the foundation deve
 - margin, padding, flex/weight, and alignment helpers
 - focus state and focus styles
 - border radius with per-corner values
+- CSS stylesheet support through bundled Katana parser
+- web-like `px`, `%`, `vw`, and `vh` sizing for layout values
 - safe parent/child tracking for owned and member widgets
 - bgfx-backed rectangle rendering
 - GLFW-backed convenience windows
@@ -57,6 +59,41 @@ The complex layout stress example is written to:
 - [Getting Started](docs/getting-started.md)
 - [Raw Widget API](docs/widget-api.md)
 - [Build And Dependencies](docs/build-and-dependencies.md)
+
+## CSS Styling
+
+Use `set_style()` for direct C++ styling, or attach CSS to a widget tree:
+
+```cpp
+tile.add_class("tile");
+
+root.set_stylesheet(R"css(
+    .tile {
+        background: #2f6c9c;
+        background-hovered: #4692c4;
+        width: 50%;
+        height: 120px;
+        border-radius: 8px;
+        border: #e8edf3 2px;
+    }
+
+    .tile:selected {
+        background: #4692c4;
+        border: #e8edf3 4px;
+    }
+)css");
+```
+
+`set_style()` is the explicit override when both APIs touch the same widget. `join_stylesheet()` appends CSS, and `get_style()` / `get_stylesheet()` expose the current effective style and source CSS.
+
+For live changes, use direct widget setters:
+
+```cpp
+tile.set_background("#2f6c9c");
+tile.set_background_hovered("#4692c4");
+tile.set_border("#e8edf3", 2.0f);
+tile.set_radius(8.0f);
+```
 
 ## Memory Model
 

@@ -8,6 +8,8 @@
 #include <memory>
 #include <optional>
 #include <cstdint>
+#include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -33,6 +35,8 @@ struct Layout {
     Size max_size { 100000.0f, 100000.0f };
     Insets margin {};
     Insets padding {};
+    Length width_value {};
+    Length height_value {};
     float flex = 0.0f;
     SizePolicy width = SizePolicy::Fill;
     SizePolicy height = SizePolicy::Fill;
@@ -51,16 +55,60 @@ public:
     void set_bounds(Rect bounds) noexcept;
     [[nodiscard]] Rect bounds() const noexcept;
     void set_size(Size size) noexcept;
+    void set_width(Length width) noexcept;
+    void set_height(Length height) noexcept;
+    void set_size(Length width, Length height) noexcept;
 
     void set_style(Style style) noexcept;
     [[nodiscard]] const Style& style() const noexcept;
+    [[nodiscard]] const Style& get_style() const noexcept;
+    void set_background(Color color) noexcept;
+    [[nodiscard]] Color get_background() const noexcept;
+    void set_background_hovered(Color color) noexcept;
+    [[nodiscard]] Color get_background_hovered() const noexcept;
+    void set_background_pressed(Color color) noexcept;
+    [[nodiscard]] Color get_background_pressed() const noexcept;
+    void set_background_selected(Color color) noexcept;
+    [[nodiscard]] Color get_background_selected() const noexcept;
+    void set_background_focused(Color color) noexcept;
+    [[nodiscard]] Color get_background_focused() const noexcept;
+    void set_foreground(Color color) noexcept;
+    [[nodiscard]] Color get_foreground() const noexcept;
+    void set_border(Color color, float width) noexcept;
+    [[nodiscard]] Border get_border() const noexcept;
+    void set_border_selected(Color color, float width) noexcept;
+    [[nodiscard]] Border get_border_selected() const noexcept;
+    void set_border_focused(Color color, float width) noexcept;
+    [[nodiscard]] Border get_border_focused() const noexcept;
+    void set_radius(float radius) noexcept;
+    void set_radius(CornerRadius radius) noexcept;
+    [[nodiscard]] CornerRadius get_radius() const noexcept;
+    void set_opacity(float opacity) noexcept;
+    [[nodiscard]] float get_opacity() const noexcept;
+
+    void set_stylesheet(std::string stylesheet);
+    void join_stylesheet(std::string_view stylesheet);
+    [[nodiscard]] std::string_view get_stylesheet() const noexcept;
+
+    void set_name(std::string name);
+    [[nodiscard]] std::string_view name() const noexcept;
+    [[nodiscard]] std::string_view get_name() const noexcept;
+    void set_type_name(std::string type_name);
+    [[nodiscard]] std::string_view type_name() const noexcept;
+    Widget& add_class(std::string class_name);
+    bool remove_class(std::string_view class_name);
+    [[nodiscard]] bool has_class(std::string_view class_name) const noexcept;
+    [[nodiscard]] const std::vector<std::string>& classes() const noexcept;
 
     void set_layout(Layout layout) noexcept;
     [[nodiscard]] const Layout& layout_rules() const noexcept;
     void set_layout_policy(SizePolicy width, SizePolicy height) noexcept;
     void set_margin(Insets margin) noexcept;
+    [[nodiscard]] Insets get_margin() const noexcept;
     void set_padding(Insets padding) noexcept;
+    [[nodiscard]] Insets get_padding() const noexcept;
     void set_flex(float flex) noexcept;
+    [[nodiscard]] float get_flex() const noexcept;
 
     void set_visible(bool visible) noexcept;
     [[nodiscard]] bool visible() const noexcept;
@@ -126,6 +174,8 @@ private:
     void detach_from_parent() noexcept;
     bool detach_child(Widget& child, bool destroy_owned) noexcept;
     [[nodiscard]] bool owns_child(const Widget& child) const noexcept;
+    void recompute_style() noexcept;
+    void apply_stylesheet_to_tree();
 
     [[nodiscard]] Point to_local(Point point) const noexcept;
     [[nodiscard]] std::optional<MouseEvent> mouse_event_from(const Event& event) const noexcept;
@@ -133,9 +183,17 @@ private:
     Widget* parent_ = nullptr;
     Rect bounds_;
     Style style_;
+    Style inline_style_;
+    Style stylesheet_style_;
     Layout layout_;
+    std::string stylesheet_;
+    std::string name_;
+    std::string type_name_ = "Widget";
+    std::vector<std::string> classes_;
     std::vector<std::unique_ptr<Widget>> owned_children_;
     std::vector<Widget*> children_;
+    bool has_inline_style_ = false;
+    bool has_stylesheet_style_ = false;
     bool visible_ = true;
     bool enabled_ = true;
     bool hovered_ = false;
