@@ -145,8 +145,8 @@ if(TARGET bgfx AND TARGET shaderc)
     endfunction()
 
     if(WIN32)
-        ouif_compile_shader(vs_ouif_rect vertex windows vs_5_0 dx11)
-        ouif_compile_shader(fs_ouif_rect fragment windows ps_5_0 dx11)
+        ouif_compile_shader(vs_ouif_rect vertex windows s_5_0 dx11)
+        ouif_compile_shader(fs_ouif_rect fragment windows s_5_0 dx11)
         set(OUIF_SHADER_BINARIES
             "${OUIF_SHADER_OUTPUT_DIR}/dx11/vs_ouif_rect.bin"
             "${OUIF_SHADER_OUTPUT_DIR}/dx11/fs_ouif_rect.bin"

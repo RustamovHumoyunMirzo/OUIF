@@ -10,7 +10,6 @@
 
 #if OUIF_WITH_BGFX
 #include <bgfx/bgfx.h>
-#include <bgfx/platform.h>
 #endif
 
 namespace ouif {
@@ -245,13 +244,13 @@ void Renderer::fill_rect(Rect rect, Color color)
     const float bottom = 1.0f - ((rect.y + rect.height) / static_cast<float>(impl_->height)) * 2.0f;
     const auto abgr = pack_abgr(color);
 
-    auto* vertex_data = static_cast<PosColorVertex*>(vertices.data);
+    auto* vertex_data = reinterpret_cast<PosColorVertex*>(vertices.data);
     vertex_data[0] = { left, top, 0.0f, abgr };
     vertex_data[1] = { right, top, 0.0f, abgr };
     vertex_data[2] = { right, bottom, 0.0f, abgr };
     vertex_data[3] = { left, bottom, 0.0f, abgr };
 
-    auto* index_data = static_cast<std::uint16_t*>(indices.data);
+    auto* index_data = reinterpret_cast<std::uint16_t*>(indices.data);
     const std::array<std::uint16_t, 6> quad_indices { 0, 1, 2, 0, 2, 3 };
     std::copy(quad_indices.begin(), quad_indices.end(), index_data);
 
