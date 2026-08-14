@@ -79,6 +79,7 @@ target_sources(
     ouif
     PRIVATE
         src/Application.cpp
+        src/Layout.cpp
         src/Renderer.cpp
         src/Widget.cpp
     PUBLIC
@@ -91,6 +92,7 @@ target_sources(
             include/OUIF/Event.h
             include/OUIF/Export.h
             include/OUIF/Geometry.h
+            include/OUIF/Layout.h
             include/OUIF/Renderer.h
             include/OUIF/Style.h
             include/OUIF/Widget.h

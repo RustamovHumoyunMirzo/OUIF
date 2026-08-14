@@ -20,6 +20,10 @@ enum class SizePolicy : std::uint8_t {
     Content,
 };
 
+enum class WidgetState : std::uint8_t {
+    Selected,
+};
+
 struct Layout {
     Size preferred_size { 0.0f, 0.0f };
     Size min_size { 0.0f, 0.0f };
@@ -41,12 +45,14 @@ public:
 
     void set_bounds(Rect bounds) noexcept;
     [[nodiscard]] Rect bounds() const noexcept;
+    void set_size(Size size) noexcept;
 
     void set_style(Style style) noexcept;
     [[nodiscard]] const Style& style() const noexcept;
 
     void set_layout(Layout layout) noexcept;
     [[nodiscard]] const Layout& layout_rules() const noexcept;
+    void set_layout_policy(SizePolicy width, SizePolicy height) noexcept;
 
     void set_visible(bool visible) noexcept;
     [[nodiscard]] bool visible() const noexcept;
@@ -57,6 +63,10 @@ public:
     void add_child(std::unique_ptr<Widget> child);
     [[nodiscard]] const std::vector<std::unique_ptr<Widget>>& children() const noexcept;
 
+    void set_state(WidgetState state, bool enabled) noexcept;
+    void toggle_state(WidgetState state) noexcept;
+    [[nodiscard]] bool has_state(WidgetState state) const noexcept;
+
     [[nodiscard]] bool hovered() const noexcept;
     [[nodiscard]] bool pressed() const noexcept;
     [[nodiscard]] bool hit_test(Point point) const noexcept;
@@ -66,6 +76,7 @@ public:
     virtual bool event(const Event& event);
 
 protected:
+    [[nodiscard]] std::vector<std::unique_ptr<Widget>>& mutable_children() noexcept;
     virtual void draw(Renderer& renderer);
     virtual void on_layout(Rect content);
     virtual bool on_event(const Event& event);
@@ -88,6 +99,7 @@ private:
     bool enabled_ = true;
     bool hovered_ = false;
     bool pressed_ = false;
+    bool selected_ = false;
 };
 
 } // namespace ouif

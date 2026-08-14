@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 
 namespace ouif {
 
@@ -17,6 +18,32 @@ struct ApplicationConfig {
     void* native_window = nullptr;
     bool create_window = true;
     Color clear_color = Color::rgba(18, 20, 24, 255);
+
+    ApplicationConfig& with_title(std::string value)
+    {
+        title = std::move(value);
+        return *this;
+    }
+
+    ApplicationConfig& with_size(std::uint32_t new_width, std::uint32_t new_height) noexcept
+    {
+        width = new_width;
+        height = new_height;
+        return *this;
+    }
+
+    ApplicationConfig& with_native_window(void* window) noexcept
+    {
+        native_window = window;
+        create_window = false;
+        return *this;
+    }
+
+    ApplicationConfig& with_clear_color(Color color) noexcept
+    {
+        clear_color = color;
+        return *this;
+    }
 };
 
 class OUIF_API Application {

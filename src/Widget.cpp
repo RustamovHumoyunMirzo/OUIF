@@ -16,6 +16,15 @@ Rect Widget::bounds() const noexcept
     return bounds_;
 }
 
+void Widget::set_size(Size size) noexcept
+{
+    bounds_.width = size.width;
+    bounds_.height = size.height;
+    layout_.preferred_size = size;
+    layout_.width = SizePolicy::Fixed;
+    layout_.height = SizePolicy::Fixed;
+}
+
 void Widget::set_style(Style style) noexcept
 {
     style_ = style;
@@ -34,6 +43,12 @@ void Widget::set_layout(Layout layout) noexcept
 const Layout& Widget::layout_rules() const noexcept
 {
     return layout_;
+}
+
+void Widget::set_layout_policy(SizePolicy width, SizePolicy height) noexcept
+{
+    layout_.width = width;
+    layout_.height = height;
 }
 
 void Widget::set_visible(bool visible) noexcept
@@ -64,6 +79,26 @@ void Widget::add_child(std::unique_ptr<Widget> child)
 const std::vector<std::unique_ptr<Widget>>& Widget::children() const noexcept
 {
     return children_;
+}
+
+void Widget::set_state(WidgetState state, bool enabled) noexcept
+{
+    if (state == WidgetState::Selected) {
+        selected_ = enabled;
+    }
+}
+
+void Widget::toggle_state(WidgetState state) noexcept
+{
+    set_state(state, !has_state(state));
+}
+
+bool Widget::has_state(WidgetState state) const noexcept
+{
+    if (state == WidgetState::Selected) {
+        return selected_;
+    }
+    return false;
 }
 
 bool Widget::hovered() const noexcept
@@ -185,16 +220,23 @@ bool Widget::event(const Event& event)
     return on_event(event);
 }
 
+std::vector<std::unique_ptr<Widget>>& Widget::mutable_children() noexcept
+{
+    return children_;
+}
+
 void Widget::draw(Renderer& renderer)
 {
     if (style_.opacity <= 0.0f) {
         return;
     }
 
-    const Color background = pressed_ ? style_.background_pressed : (hovered_ ? style_.background_hovered : style_.background);
+    const Color background = selected_ ? style_.background_selected : (pressed_ ? style_.background_pressed : (hovered_ ? style_.background_hovered : style_.background));
     renderer.fill_rect(bounds_, background);
-    if (style_.border_width > 0.0f) {
-        renderer.stroke_rect(bounds_, style_.border, style_.border_width);
+    const float border_width = selected_ && style_.border_width_selected > 0.0f ? style_.border_width_selected : style_.border_width;
+    const Color border = selected_ ? style_.border_selected : style_.border;
+    if (border_width > 0.0f) {
+        renderer.stroke_rect(bounds_, border, border_width);
     }
 }
 

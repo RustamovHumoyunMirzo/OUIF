@@ -74,29 +74,28 @@ class Panel : public ouif::Widget {
 public:
     Panel()
     {
-        ouif::Style style;
-        style.background = ouif::Color::rgb(42, 92, 130);
-        style.background_hovered = ouif::Color::rgb(58, 118, 160);
-        style.border = ouif::Color::rgb(180, 218, 255);
-        style.border_width = 2.0f;
-        set_style(style);
+        set_size({ 160.0f, 120.0f });
+        set_style(ouif::Style()
+            .with_background(ouif::Color::rgb(42, 92, 130))
+            .with_background_hovered(ouif::Color::rgb(58, 118, 160))
+            .with_background_selected(ouif::Color::rgb(58, 118, 160))
+            .with_border(ouif::Color::rgb(180, 218, 255), 2.0f)
+            .with_border_selected(ouif::Color::rgb(180, 218, 255), 4.0f));
     }
 
 protected:
     bool on_click(const ouif::MouseEvent&) override
     {
+        toggle_state(ouif::WidgetState::Selected);
         return true;
     }
 };
 
 int main()
 {
-    ouif::ApplicationConfig config;
-    config.title = "Hello OUIF";
-    config.width = 960;
-    config.height = 540;
-
-    ouif::Application app(config);
+    ouif::Application app(ouif::ApplicationConfig()
+        .with_title("Hello OUIF")
+        .with_size(960, 540));
     app.set_root(std::make_unique<Panel>());
     return app.run();
 }

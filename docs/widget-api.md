@@ -15,6 +15,7 @@ Every widget has:
 - visibility: `set_visible(bool)` and `visible()`
 - enabled state: `set_enabled(bool)` and `enabled()`
 - interaction state: `hovered()` and `pressed()`
+- custom state: `set_state(...)`, `toggle_state(...)`, and `has_state(...)`
 
 ## Style
 
@@ -23,13 +24,28 @@ Every widget has:
 - `background`
 - `background_hovered`
 - `background_pressed`
+- `background_selected`
 - `foreground`
 - `border`
+- `border_selected`
 - `border_width`
+- `border_width_selected`
 - `radius`
 - `opacity`
 
 The current bgfx renderer draws filled rectangles and borders. `radius` is stored for API stability, but rounded rendering is not implemented yet.
+
+Styles support a fluent builder API:
+
+```cpp
+set_style(ouif::Style()
+    .with_background(base)
+    .with_background_hovered(active)
+    .with_background_pressed(ouif::Color::rgba(22, 27, 35, 255))
+    .with_background_selected(active)
+    .with_border(ouif::Color::rgba(232, 237, 243, 220), 2.0f)
+    .with_border_selected(ouif::Color::rgba(232, 237, 243, 220), 4.0f));
+```
 
 ## Layout
 
@@ -49,6 +65,46 @@ The current bgfx renderer draws filled rectangles and borders. `radius` is store
 - `Content`
 
 The base implementation computes its own bounds and gives children the padded content area. Custom containers can override `on_layout(Rect content)` to position children.
+
+Use `set_size(Size)` for fixed-size widgets:
+
+```cpp
+set_size({ 160.0f, 120.0f });
+```
+
+Use `set_layout_policy(width, height)` for fill/content behavior:
+
+```cpp
+set_layout_policy(ouif::SizePolicy::Fill, ouif::SizePolicy::Fill);
+```
+
+## Built-In Layout Containers
+
+OUIF includes simple linear layout containers:
+
+- `ouif::RowLayout`
+- `ouif::ColLayout`
+
+They support:
+
+- `set_alignment(ouif::Align::Start)`
+- `set_alignment(ouif::Align::Center)`
+- `set_alignment(ouif::Align::End)`
+- `set_gap(float)`
+
+```cpp
+class DemoSurface : public ouif::RowLayout {
+public:
+    DemoSurface()
+    {
+        set_alignment(ouif::Align::Center);
+        set_gap(32.0f);
+        set_layout_policy(ouif::SizePolicy::Fill, ouif::SizePolicy::Fill);
+
+        add_child(std::make_unique<ColorTile>(base, active, ouif::Size { 160.0f, 120.0f }));
+    }
+};
+```
 
 ```cpp
 class Row : public ouif::Widget {
@@ -106,6 +162,16 @@ bool on_click(const ouif::MouseEvent& event) override;
 ```
 
 The base widget tracks hover and pressed state automatically. Events are sent to children in reverse child order so later children behave as visually front-most.
+
+Selected state can be toggled without manually rewriting the style:
+
+```cpp
+bool on_click(const ouif::MouseEvent&) override
+{
+    toggle_state(ouif::WidgetState::Selected);
+    return true;
+}
+```
 
 ## Hit Testing
 
