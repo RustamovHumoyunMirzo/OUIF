@@ -45,6 +45,7 @@ cmake --build build/full-example --target ouif_hello
 cmake --build build/full-example --target ouif_complex_layout
 cmake --build build/full-example --target ouif_css_style
 cmake --build build/full-example --target ouif_xml_ui
+cmake --build build/full-example --target ouif_clipping_scroll
 ```
 
 Run:
@@ -63,6 +64,10 @@ Run:
 
 ```powershell
 .\build\full-example\bin\ouif_xml_ui.exe
+```
+
+```powershell
+.\build\full-example\bin\ouif_clipping_scroll.exe
 ```
 
 The executable needs these files next to it:

@@ -244,6 +244,7 @@ if(OUIF_BUILD_EXAMPLES)
     add_subdirectory(examples/complex_layout)
     add_subdirectory(examples/css_style)
     add_subdirectory(examples/xml_ui)
+    add_subdirectory(examples/clipping_scroll)
 endif()
 
 if(OUIF_BUILD_TESTS)

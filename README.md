@@ -48,6 +48,7 @@ cmake --build build/full-example --target ouif_hello
 cmake --build build/full-example --target ouif_complex_layout
 cmake --build build/full-example --target ouif_css_style
 cmake --build build/full-example --target ouif_xml_ui
+cmake --build build/full-example --target ouif_clipping_scroll
 ctest --test-dir build/full-example --output-on-failure
 ```
 
@@ -67,10 +68,21 @@ The XML UI example is written to:
 
 `build/full-example/bin/ouif_xml_ui.exe`
 
+The clipping and scroll example is written to:
+
+`build/full-example/bin/ouif_clipping_scroll.exe`
+
 ## Documentation
 
 - [Getting Started](docs/getting-started.md)
 - [Raw Widget API](docs/widget-api.md)
+- [Widgets](docs/widgets/index.md)
+- [Layout](docs/layout.md)
+- [Styling](docs/styling.md)
+- [Events](docs/events.md)
+- [Accessibility](docs/accessibility.md)
+- [XML UI](docs/xml-ui.md)
+- [Rendering](docs/rendering.md)
 - [Build And Dependencies](docs/build-and-dependencies.md)
 
 ## CSS Styling
