@@ -426,6 +426,49 @@ bool on_click(const ouif::MouseEvent&) override
 }
 ```
 
+## Accessibility And Keyboard
+
+Widgets opt into keyboard navigation:
+
+```cpp
+class Tile : public ouif::Widget {
+public:
+    Tile()
+    {
+        set_keyboard_activation_enabled(true);
+        set_accessibility_role(ouif::AccessibilityRole::Button);
+        set_accessibility_label("Color tile");
+        set_accessibility_description("Toggles the selected state");
+    }
+
+protected:
+    bool on_click(const ouif::MouseEvent&) override
+    {
+        toggle_state(ouif::WidgetState::Selected);
+        return true;
+    }
+};
+```
+
+Keyboard behavior:
+
+- `Tab` moves to the next focusable widget.
+- `Shift+Tab` moves to the previous focusable widget.
+- `Enter` or `Space` triggers `on_keyboard_activate()` for the focused widget when keyboard activation is enabled.
+- The default `on_keyboard_activate()` calls `on_click()`, so custom widgets usually only need to override click behavior once.
+
+Use `set_focusable(true)` for focus-only widgets, or `set_keyboard_activation_enabled(true)` for controls that should respond to keyboard clicks. Disabled, hidden, or non-focusable widgets are skipped by keyboard navigation.
+
+Available accessible metadata:
+
+```cpp
+set_accessibility({
+    ouif::AccessibilityRole::Button,
+    "Save",
+    "Saves the current document",
+});
+```
+
 ## Hit Testing
 
 The default `hit_test(Point)` checks:

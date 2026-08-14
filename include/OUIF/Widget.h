@@ -29,6 +29,24 @@ enum class WidgetState : std::uint8_t {
     Focused,
 };
 
+enum class AccessibilityRole : std::uint8_t {
+    None,
+    Widget,
+    Button,
+    Checkbox,
+    Radio,
+    Slider,
+    TextInput,
+    Label,
+    Container,
+};
+
+struct AccessibilityInfo {
+    AccessibilityRole role = AccessibilityRole::Widget;
+    std::string label;
+    std::string description;
+};
+
 struct Layout {
     Size preferred_size { 0.0f, 0.0f };
     Size min_size { 0.0f, 0.0f };
@@ -124,6 +142,23 @@ public:
     void set_enabled(bool enabled) noexcept;
     [[nodiscard]] bool enabled() const noexcept;
 
+    void set_focusable(bool focusable) noexcept;
+    [[nodiscard]] bool focusable() const noexcept;
+    [[nodiscard]] bool can_focus() const noexcept;
+    void set_keyboard_activation_enabled(bool enabled) noexcept;
+    [[nodiscard]] bool keyboard_activation_enabled() const noexcept;
+
+    void set_accessibility_role(AccessibilityRole role) noexcept;
+    [[nodiscard]] AccessibilityRole accessibility_role() const noexcept;
+    void set_accessibility_label(std::string label);
+    [[nodiscard]] std::string_view accessibility_label() const noexcept;
+    void set_accessibility_description(std::string description);
+    [[nodiscard]] std::string_view accessibility_description() const noexcept;
+    void set_accessibility(AccessibilityInfo info);
+    [[nodiscard]] const AccessibilityInfo& accessibility() const noexcept;
+
+    bool focus_next(bool reverse = false) noexcept;
+
     Widget& add_child(Widget& child);
     Widget& add_child(std::unique_ptr<Widget> child);
     bool remove_child(Widget& child) noexcept;
@@ -177,6 +212,9 @@ protected:
     virtual bool on_mouse_down(const MouseEvent& event);
     virtual bool on_mouse_up(const MouseEvent& event);
     virtual bool on_click(const MouseEvent& event);
+    virtual bool on_key_down(const KeyEvent& event);
+    virtual bool on_key_up(const KeyEvent& event);
+    virtual bool on_keyboard_activate(const KeyEvent& event);
 
 private:
     void detach_from_parent() noexcept;
@@ -184,6 +222,10 @@ private:
     [[nodiscard]] bool owns_child(const Widget& child) const noexcept;
     void recompute_style() noexcept;
     void apply_stylesheet_to_tree();
+    bool handle_key_event(const KeyEvent& event);
+    bool handle_focused_key_event(const KeyEvent& event);
+    void collect_focusable_widgets(std::vector<Widget*>& widgets) noexcept;
+    [[nodiscard]] bool contains_widget(const Widget& widget) const noexcept;
 
     [[nodiscard]] Point to_local(Point point) const noexcept;
     [[nodiscard]] std::optional<MouseEvent> mouse_event_from(const Event& event) const noexcept;
@@ -198,12 +240,15 @@ private:
     std::string name_;
     std::string type_name_ = "Widget";
     std::vector<std::string> classes_;
+    AccessibilityInfo accessibility_ {};
     std::vector<std::unique_ptr<Widget>> owned_children_;
     std::vector<Widget*> children_;
     bool has_inline_style_ = false;
     bool has_stylesheet_style_ = false;
     bool visible_ = true;
     bool enabled_ = true;
+    bool focusable_ = false;
+    bool keyboard_activation_enabled_ = false;
     bool hovered_ = false;
     bool pressed_ = false;
     bool selected_ = false;

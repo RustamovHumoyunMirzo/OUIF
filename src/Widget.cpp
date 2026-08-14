@@ -6,6 +6,7 @@
 #include <cctype>
 #include <cstring>
 #include <functional>
+#include <iterator>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -910,6 +911,9 @@ float Widget::get_flex() const noexcept
 void Widget::set_visible(bool visible) noexcept
 {
     visible_ = visible;
+    if (!visible_ && focused_) {
+        blur();
+    }
 }
 
 bool Widget::visible() const noexcept
@@ -920,11 +924,116 @@ bool Widget::visible() const noexcept
 void Widget::set_enabled(bool enabled) noexcept
 {
     enabled_ = enabled;
+    if (!enabled_ && focused_) {
+        blur();
+    }
 }
 
 bool Widget::enabled() const noexcept
 {
     return enabled_;
+}
+
+void Widget::set_focusable(bool focusable) noexcept
+{
+    focusable_ = focusable;
+    if (!focusable_ && focused_) {
+        blur();
+    }
+}
+
+bool Widget::focusable() const noexcept
+{
+    return focusable_;
+}
+
+bool Widget::can_focus() const noexcept
+{
+    return visible_ && enabled_ && focusable_;
+}
+
+void Widget::set_keyboard_activation_enabled(bool enabled) noexcept
+{
+    keyboard_activation_enabled_ = enabled;
+    if (enabled) {
+        focusable_ = true;
+    }
+}
+
+bool Widget::keyboard_activation_enabled() const noexcept
+{
+    return keyboard_activation_enabled_;
+}
+
+void Widget::set_accessibility_role(AccessibilityRole role) noexcept
+{
+    accessibility_.role = role;
+}
+
+AccessibilityRole Widget::accessibility_role() const noexcept
+{
+    return accessibility_.role;
+}
+
+void Widget::set_accessibility_label(std::string label)
+{
+    accessibility_.label = std::move(label);
+}
+
+std::string_view Widget::accessibility_label() const noexcept
+{
+    return accessibility_.label;
+}
+
+void Widget::set_accessibility_description(std::string description)
+{
+    accessibility_.description = std::move(description);
+}
+
+std::string_view Widget::accessibility_description() const noexcept
+{
+    return accessibility_.description;
+}
+
+void Widget::set_accessibility(AccessibilityInfo info)
+{
+    accessibility_ = std::move(info);
+}
+
+const AccessibilityInfo& Widget::accessibility() const noexcept
+{
+    return accessibility_;
+}
+
+bool Widget::focus_next(bool reverse) noexcept
+{
+    std::vector<Widget*> focusable_widgets;
+    collect_focusable_widgets(focusable_widgets);
+    if (focusable_widgets.empty()) {
+        return false;
+    }
+
+    auto current = std::find(focusable_widgets.begin(), focusable_widgets.end(), focused_widget_);
+    if (current == focusable_widgets.end()) {
+        (reverse ? focusable_widgets.back() : focusable_widgets.front())->focus();
+        return true;
+    }
+
+    if (reverse) {
+        if (current == focusable_widgets.begin()) {
+            focusable_widgets.back()->focus();
+        } else {
+            (*std::prev(current))->focus();
+        }
+    } else {
+        ++current;
+        if (current == focusable_widgets.end()) {
+            focusable_widgets.front()->focus();
+        } else {
+            (*current)->focus();
+        }
+    }
+    return true;
 }
 
 Widget& Widget::add_child(Widget& child)
@@ -1142,6 +1251,10 @@ bool Widget::event(const Event& event)
         return false;
     }
 
+    if (const auto* key = std::get_if<KeyEvent>(&event)) {
+        return handle_key_event(*key);
+    }
+
     const auto mouse = mouse_event_from(event);
 
     for (auto it = children_.rbegin(); it != children_.rend(); ++it) {
@@ -1178,7 +1291,7 @@ bool Widget::event(const Event& event)
 
     if (mouse->type == MouseEventType::Down) {
         pressed_ = inside;
-        if (inside) {
+        if (inside && can_focus()) {
             focus();
         }
         return inside && on_mouse_down(*mouse);
@@ -1271,6 +1384,33 @@ bool Widget::on_click(const MouseEvent& event)
 {
     (void)event;
     return false;
+}
+
+bool Widget::on_key_down(const KeyEvent& event)
+{
+    (void)event;
+    return false;
+}
+
+bool Widget::on_key_up(const KeyEvent& event)
+{
+    (void)event;
+    return false;
+}
+
+bool Widget::on_keyboard_activate(const KeyEvent& event)
+{
+    (void)event;
+    const Point center {
+        bounds_.x + bounds_.width * 0.5f,
+        bounds_.y + bounds_.height * 0.5f,
+    };
+    return on_click(MouseEvent {
+        MouseEventType::Click,
+        center,
+        { bounds_.width * 0.5f, bounds_.height * 0.5f },
+        MouseButton::Left,
+    });
 }
 
 void Widget::detach_from_parent() noexcept
@@ -1372,6 +1512,66 @@ void Widget::apply_stylesheet_to_tree()
 #else
     (void)this;
 #endif
+}
+
+bool Widget::handle_key_event(const KeyEvent& event)
+{
+    if ((event.action == KeyAction::Press || event.action == KeyAction::Repeat)
+        && event.key == static_cast<std::uint32_t>(Key::Tab)) {
+        return focus_next(event.shift);
+    }
+
+    if (focused_widget_ != nullptr && contains_widget(*focused_widget_)) {
+        return focused_widget_->handle_focused_key_event(event);
+    }
+
+    return handle_focused_key_event(event);
+}
+
+bool Widget::handle_focused_key_event(const KeyEvent& event)
+{
+    bool handled = false;
+    if (event.action == KeyAction::Release) {
+        handled = on_key_up(event);
+    } else {
+        handled = on_key_down(event);
+    }
+
+    if (handled) {
+        return true;
+    }
+
+    const bool activate_key = event.key == static_cast<std::uint32_t>(Key::Enter)
+        || event.key == static_cast<std::uint32_t>(Key::Space);
+    if (keyboard_activation_enabled_ && activate_key && (event.action == KeyAction::Press || event.action == KeyAction::Repeat)) {
+        return on_keyboard_activate(event);
+    }
+
+    return false;
+}
+
+void Widget::collect_focusable_widgets(std::vector<Widget*>& widgets) noexcept
+{
+    if (can_focus()) {
+        widgets.push_back(this);
+    }
+
+    for (auto* child : children_) {
+        if (child != nullptr) {
+            child->collect_focusable_widgets(widgets);
+        }
+    }
+}
+
+bool Widget::contains_widget(const Widget& widget) const noexcept
+{
+    if (&widget == this) {
+        return true;
+    }
+
+    return std::any_of(children_.begin(), children_.end(), [&widget](const auto* child) {
+        return child != nullptr && child->contains_widget(widget);
+    });
 }
 
 Point Widget::to_local(Point point) const noexcept

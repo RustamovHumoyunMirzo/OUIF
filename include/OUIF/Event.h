@@ -19,6 +19,13 @@ enum class KeyAction : std::uint8_t {
     Repeat,
 };
 
+enum class Key : std::uint32_t {
+    Space = 32,
+    Enter = 257,
+    Escape = 256,
+    Tab = 258,
+};
+
 enum class MouseEventType : std::uint8_t {
     Move,
     Enter,
@@ -50,6 +57,10 @@ struct MouseEvent {
 struct KeyEvent {
     std::uint32_t key = 0;
     KeyAction action = KeyAction::Press;
+    bool shift = false;
+    bool control = false;
+    bool alt = false;
+    bool super = false;
 };
 
 struct ResizeEvent {

@@ -94,7 +94,14 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int)
 void key_callback(GLFWwindow* window, int key, int, int action, int)
 {
     if (auto* app = app_from(window)) {
-        app->dispatch_event(KeyEvent { static_cast<std::uint32_t>(key), key_action_from_glfw(action) });
+        app->dispatch_event(KeyEvent {
+            static_cast<std::uint32_t>(key),
+            key_action_from_glfw(action),
+            (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS),
+            (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS),
+            (glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_ALT) == GLFW_PRESS),
+            (glfwGetKey(window, GLFW_KEY_LEFT_SUPER) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_SUPER) == GLFW_PRESS),
+        });
     }
 }
 

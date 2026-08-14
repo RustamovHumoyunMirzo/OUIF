@@ -5,6 +5,22 @@
 #include <memory>
 #include <stdexcept>
 
+namespace {
+
+class ActivatableWidget : public ouif::Widget {
+public:
+    int clicks = 0;
+
+protected:
+    bool on_click(const ouif::MouseEvent&) override
+    {
+        ++clicks;
+        return true;
+    }
+};
+
+} // namespace
+
 int main()
 {
     ouif::Rect rect { 10.0f, 20.0f, 100.0f, 50.0f };
@@ -141,6 +157,42 @@ int main()
     weighted_b.focus();
     assert(!weighted_a.focused());
     assert(weighted_b.focused());
+
+    {
+        ouif::RowLayout root;
+        ActivatableWidget first;
+        ActivatableWidget second;
+        first.set_keyboard_activation_enabled(true);
+        second.set_keyboard_activation_enabled(true);
+        first.set_accessibility({
+            ouif::AccessibilityRole::Button,
+            "First tile",
+            "Activates the first tile",
+        });
+        second.set_accessibility_role(ouif::AccessibilityRole::Button);
+        second.set_accessibility_label("Second tile");
+        root.children(first, second);
+
+        assert(first.can_focus());
+        assert(first.accessibility_role() == ouif::AccessibilityRole::Button);
+        assert(first.accessibility_label() == "First tile");
+        assert(first.accessibility_description() == "Activates the first tile");
+
+        assert(root.event(ouif::KeyEvent { static_cast<std::uint32_t>(ouif::Key::Tab), ouif::KeyAction::Press }));
+        assert(first.focused());
+        assert(root.event(ouif::KeyEvent { static_cast<std::uint32_t>(ouif::Key::Enter), ouif::KeyAction::Press }));
+        assert(first.clicks == 1);
+
+        assert(root.event(ouif::KeyEvent { static_cast<std::uint32_t>(ouif::Key::Tab), ouif::KeyAction::Press }));
+        assert(second.focused());
+        assert(root.event(ouif::KeyEvent { static_cast<std::uint32_t>(ouif::Key::Space), ouif::KeyAction::Press }));
+        assert(second.clicks == 1);
+
+        assert(root.event(ouif::KeyEvent { static_cast<std::uint32_t>(ouif::Key::Tab), ouif::KeyAction::Press, true }));
+        assert(first.focused());
+        first.set_focusable(false);
+        assert(!first.focused());
+    }
 
     {
         ouif::RowLayout root;

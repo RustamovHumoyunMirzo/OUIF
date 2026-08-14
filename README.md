@@ -18,7 +18,8 @@ OUIF is early and intentionally raw. The current API exposes the foundation deve
 - style properties
 - layout constraints and padding
 - margin, padding, flex/weight, and alignment helpers
-- focus state and focus styles
+- focus state, focus styles, keyboard navigation, and keyboard activation
+- accessibility roles, labels, and descriptions for custom widgets
 - border radius with per-corner values
 - CSS stylesheet support through bundled Katana parser
 - web-like `px`, `%`, `vw`, and `vh` sizing for layout values
