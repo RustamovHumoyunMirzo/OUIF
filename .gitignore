@@ -4,7 +4,9 @@ external/
 out/
 .cache/
 .vs/
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 CMakeUserPresets.json
 *.user
 *.suo

@@ -1,0 +1,11 @@
+{
+  "cmake.useCMakePresets": "always",
+  "cmake.configurePreset": "vscode-mingw",
+  "cmake.buildPreset": "vscode-mingw",
+  "cmake.testPreset": "vscode-mingw",
+  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/build/vscode-mingw/compile_commands.json",
+  "C_Cpp.default.cppStandard": "c++20",
+  "C_Cpp.default.intelliSenseMode": "windows-gcc-x64",
+  "C_Cpp.errorSquiggles": "enabled"
+}

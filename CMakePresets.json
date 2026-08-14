@@ -13,6 +13,7 @@
       "binaryDir": "${sourceDir}/build/dev",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "OUIF_BUILD_EXAMPLES": "ON",
         "OUIF_BUILD_TESTS": "ON"
       }
@@ -24,6 +25,19 @@
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "OUIF_BUILD_EXAMPLES": "ON",
+        "OUIF_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "vscode-mingw",
+      "displayName": "VS Code MinGW Debug",
+      "generator": "MinGW Makefiles",
+      "binaryDir": "${sourceDir}/build/vscode-mingw",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "OUIF_BUILD_EXAMPLES": "ON",
         "OUIF_BUILD_TESTS": "ON"
       }
@@ -37,12 +51,23 @@
     {
       "name": "release",
       "configurePreset": "release"
+    },
+    {
+      "name": "vscode-mingw",
+      "configurePreset": "vscode-mingw"
     }
   ],
   "testPresets": [
     {
       "name": "dev",
       "configurePreset": "dev",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "vscode-mingw",
+      "configurePreset": "vscode-mingw",
       "output": {
         "outputOnFailure": true
       }
