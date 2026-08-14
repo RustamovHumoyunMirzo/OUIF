@@ -1217,23 +1217,7 @@ void Widget::draw(Renderer& renderer)
         return;
     }
 
-    if (borders.uniform() && borders.left.width > 0.0f) {
-        renderer.stroke_rounded_rect(bounds_, style_.radius, borders.left.color, borders.left.width);
-        return;
-    }
-
-    if (borders.top.width > 0.0f) {
-        renderer.fill_rect({ bounds_.x, bounds_.y, bounds_.width, borders.top.width }, borders.top.color);
-    }
-    if (borders.bottom.width > 0.0f) {
-        renderer.fill_rect({ bounds_.x, bounds_.y + bounds_.height - borders.bottom.width, bounds_.width, borders.bottom.width }, borders.bottom.color);
-    }
-    if (borders.left.width > 0.0f) {
-        renderer.fill_rect({ bounds_.x, bounds_.y, borders.left.width, bounds_.height }, borders.left.color);
-    }
-    if (borders.right.width > 0.0f) {
-        renderer.fill_rect({ bounds_.x + bounds_.width - borders.right.width, bounds_.y, borders.right.width, bounds_.height }, borders.right.color);
-    }
+    renderer.stroke_rounded_rect(bounds_, style_.radius, borders);
 }
 
 void Widget::on_layout(Rect content)

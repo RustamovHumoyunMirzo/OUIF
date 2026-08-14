@@ -63,6 +63,17 @@ PosColorVertex vertex_from_point(Point point, std::uint32_t width, std::uint32_t
     };
 }
 
+Color mix(Color from, Color to, float amount)
+{
+    const float t = std::clamp(amount, 0.0f, 1.0f);
+    return {
+        from.r + (to.r - from.r) * t,
+        from.g + (to.g - from.g) * t,
+        from.b + (to.b - from.b) * t,
+        from.a + (to.a - from.a) * t,
+    };
+}
+
 void append_arc(std::vector<Point>& points, float cx, float cy, float radius, float start, float end)
 {
     constexpr int segments = 6;
@@ -78,6 +89,71 @@ void append_arc(std::vector<Point>& points, float cx, float cy, float radius, fl
             cx + std::cos(angle) * radius,
             cy + std::sin(angle) * radius,
         });
+    }
+}
+
+struct BorderRingPoint {
+    Point outer;
+    Point inner;
+    Color color;
+};
+
+void append_border_line(std::vector<BorderRingPoint>& points, Point start, Point end, Point inward, float width, Color color)
+{
+    if (width <= 0.0f) {
+        return;
+    }
+
+    if (!points.empty() && points.back().outer.x == start.x && points.back().outer.y == start.y) {
+        points.back().color = mix(points.back().color, color, 0.5f);
+    } else {
+        points.push_back({
+            start,
+            { start.x + inward.x * width, start.y + inward.y * width },
+            color,
+        });
+    }
+
+    points.push_back({
+        end,
+        { end.x + inward.x * width, end.y + inward.y * width },
+        color,
+    });
+}
+
+void append_border_arc(
+    std::vector<BorderRingPoint>& points,
+    float cx,
+    float cy,
+    float radius,
+    float start,
+    float end,
+    float start_width,
+    float end_width,
+    Color start_color,
+    Color end_color
+)
+{
+    constexpr int segments = 12;
+    if (radius <= 0.0f) {
+        return;
+    }
+
+    for (int index = 0; index <= segments; ++index) {
+        const float t = static_cast<float>(index) / static_cast<float>(segments);
+        const float angle = start + (end - start) * t;
+        const float width = start_width + (end_width - start_width) * t;
+        const Point normal { std::cos(angle), std::sin(angle) };
+        const Point outer { cx + normal.x * radius, cy + normal.y * radius };
+        const Point inner { outer.x - normal.x * width, outer.y - normal.y * width };
+        const Color color = mix(start_color, end_color, t);
+
+        if (!points.empty() && points.back().outer.x == outer.x && points.back().outer.y == outer.y) {
+            points.back().color = mix(points.back().color, color, 0.5f);
+            points.back().inner = inner;
+        } else {
+            points.push_back({ outer, inner, color });
+        }
     }
 }
 
@@ -385,40 +461,125 @@ void Renderer::stroke_rect(Rect rect, Color color, float width)
 
 void Renderer::stroke_rounded_rect(Rect rect, CornerRadius radius, Color color, float width)
 {
+    stroke_rounded_rect(rect, radius, BorderEdges(Border(color, width)));
+}
+
+void Renderer::stroke_rounded_rect(Rect rect, CornerRadius radius, BorderEdges borders)
+{
 #if OUIF_WITH_BGFX
-    const bool has_radius = radius.top_left > 0.0f || radius.top_right > 0.0f || radius.bottom_right > 0.0f || radius.bottom_left > 0.0f;
-    if (!has_radius) {
-        stroke_rect(rect, color, width);
+    if (!bgfx::isValid(impl_->rect_program) || rect.width <= 0.0f || rect.height <= 0.0f || borders.empty()) {
         return;
     }
 
-    if (!bgfx::isValid(impl_->rect_program) || rect.width <= 0.0f || rect.height <= 0.0f || width <= 0.0f) {
-        return;
-    }
+    const float max_width = std::min(rect.width, rect.height) * 0.5f;
+    borders.left.width = std::clamp(borders.left.width, 0.0f, max_width);
+    borders.top.width = std::clamp(borders.top.width, 0.0f, max_width);
+    borders.right.width = std::clamp(borders.right.width, 0.0f, max_width);
+    borders.bottom.width = std::clamp(borders.bottom.width, 0.0f, max_width);
 
-    const float inset = std::min(width, std::min(rect.width, rect.height) * 0.5f);
-    const Rect inner_rect {
-        rect.x + inset,
-        rect.y + inset,
-        std::max(0.0f, rect.width - inset * 2.0f),
-        std::max(0.0f, rect.height - inset * 2.0f),
-    };
-    const CornerRadius inner_radius {
-        std::max(0.0f, radius.top_left - inset),
-        std::max(0.0f, radius.top_right - inset),
-        std::max(0.0f, radius.bottom_right - inset),
-        std::max(0.0f, radius.bottom_left - inset),
+    const float top_left = clamp_radius(radius.top_left, rect);
+    const float top_right = clamp_radius(radius.top_right, rect);
+    const float bottom_right = clamp_radius(radius.bottom_right, rect);
+    const float bottom_left = clamp_radius(radius.bottom_left, rect);
+    const auto visible_color = [](Border border) {
+        Color color = border.color;
+        if (border.width <= 0.0f) {
+            color.a = 0.0f;
+        }
+        return color;
     };
 
-    const auto outer = rounded_rect_points(rect, radius);
-    const auto inner = rounded_rect_points(inner_rect, inner_radius);
-    if (outer.size() != inner.size()) {
-        stroke_rect(rect, color, width);
+    constexpr float pi = 3.14159265358979323846f;
+    std::vector<BorderRingPoint> points;
+    points.reserve(72);
+
+    append_border_line(
+        points,
+        { rect.x + top_left, rect.y },
+        { rect.x + rect.width - top_right, rect.y },
+        { 0.0f, 1.0f },
+        borders.top.width,
+        visible_color(borders.top)
+    );
+    append_border_arc(
+        points,
+        rect.x + rect.width - top_right,
+        rect.y + top_right,
+        top_right,
+        -pi * 0.5f,
+        0.0f,
+        borders.top.width,
+        borders.right.width,
+        visible_color(borders.top),
+        visible_color(borders.right)
+    );
+    append_border_line(
+        points,
+        { rect.x + rect.width, rect.y + top_right },
+        { rect.x + rect.width, rect.y + rect.height - bottom_right },
+        { -1.0f, 0.0f },
+        borders.right.width,
+        visible_color(borders.right)
+    );
+    append_border_arc(
+        points,
+        rect.x + rect.width - bottom_right,
+        rect.y + rect.height - bottom_right,
+        bottom_right,
+        0.0f,
+        pi * 0.5f,
+        borders.right.width,
+        borders.bottom.width,
+        visible_color(borders.right),
+        visible_color(borders.bottom)
+    );
+    append_border_line(
+        points,
+        { rect.x + rect.width - bottom_right, rect.y + rect.height },
+        { rect.x + bottom_left, rect.y + rect.height },
+        { 0.0f, -1.0f },
+        borders.bottom.width,
+        visible_color(borders.bottom)
+    );
+    append_border_arc(
+        points,
+        rect.x + bottom_left,
+        rect.y + rect.height - bottom_left,
+        bottom_left,
+        pi * 0.5f,
+        pi,
+        borders.bottom.width,
+        borders.left.width,
+        visible_color(borders.bottom),
+        visible_color(borders.left)
+    );
+    append_border_line(
+        points,
+        { rect.x, rect.y + rect.height - bottom_left },
+        { rect.x, rect.y + top_left },
+        { 1.0f, 0.0f },
+        borders.left.width,
+        visible_color(borders.left)
+    );
+    append_border_arc(
+        points,
+        rect.x + top_left,
+        rect.y + top_left,
+        top_left,
+        pi,
+        pi * 1.5f,
+        borders.left.width,
+        borders.top.width,
+        visible_color(borders.left),
+        visible_color(borders.top)
+    );
+
+    if (points.size() < 2) {
         return;
     }
 
-    const std::uint32_t vertex_count = static_cast<std::uint32_t>(outer.size() * 2U);
-    const std::uint32_t index_count = static_cast<std::uint32_t>(outer.size() * 6U);
+    const std::uint32_t vertex_count = static_cast<std::uint32_t>(points.size() * 2U);
+    const std::uint32_t index_count = static_cast<std::uint32_t>(points.size() * 6U);
     if (vertex_count > bgfx::getAvailTransientVertexBuffer(vertex_count, PosColorVertex::layout)
         || index_count > bgfx::getAvailTransientIndexBuffer(index_count)) {
         return;
@@ -429,18 +590,18 @@ void Renderer::stroke_rounded_rect(Rect rect, CornerRadius radius, Color color, 
     bgfx::allocTransientVertexBuffer(&vertices, vertex_count, PosColorVertex::layout);
     bgfx::allocTransientIndexBuffer(&indices, index_count);
 
-    const auto abgr = pack_abgr(color);
     auto* vertex_data = reinterpret_cast<PosColorVertex*>(vertices.data);
-    for (std::size_t index = 0; index < outer.size(); ++index) {
-        vertex_data[index] = vertex_from_point(outer[index], impl_->width, impl_->height, abgr);
-        vertex_data[index + outer.size()] = vertex_from_point(inner[index], impl_->width, impl_->height, abgr);
+    for (std::size_t index = 0; index < points.size(); ++index) {
+        const auto abgr = pack_abgr(points[index].color);
+        vertex_data[index] = vertex_from_point(points[index].outer, impl_->width, impl_->height, abgr);
+        vertex_data[index + points.size()] = vertex_from_point(points[index].inner, impl_->width, impl_->height, abgr);
     }
 
     auto* index_data = reinterpret_cast<std::uint16_t*>(indices.data);
-    for (std::uint16_t index = 0; index < static_cast<std::uint16_t>(outer.size()); ++index) {
-        const std::uint16_t next = static_cast<std::uint16_t>((index + 1U) % outer.size());
-        const std::uint16_t inner_index = static_cast<std::uint16_t>(index + outer.size());
-        const std::uint16_t inner_next = static_cast<std::uint16_t>(next + outer.size());
+    for (std::uint16_t index = 0; index < static_cast<std::uint16_t>(points.size()); ++index) {
+        const std::uint16_t next = static_cast<std::uint16_t>((index + 1U) % points.size());
+        const std::uint16_t inner_index = static_cast<std::uint16_t>(index + points.size());
+        const std::uint16_t inner_next = static_cast<std::uint16_t>(next + points.size());
         index_data[index * 6U + 0U] = index;
         index_data[index * 6U + 1U] = next;
         index_data[index * 6U + 2U] = inner_index;
@@ -455,7 +616,9 @@ void Renderer::stroke_rounded_rect(Rect rect, CornerRadius radius, Color color, 
     bgfx::submit(0, impl_->rect_program);
 #else
     (void)radius;
-    stroke_rect(rect, color, width);
+    if (borders.top.width > 0.0f) {
+        stroke_rect({ rect.x, rect.y, rect.width, rect.height }, borders.top.color, borders.top.width);
+    }
 #endif
 }
 
