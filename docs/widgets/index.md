@@ -12,5 +12,7 @@ Current widget/container docs:
 - [ColLayout](col-layout.md)
 - [RowScroll](row-scroll.md)
 - [ColScroll](col-scroll.md)
+- [Spacer](spacer.md)
+- [Divider](divider.md)
 
 Future controls such as buttons, sliders, inputs, lists, and text widgets should get their own page in this directory when they are added.

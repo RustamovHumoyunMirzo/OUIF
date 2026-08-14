@@ -19,6 +19,7 @@ OUIF is early and intentionally raw. The current API exposes the foundation deve
 - layout constraints and padding
 - margin, padding, flex/weight, and alignment helpers
 - row/column scroll containers with clipping control
+- spacer and divider widgets for common layout structure
 - focus state, focus styles, keyboard navigation, and keyboard activation
 - accessibility roles, labels, and descriptions for custom widgets
 - border radius with per-corner values

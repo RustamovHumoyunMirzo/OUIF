@@ -29,10 +29,14 @@
                    size="160,120"
                    style="background: #2f6c9c; hover-background: #4692c4;" />
 
+        <Divider orientation="vertical" thickness="1" color="#647084" />
+
         <!-- Tile 2: Styled via Multiple CSS Classes -->
         <ColorTile id="violet_tile"
                    class="color-tile tile-violet selected-tile"
                    size="160,120" />
+
+        <Spacer size="8,1" />
 
         <!-- Tile 3: Fully Inline Styled (No external CSS dependence) -->
         <ColorTile id="green_tile"

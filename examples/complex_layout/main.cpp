@@ -26,6 +26,7 @@ class Sidebar : public ouif::ColLayout {
 public:
     Sidebar()
         : header_("#243244", "#31445c", { 188.0f, 64.0f })
+        , divider_(ouif::Orientation::Horizontal, 1.0f)
         , nav_a_("#1b2533", "#26364a", { 188.0f, 44.0f })
         , nav_b_("#1b2533", "#26364a", { 188.0f, 44.0f })
         , nav_c_("#1b2533", "#26364a", { 188.0f, 44.0f })
@@ -41,15 +42,16 @@ public:
             .hovered = "#151d28",
             .border = { "#2c3748", 1.0f },
         });
+        divider_.set_color("#2c3748");
 
-        children(header_, nav_a_, nav_b_, nav_c_);
-        auto& spacer = add_child<Block>("#182231", "#26364a");
-        spacer.set_flex(1.0f);
+        children(header_, divider_, nav_a_, nav_b_, nav_c_);
+        add_child<ouif::Spacer>(1.0f);
         add_child(footer_);
     }
 
 private:
     Block header_;
+    ouif::Divider divider_;
     Block nav_a_;
     Block nav_b_;
     Block nav_c_;

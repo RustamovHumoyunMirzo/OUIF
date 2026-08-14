@@ -145,6 +145,29 @@ int main()
     assert(fill_b.bounds().width == 140.0f);
     assert(fill_b.bounds().x == 160.0f);
 
+    {
+        ouif::RowLayout spacer_row;
+        spacer_row.set_bounds({ 0.0f, 0.0f, 300.0f, 80.0f });
+        auto& left = spacer_row.add_child<ouif::Widget>();
+        auto& spacer = spacer_row.add_child<ouif::Spacer>(1.0f);
+        auto& divider = spacer_row.add_child<ouif::Divider>(ouif::Orientation::Vertical, 3.0f);
+        auto& right = spacer_row.add_child<ouif::Widget>();
+        left.set_size({ 60.0f, 40.0f });
+        right.set_size({ 60.0f, 40.0f });
+        spacer_row.layout({ 300.0f, 80.0f });
+
+        assert(spacer.get_flex() == 1.0f);
+        assert(std::fabs(spacer.bounds().width - 177.0f) < 0.01f);
+        assert(divider.orientation() == ouif::Orientation::Vertical);
+        assert(std::fabs(divider.thickness() - 3.0f) < 0.01f);
+        assert(std::fabs(divider.bounds().width - 3.0f) < 0.01f);
+        assert(!spacer.event(ouif::MouseButtonEvent { { 70.0f, 10.0f }, {}, ouif::MouseButton::Left, true }));
+        assert(!divider.event(ouif::MouseButtonEvent { { 240.0f, 10.0f }, {}, ouif::MouseButton::Left, true }));
+
+        divider.set_color("#e8edf3");
+        assert(divider.color().r > 0.8f);
+    }
+
     ouif::RowLayout weighted_row;
     weighted_row.set_bounds({ 0.0f, 0.0f, 320.0f, 100.0f });
     weighted_row.set_gap(20.0f);
@@ -345,6 +368,8 @@ int main()
                 </Style>
                 <RowLayout id="surface" class="surface" gap="12" alignment="center" policy="fill,fill">
                     <XmlTile id="tile_a" class="tile" size="80,40" style="background: #2f6c9c; border: 2px solid #e8edf3;" />
+                    <Spacer flex="1" />
+                    <Divider orientation="vertical" thickness="2" color="#e8edf3" />
                 </RowLayout>
             </Window>
         )xml");
@@ -353,10 +378,15 @@ int main()
         assert(row != nullptr);
         assert(row->name() == "surface");
         assert(row->gap() == 12.0f);
-        assert(row->children().size() == 1);
+        assert(row->children().size() == 3);
         assert(row->children()[0]->name() == "tile_a");
         assert(row->children()[0]->layout_rules().preferred_size.width == 80.0f);
         assert(std::fabs(row->children()[0]->get_border().width - 2.0f) < 0.01f);
+        assert(dynamic_cast<ouif::Spacer*>(row->children()[1]) != nullptr);
+        auto* divider = dynamic_cast<ouif::Divider*>(row->children()[2]);
+        assert(divider != nullptr);
+        assert(divider->orientation() == ouif::Orientation::Vertical);
+        assert(std::fabs(divider->thickness() - 2.0f) < 0.01f);
     }
 
     {

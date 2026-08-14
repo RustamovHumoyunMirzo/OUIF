@@ -61,8 +61,25 @@ The second widget gets twice the remaining main-axis space.
 - `ColLayout`: top-to-bottom.
 - `RowScroll`: horizontal scrolling.
 - `ColScroll`: vertical scrolling.
+- `Spacer`: empty layout space.
+- `Divider`: visual separator line.
 
 See [widgets](widgets/index.md) for per-container pages.
+
+## Spacers And Dividers
+
+Use `Spacer` for flexible empty space:
+
+```cpp
+row.add_child<ouif::Spacer>(1.0f);
+```
+
+Use `Divider` for a separator that participates in layout:
+
+```cpp
+column.add_child<ouif::Divider>(ouif::Orientation::Horizontal, 1.0f);
+row.add_child<ouif::Divider>(ouif::Orientation::Vertical, 1.0f);
+```
 
 ## Custom Containers
 

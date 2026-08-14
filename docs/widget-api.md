@@ -316,6 +316,8 @@ OUIF includes simple linear layout containers:
 - `ouif::ColLayout`
 - `ouif::RowScroll`
 - `ouif::ColScroll`
+- `ouif::Spacer`
+- `ouif::Divider`
 
 They support:
 
@@ -357,6 +359,13 @@ Useful scroll APIs:
 - `scroll_animating()`
 
 Use `set_clip_content(false)` when a container should allow children to draw and receive mouse events outside its bounds.
+
+Use `Spacer` for empty layout space and `Divider` for separator lines:
+
+```cpp
+row.add_child<ouif::Spacer>(1.0f);
+column.add_child<ouif::Divider>(ouif::Orientation::Horizontal, 1.0f);
+```
 
 ```cpp
 class DemoSurface : public ouif::RowLayout {

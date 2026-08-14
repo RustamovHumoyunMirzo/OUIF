@@ -123,6 +123,7 @@ target_sources(
         src/Layout.cpp
         src/Renderer.cpp
         src/Widget.cpp
+        src/Widgets.cpp
         src/Xml.cpp
     PUBLIC
         FILE_SET HEADERS
@@ -138,6 +139,7 @@ target_sources(
             include/OUIF/Renderer.h
             include/OUIF/Style.h
             include/OUIF/Widget.h
+            include/OUIF/Widgets.h
             include/OUIF/Xml.h
 )
 

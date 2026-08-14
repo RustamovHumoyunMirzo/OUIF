@@ -1,6 +1,7 @@
 #include <OUIF/Application.h>
 
 #include <OUIF/Layout.h>
+#include <OUIF/Widgets.h>
 
 #include <algorithm>
 #include <charconv>
@@ -207,6 +208,15 @@ AccessibilityRole parse_role(std::string_view value)
     return AccessibilityRole::Widget;
 }
 
+Orientation parse_orientation(std::string_view value)
+{
+    const auto lower = lower_copy(trim_copy(value));
+    if (lower == "vertical" || lower == "v" || lower == "column" || lower == "col") {
+        return Orientation::Vertical;
+    }
+    return Orientation::Horizontal;
+}
+
 std::string read_text_file(const std::filesystem::path& path)
 {
     std::ifstream file(path, std::ios::binary);
@@ -281,6 +291,12 @@ std::unique_ptr<Widget> make_builtin_widget(std::string_view tag)
     }
     if (tag_is(tag, "ColScroll") || tag_is(tag, "VerticalScroll")) {
         return std::make_unique<ColScroll>();
+    }
+    if (tag_is(tag, "Spacer")) {
+        return std::make_unique<Spacer>();
+    }
+    if (tag_is(tag, "Divider")) {
+        return std::make_unique<Divider>();
     }
     return nullptr;
 }
@@ -376,6 +392,20 @@ void apply_common_attributes(Widget& widget, const XmlElement& element, std::str
             scroll->set_scroll_smoothing(*smoothing);
         } else if (auto smoothing = element.attribute_float("scroll-smoothing")) {
             scroll->set_scroll_smoothing(*smoothing);
+        }
+    }
+
+    if (auto* divider = dynamic_cast<Divider*>(&widget)) {
+        if (element.has_attribute("orientation")) {
+            divider->set_orientation(parse_orientation(element.attribute("orientation")));
+        } else if (element.has_attribute("axis")) {
+            divider->set_orientation(parse_orientation(element.attribute("axis")));
+        }
+        if (auto thickness = element.attribute_float("thickness")) {
+            divider->set_thickness(*thickness);
+        }
+        if (auto color = element.attribute_color("color")) {
+            divider->set_color(*color);
         }
     }
 

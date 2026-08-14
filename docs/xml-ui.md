@@ -42,6 +42,8 @@ app.register_xml_widget("ColorTile", [](const ouif::XmlElement& element) {
 - `ColLayout`
 - `RowScroll`
 - `ColScroll`
+- `Spacer`
+- `Divider`
 
 Aliases:
 
@@ -72,6 +74,9 @@ Aliases:
 - `scroll-step`
 - `smooth-scroll`
 - `scroll-smoothing`
+- `orientation`
+- `thickness`
+- `color`
 - `focusable`
 - `keyboard-activation`
 - `role`
