@@ -19,6 +19,11 @@ protected:
     }
 };
 
+class XmlTile : public ouif::Widget {
+public:
+    XmlTile() = default;
+};
+
 } // namespace
 
 int main()
@@ -279,6 +284,34 @@ int main()
 
         widget.set_border_left(ouif::Color::hex(0xffffff), 10.0f);
         assert(std::fabs(widget.get_border_left().width - 10.0f) < 0.01f);
+    }
+
+    {
+        ouif::Application app;
+        app.register_xml_widget("XmlTile", [](const ouif::XmlElement& element) {
+            (void)element;
+            return std::make_unique<XmlTile>();
+        });
+
+        auto& loaded = app.load_xml_string(R"xml(
+            <Window title="XML Test" width="640" height="360" clear_color="#101218">
+                <Style>
+                    .tile { background-hovered: #4692c4; }
+                </Style>
+                <RowLayout id="surface" class="surface" gap="12" alignment="center" policy="fill,fill">
+                    <XmlTile id="tile_a" class="tile" size="80,40" style="background: #2f6c9c; border: 2px solid #e8edf3;" />
+                </RowLayout>
+            </Window>
+        )xml");
+
+        auto* row = dynamic_cast<ouif::RowLayout*>(&loaded);
+        assert(row != nullptr);
+        assert(row->name() == "surface");
+        assert(row->gap() == 12.0f);
+        assert(row->children().size() == 1);
+        assert(row->children()[0]->name() == "tile_a");
+        assert(row->children()[0]->layout_rules().preferred_size.width == 80.0f);
+        assert(std::fabs(row->children()[0]->get_border().width - 2.0f) < 0.01f);
     }
 
     {

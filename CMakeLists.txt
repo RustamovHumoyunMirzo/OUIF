@@ -18,6 +18,7 @@ option(OUIF_BUILD_TESTS "Build OUIF tests" ON)
 option(OUIF_FETCH_BGFX "Fetch bgfx with CMake FetchContent" ON)
 option(OUIF_FETCH_GLFW "Fetch GLFW for OUIF's private window backend" ON)
 option(OUIF_USE_KATANA "Build Katana CSS parser for OUIF stylesheet support" ON)
+option(OUIF_USE_PUGIXML "Build pugixml for OUIF XML UI support" ON)
 option(OUIF_INSTALL "Generate install targets" ON)
 set(OUIF_DEPS_DIR "${PROJECT_SOURCE_DIR}/external" CACHE PATH "Directory for OUIF-managed source dependencies")
 
@@ -92,6 +93,19 @@ if(OUIF_USE_KATANA)
     endif()
 endif()
 
+if(OUIF_USE_PUGIXML)
+    set(OUIF_PUGIXML_DIR "${OUIF_DEPS_DIR}/pugixml" CACHE PATH "pugixml source directory")
+    if(EXISTS "${OUIF_PUGIXML_DIR}/CMakeLists.txt")
+        set(PUGIXML_BUILD_TESTS OFF CACHE BOOL "Build pugixml tests" FORCE)
+        add_subdirectory("${OUIF_PUGIXML_DIR}" "${PROJECT_BINARY_DIR}/_deps/pugixml-build")
+    else()
+        message(FATAL_ERROR
+            "pugixml sources were not found at ${OUIF_PUGIXML_DIR}. "
+            "Run scripts/fetch-deps.ps1 or scripts/fetch-deps.sh, then configure again."
+        )
+    endif()
+endif()
+
 include(cmake/OUIFFunctions.cmake)
 
 set(OUIF_LIBRARY_TYPE STATIC)
@@ -109,6 +123,7 @@ target_sources(
         src/Layout.cpp
         src/Renderer.cpp
         src/Widget.cpp
+        src/Xml.cpp
     PUBLIC
         FILE_SET HEADERS
         BASE_DIRS include
@@ -123,6 +138,7 @@ target_sources(
             include/OUIF/Renderer.h
             include/OUIF/Style.h
             include/OUIF/Widget.h
+            include/OUIF/Xml.h
 )
 
 target_compile_features(ouif PUBLIC cxx_std_20)
@@ -157,6 +173,16 @@ if(TARGET ouif_katana)
     target_compile_definitions(ouif PRIVATE OUIF_WITH_KATANA=1)
 else()
     target_compile_definitions(ouif PRIVATE OUIF_WITH_KATANA=0)
+endif()
+
+if(TARGET pugixml::pugixml)
+    target_link_libraries(ouif PRIVATE pugixml::pugixml)
+    target_compile_definitions(ouif PRIVATE OUIF_WITH_PUGIXML=1)
+elseif(TARGET pugixml)
+    target_link_libraries(ouif PRIVATE pugixml)
+    target_compile_definitions(ouif PRIVATE OUIF_WITH_PUGIXML=1)
+else()
+    target_compile_definitions(ouif PRIVATE OUIF_WITH_PUGIXML=0)
 endif()
 
 if(TARGET bgfx AND TARGET shaderc)
@@ -217,6 +243,7 @@ if(OUIF_BUILD_EXAMPLES)
     add_subdirectory(examples/hello)
     add_subdirectory(examples/complex_layout)
     add_subdirectory(examples/css_style)
+    add_subdirectory(examples/xml_ui)
 endif()
 
 if(OUIF_BUILD_TESTS)

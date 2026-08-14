@@ -1,0 +1,18 @@
+.tile-blue {
+    background-hovered: #4692c4;
+}
+
+.tile-violet {
+    background: #7a529c;
+    background-hovered: #a270c6;
+}
+
+.tile-violet:selected {
+    background: #a270c6;
+}
+
+.tile-blue:selected,
+.tile-violet:selected,
+.color-tile:selected {
+    border: 4px solid #e8edf3dc;
+}

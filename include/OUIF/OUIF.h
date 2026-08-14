@@ -9,3 +9,4 @@
 #include <OUIF/Renderer.h>
 #include <OUIF/Style.h>
 #include <OUIF/Widget.h>
+#include <OUIF/Xml.h>

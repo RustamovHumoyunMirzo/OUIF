@@ -78,7 +78,7 @@ std::optional<float> pixels_from_value(const KatanaValue& value)
     if (value.unit == KATANA_VALUE_PARSER_INTEGER) {
         return static_cast<float>(value.iValue);
     }
-    if (value.unit == KATANA_VALUE_NUMBER || value.unit == KATANA_VALUE_PX) {
+    if (value.unit == KATANA_VALUE_NUMBER || value.unit == KATANA_VALUE_PX || value.unit == KATANA_VALUE_DIMENSION) {
         return static_cast<float>(value.fValue);
     }
 
@@ -111,6 +111,33 @@ KatanaValue* value_at(KatanaArray* values, unsigned int index)
         return nullptr;
     }
     return static_cast<KatanaValue*>(values->data[index]);
+}
+
+void collect_values(KatanaValue& value, std::vector<KatanaValue*>& values)
+{
+    if (value.unit == KATANA_VALUE_PARSER_LIST && value.list != nullptr) {
+        for (unsigned int index = 0; index < value.list->length; ++index) {
+            auto* nested = value_at(value.list, index);
+            if (nested != nullptr) {
+                collect_values(*nested, values);
+            }
+        }
+        return;
+    }
+
+    values.push_back(&value);
+}
+
+std::vector<KatanaValue*> flattened_values(KatanaArray* source)
+{
+    std::vector<KatanaValue*> values;
+    for (unsigned int index = 0; source != nullptr && index < source->length; ++index) {
+        auto* value = value_at(source, index);
+        if (value != nullptr) {
+            collect_values(*value, values);
+        }
+    }
+    return values;
 }
 
 void apply_background(Style& style, CssState state, Color color)
@@ -181,7 +208,7 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
         return;
     }
 
-    if (property == "background-hovered" || property == "with-background-hovered") {
+    if (property == "background-hovered" || property == "hover-background" || property == "with-background-hovered") {
         if (auto color = color_from_value(*first)) {
             style.with_background_hovered(*color);
             touched_style = true;
@@ -189,7 +216,7 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
         return;
     }
 
-    if (property == "background-pressed" || property == "with-background-pressed") {
+    if (property == "background-pressed" || property == "pressed-background" || property == "with-background-pressed") {
         if (auto color = color_from_value(*first)) {
             style.with_background_pressed(*color);
             touched_style = true;
@@ -197,7 +224,7 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
         return;
     }
 
-    if (property == "background-selected" || property == "with-background-selected") {
+    if (property == "background-selected" || property == "selected-background" || property == "with-background-selected") {
         if (auto color = color_from_value(*first)) {
             style.with_background_selected(*color);
             touched_style = true;
@@ -205,7 +232,7 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
         return;
     }
 
-    if (property == "background-focused" || property == "with-background-focused") {
+    if (property == "background-focused" || property == "focused-background" || property == "with-background-focused") {
         if (auto color = color_from_value(*first)) {
             style.with_background_focused(*color);
             touched_style = true;
@@ -224,8 +251,7 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
     if (property == "border" || property == "border-selected" || property == "border-focused") {
         std::optional<Color> border_color;
         std::optional<float> border_width;
-        for (unsigned int index = 0; declaration.values != nullptr && index < declaration.values->length; ++index) {
-            auto* value = value_at(declaration.values, index);
+        for (auto* value : flattened_values(declaration.values)) {
             if (value == nullptr) {
                 continue;
             }
@@ -247,8 +273,7 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
     if (property == "border-left" || property == "border-top" || property == "border-right" || property == "border-bottom") {
         std::optional<Color> border_color;
         std::optional<float> border_width;
-        for (unsigned int index = 0; declaration.values != nullptr && index < declaration.values->length; ++index) {
-            auto* value = value_at(declaration.values, index);
+        for (auto* value : flattened_values(declaration.values)) {
             if (value == nullptr) {
                 continue;
             }

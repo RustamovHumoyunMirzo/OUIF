@@ -24,5 +24,6 @@ sync_repo "https://github.com/bkaradzic/bx.git" "$bgfx_cmake/bx"
 sync_repo "https://github.com/bkaradzic/bimg.git" "$bgfx_cmake/bimg"
 sync_repo "https://github.com/glfw/glfw.git" "$deps_dir/glfw"
 sync_repo "https://github.com/hackers-painters/katana-parser.git" "$deps_dir/katana"
+sync_repo "https://github.com/zeux/pugixml.git" "$deps_dir/pugixml"
 
 printf 'OUIF dependencies are ready in %s\n' "$deps_dir"

@@ -1,0 +1,17 @@
+.surface-container {
+    background: #1c1f26;
+    border: 1px solid #647084;
+    padding: 24px;
+    radius: 18px;
+}
+
+.color-tile {
+    border: 2px solid #e8edf3dc;
+    border-focused: 3px solid #f5d36c;
+    background-pressed: #161b23;
+    radius: 16px;
+}
+
+.color-tile:focus {
+    background: #20252e;
+}

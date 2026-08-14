@@ -33,6 +33,7 @@ The script fetches:
 - `bimg`
 - `glfw`
 - `katana-parser`
+- `pugixml`
 
 This explicit layout avoids slow or fragile recursive submodule fetching during CMake configure.
 
@@ -43,6 +44,7 @@ cmake -S . -B build/full-example -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug
 cmake --build build/full-example --target ouif_hello
 cmake --build build/full-example --target ouif_complex_layout
 cmake --build build/full-example --target ouif_css_style
+cmake --build build/full-example --target ouif_xml_ui
 ```
 
 Run:
@@ -57,6 +59,10 @@ Run:
 
 ```powershell
 .\build\full-example\bin\ouif_css_style.exe
+```
+
+```powershell
+.\build\full-example\bin\ouif_xml_ui.exe
 ```
 
 The executable needs these files next to it:
@@ -190,3 +196,36 @@ row.set_stylesheet(R"css(
 ```
 
 Use `add_class("tile")`, `set_name("primary")`, and `set_type_name("Panel")` for selectors. Supported state selectors include `:hover`, `:active`, `:selected`, `:checked`, and `:focus`.
+
+## XML UI
+
+XML can define the window metadata, linked CSS files, embedded CSS, and the widget tree. Built-in tags include `Widget`, `RowLayout`, and `ColLayout`; app-specific tags are registered from C++:
+
+```cpp
+ouif::Application app;
+app.register_xml_widget("ColorTile", [](const ouif::XmlElement& element) {
+    auto tile = std::make_unique<ColorTile>();
+    tile->set_accessibility_label(std::string(element.attribute("id", "Color tile")));
+    return tile;
+});
+
+app.load_xml("myui.xml");
+return app.run();
+```
+
+XML can link stylesheets and use inline CSS attributes:
+
+```xml
+<Window title="Hello OUIF" width="960" height="540" clear_color="#101218">
+    <Stylesheet src="styles/base.css" />
+    <Style>
+        .tile:selected { border: 4px solid #e8edf3dc; }
+    </Style>
+
+    <RowLayout id="surface" class="panel" gap="32" alignment="center" policy="fill,fill">
+        <ColorTile id="blue" class="tile" size="160,120" style="background: #2f6c9c;" />
+    </RowLayout>
+</Window>
+```
+
+After `load_xml()`, the returned root is a normal `Widget&`, so C++ can still add classes, join stylesheets, add children, or inspect/manage the tree.

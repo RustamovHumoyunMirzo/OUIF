@@ -22,6 +22,7 @@ OUIF is early and intentionally raw. The current API exposes the foundation deve
 - accessibility roles, labels, and descriptions for custom widgets
 - border radius with per-corner values
 - CSS stylesheet support through bundled Katana parser
+- XML UI files through bundled pugixml, including linked CSS and inline style attributes
 - web-like `px`, `%`, `vw`, and `vh` sizing for layout values
 - safe parent/child tracking for owned and member widgets
 - bgfx-backed rectangle rendering
@@ -45,6 +46,7 @@ cmake -S . -B build/full-example -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug
 cmake --build build/full-example --target ouif_hello
 cmake --build build/full-example --target ouif_complex_layout
 cmake --build build/full-example --target ouif_css_style
+cmake --build build/full-example --target ouif_xml_ui
 ctest --test-dir build/full-example --output-on-failure
 ```
 
@@ -59,6 +61,10 @@ The complex layout stress example is written to:
 The stylesheet example is written to:
 
 `build/full-example/bin/ouif_css_style.exe`
+
+The XML UI example is written to:
+
+`build/full-example/bin/ouif_xml_ui.exe`
 
 ## Documentation
 
