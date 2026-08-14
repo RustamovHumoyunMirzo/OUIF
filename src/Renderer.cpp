@@ -50,7 +50,8 @@ std::uint32_t pack_abgr(Color color)
 
 float clamp_radius(float radius, Rect rect)
 {
-    return std::clamp(radius, 0.0f, std::min(rect.width, rect.height) * 0.5f);
+    const float maximum = std::max(0.0f, std::min(rect.width, rect.height) * 0.5f);
+    return std::clamp(radius, 0.0f, maximum);
 }
 
 PosColorVertex vertex_from_point(Point point, std::uint32_t width, std::uint32_t height, std::uint32_t abgr)
@@ -310,8 +311,10 @@ void Renderer::initialize(const RendererConfig& config)
 
     bgfx::Init init;
     init.type = config.quality.hardware_acceleration ? bgfx::RendererType::Count : bgfx::RendererType::Noop;
-    init.resolution.width = config.width;
-    init.resolution.height = config.height;
+    const auto width = std::max<std::uint32_t>(1U, config.width);
+    const auto height = std::max<std::uint32_t>(1U, config.height);
+    init.resolution.width = width;
+    init.resolution.height = height;
     init.resolution.reset = impl_->reset_flags;
 
     if (config.native_window != nullptr) {
@@ -323,7 +326,7 @@ void Renderer::initialize(const RendererConfig& config)
     }
 
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x121418ff, 1.0f, 0);
-    bgfx::setViewRect(0, 0, 0, config.width, config.height);
+    bgfx::setViewRect(0, 0, 0, width, height);
 
     const std::filesystem::path shader_root = config.shader_directory != nullptr
         ? std::filesystem::path(config.shader_directory)
@@ -351,8 +354,8 @@ void Renderer::initialize(const RendererConfig& config)
 #endif
 
     impl_->initialized = true;
-    impl_->width = config.width;
-    impl_->height = config.height;
+    impl_->width = width;
+    impl_->height = height;
 }
 
 void Renderer::shutdown() noexcept
@@ -374,6 +377,8 @@ void Renderer::shutdown() noexcept
 
 void Renderer::resize(std::uint32_t width, std::uint32_t height)
 {
+    width = std::max<std::uint32_t>(1U, width);
+    height = std::max<std::uint32_t>(1U, height);
     impl_->width = width;
     impl_->height = height;
 
@@ -446,6 +451,10 @@ void Renderer::fill_rect(Rect rect, Color color)
 void Renderer::fill_rounded_rect(Rect rect, CornerRadius radius, Color color)
 {
 #if OUIF_WITH_BGFX
+    if (!bgfx::isValid(impl_->rect_program) || rect.width <= 0.0f || rect.height <= 0.0f) {
+        return;
+    }
+
     const float top_left = clamp_radius(radius.top_left, rect);
     const float top_right = clamp_radius(radius.top_right, rect);
     const float bottom_right = clamp_radius(radius.bottom_right, rect);
@@ -453,10 +462,6 @@ void Renderer::fill_rounded_rect(Rect rect, CornerRadius radius, Color color)
 
     if (top_left == 0.0f && top_right == 0.0f && bottom_right == 0.0f && bottom_left == 0.0f) {
         fill_rect(rect, color);
-        return;
-    }
-
-    if (!bgfx::isValid(impl_->rect_program) || rect.width <= 0.0f || rect.height <= 0.0f) {
         return;
     }
 

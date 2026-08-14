@@ -126,8 +126,8 @@ struct Rect {
         return {
             x + insets.left,
             y + insets.top,
-            width - insets.left - insets.right,
-            height - insets.top - insets.bottom,
+            std::max(0.0f, width - insets.left - insets.right),
+            std::max(0.0f, height - insets.top - insets.bottom),
         };
     }
 };

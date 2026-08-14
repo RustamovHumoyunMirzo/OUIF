@@ -11,6 +11,9 @@ int main()
     assert(rect.contains({ 10.0f, 20.0f }));
     assert(rect.contains({ 110.0f, 70.0f }));
     assert(!rect.contains({ 111.0f, 70.0f }));
+    auto over_inset = rect.inset(ouif::Insets(200.0f));
+    assert(over_inset.width == 0.0f);
+    assert(over_inset.height == 0.0f);
 
     auto color = ouif::Color::hex(0x2f6c9c);
     assert(color.b > color.r);

@@ -1,5 +1,6 @@
 #include <OUIF/Application.h>
 
+#include <algorithm>
 #include <stdexcept>
 #include <utility>
 
@@ -239,8 +240,8 @@ bool Application::dispatch_event(const Event& event)
 {
     if (const auto* resize = std::get_if<ResizeEvent>(&event)) {
         renderer_.resize(
-            static_cast<std::uint32_t>(resize->size.width),
-            static_cast<std::uint32_t>(resize->size.height)
+            static_cast<std::uint32_t>(std::max(0.0f, resize->size.width)),
+            static_cast<std::uint32_t>(std::max(0.0f, resize->size.height))
         );
     }
 
