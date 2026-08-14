@@ -20,13 +20,6 @@ public:
                 .with_border_focused(ouif::Color::hex(0xf5d36c), 3.0f)
                 .with_radius(14.0f));
     }
-
-protected:
-    bool on_click(const ouif::MouseEvent&) override
-    {
-        toggle_state(ouif::WidgetState::Selected);
-        return true;
-    }
 };
 
 class OverflowTile : public ouif::Widget {

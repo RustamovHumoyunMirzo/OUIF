@@ -98,20 +98,11 @@ public:
         set_style(ouif::Style {
             .background = "#2a5c82",
             .hovered = "#3a76a0",
-            .selected = "#3a76a0",
             .focused = "#223148",
             .border = { "#b4daff", 2.0f },
-            .border_selected = { "#b4daff", 4.0f },
             .border_focused = { "#83b7ff", 2.0f },
             .radius = 8.0f,
         });
-    }
-
-protected:
-    bool on_click(const ouif::MouseEvent&) override
-    {
-        toggle_state(ouif::WidgetState::Selected);
-        return true;
     }
 };
 

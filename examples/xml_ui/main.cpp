@@ -10,13 +10,6 @@ public:
         set_keyboard_activation_enabled(true);
         set_accessibility_role(ouif::AccessibilityRole::Button);
     }
-
-protected:
-    bool on_click(const ouif::MouseEvent&) override
-    {
-        toggle_state(ouif::WidgetState::Selected);
-        return true;
-    }
 };
 
 int main()

@@ -3,7 +3,6 @@
 class Block : public ouif::Widget {
 public:
     Block(ouif::Color background, ouif::Color active, ouif::Size size = { 0.0f, 0.0f })
-        : active_(active)
     {
         if (size.width > 0.0f || size.height > 0.0f) {
             set_size(size);
@@ -21,16 +20,6 @@ public:
             .radius = ouif::CornerRadius(8.0f),
         });
     }
-
-protected:
-    bool on_click(const ouif::MouseEvent&) override
-    {
-        toggle_state(ouif::WidgetState::Selected);
-        return true;
-    }
-
-private:
-    ouif::Color active_;
 };
 
 class Sidebar : public ouif::ColLayout {

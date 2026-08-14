@@ -8,13 +8,6 @@ public:
         add_class(class_name);
         set_size(ouif::Length::percent(28.0f), ouif::Length::px(160.0f));
     }
-
-protected:
-    bool on_click(const ouif::MouseEvent&) override
-    {
-        toggle_state(ouif::WidgetState::Selected);
-        return true;
-    }
 };
 
 class CssSurface : public ouif::ColLayout {
@@ -80,14 +73,6 @@ public:
                 background: #4c8a5f;
                 background-hovered: #68b07e;
                 border-left: #b7f2c0 8px;
-            }
-
-            .tile:selected {
-                background: #e8edf3;
-                border-top: #ffffff 4px;
-                border-right: #ffffff 4px;
-                border-bottom: #9aa8b8 8px;
-                border-left: #ffffff 4px;
             }
         )css");
     }

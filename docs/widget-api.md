@@ -452,7 +452,7 @@ bool on_click(const ouif::MouseEvent& event) override;
 
 The base widget tracks hover and pressed state automatically. Events are sent to children in reverse child order so later children behave as visually front-most.
 
-Selected state can be toggled without manually rewriting the style:
+Selected state is opt-in. OUIF does not toggle it automatically; user code can toggle it when a custom control needs selection:
 
 ```cpp
 bool on_click(const ouif::MouseEvent&) override
@@ -474,13 +474,12 @@ public:
         set_keyboard_activation_enabled(true);
         set_accessibility_role(ouif::AccessibilityRole::Button);
         set_accessibility_label("Color tile");
-        set_accessibility_description("Toggles the selected state");
+        set_accessibility_description("Activates the color tile");
     }
 
 protected:
     bool on_click(const ouif::MouseEvent&) override
     {
-        toggle_state(ouif::WidgetState::Selected);
         return true;
     }
 };

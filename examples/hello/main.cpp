@@ -14,13 +14,6 @@ public:
             .border_selected = { "#e8edf3dc", 4.0f },
         });
     }
-
-protected:
-    bool on_click(const ouif::MouseEvent&) override
-    {
-        toggle_state(ouif::WidgetState::Selected);
-        return true;
-    }
 };
 
 class DemoSurface : public ouif::RowLayout {

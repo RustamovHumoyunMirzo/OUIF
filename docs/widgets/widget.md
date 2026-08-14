@@ -28,7 +28,6 @@ public:
 protected:
     bool on_click(const ouif::MouseEvent&) override
     {
-        toggle_state(ouif::WidgetState::Selected);
         return true;
     }
 };
