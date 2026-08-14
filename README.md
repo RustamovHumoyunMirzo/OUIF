@@ -9,22 +9,45 @@ OUIF is designed around a small public API:
 - Override layout, rendering, and event behavior.
 - Let OUIF own the renderer, window backend, CMake wiring, and install/package details.
 
-## Build
+## Status
 
-```sh
-cmake --preset dev
-cmake --build --preset dev
-ctest --preset dev
-```
+OUIF is early and intentionally raw. The current API exposes the foundation developers need to build their own widgets:
 
-On Windows you can also use:
+- a base `ouif::Widget`
+- event dispatch for hover, press, click, key, and resize events
+- style properties
+- layout constraints and padding
+- bgfx-backed rectangle rendering
+- GLFW-backed convenience windows
+- support for drawing into an existing native window
+
+Built-in widgets such as buttons, sliders, lists, text inputs, and layout containers will come later.
+
+## Quick Start
+
+Fetch the external renderer/window dependencies once:
 
 ```powershell
-.\scripts\build.ps1
-.\scripts\test.ps1
+.\scripts\fetch-deps.ps1
 ```
 
-By default CMake fetches bgfx and GLFW privately. bgfx is linked into OUIF, so users do not need to install or configure the renderer themselves. GLFW is used by `ouif::Application` for the convenience app/window path.
+Configure, build, and test:
+
+```sh
+cmake -S . -B build/full-example -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug
+cmake --build build/full-example --target ouif_hello
+ctest --test-dir build/full-example --output-on-failure
+```
+
+The example executable is written to:
+
+`build/full-example/bin/ouif_hello.exe`
+
+## Documentation
+
+- [Getting Started](docs/getting-started.md)
+- [Raw Widget API](docs/widget-api.md)
+- [Build And Dependencies](docs/build-and-dependencies.md)
 
 ## Use From CMake
 
@@ -42,28 +65,6 @@ Or link directly:
 add_executable(my_app main.cpp)
 target_link_libraries(my_app PRIVATE OUIF::ouif)
 ```
-
-## Drawing Into Your Own Window
-
-Apps with an existing platform window can skip OUIF window creation and drive frames themselves:
-
-```cpp
-ouif::Application app({
-    .width = 1280,
-    .height = 720,
-    .native_window = my_native_window_handle,
-    .create_window = false,
-});
-
-app.set_root(std::make_unique<MyWidget>());
-
-while (running) {
-    app.dispatch_event(next_ouif_event);
-    app.frame();
-}
-```
-
-For lower-level integration, create `ouif::Renderer` directly with `RendererConfig::native_window` and call `widget.layout(...)`, `widget.render(...)`, and `widget.event(...)` from your own loop.
 
 ## Minimal App
 
@@ -88,17 +89,37 @@ protected:
 
 int main()
 {
-    ouif::Application app({ "My OUIF App", 960, 540 });
+    ouif::ApplicationConfig config;
+    config.title = "My OUIF App";
+    config.width = 960;
+    config.height = 540;
+
+    ouif::Application app(config);
     app.set_root(std::make_unique<MyWidget>());
     return app.run();
 }
 ```
 
-## Project Shape
+## License
 
-- `include/OUIF/OUIF.h`: main public umbrella header.
-- `include/OUIF/Widget.h`: base class users inherit from.
-- `include/OUIF/Event.h`: public event types.
-- `include/OUIF/Style.h`: style properties exposed to widgets.
-- `src/Renderer.cpp`: private bgfx-backed renderer boundary.
-- `cmake/OUIFFunctions.cmake`: helper functions exported to users.
+MIT License
+
+Copyright (c) 2026 Rustamov Humoyun Mirzo
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
