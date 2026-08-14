@@ -156,12 +156,18 @@ Application::Application(ApplicationConfig config)
 {
 }
 
-Application::~Application() = default;
-Application::Application(Application&&) noexcept = default;
-Application& Application::operator=(Application&&) noexcept = default;
-
-Widget& Application::set_root(Widget& root) noexcept
+Application::~Application()
 {
+    root_ = nullptr;
+    owned_root_.reset();
+}
+
+Widget& Application::set_root(Widget& root)
+{
+    if (root.parent() != nullptr) {
+        throw std::invalid_argument("Application root cannot already be a child of another widget");
+    }
+
     owned_root_.reset();
     root_ = &root;
     return root;
@@ -169,7 +175,15 @@ Widget& Application::set_root(Widget& root) noexcept
 
 Widget& Application::set_root(std::unique_ptr<Widget> root)
 {
+    if (!root) {
+        throw std::invalid_argument("Cannot set a null application root");
+    }
+
     auto& reference = *root;
+    if (reference.parent() != nullptr) {
+        throw std::invalid_argument("Application root cannot already be a child of another widget");
+    }
+
     owned_root_ = std::move(root);
     root_ = &reference;
     return reference;

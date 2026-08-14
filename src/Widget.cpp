@@ -3,8 +3,22 @@
 #include <OUIF/Renderer.h>
 
 #include <algorithm>
+#include <stdexcept>
 
 namespace ouif {
+
+Widget::~Widget()
+{
+    detach_from_parent();
+
+    for (auto* child : children_) {
+        if (child != nullptr && child->parent_ == this) {
+            child->parent_ = nullptr;
+        }
+    }
+    children_.clear();
+    owned_children_.clear();
+}
 
 void Widget::set_bounds(Rect bounds) noexcept
 {
@@ -73,21 +87,79 @@ bool Widget::enabled() const noexcept
 
 Widget& Widget::add_child(Widget& child)
 {
+    if (&child == this) {
+        throw std::invalid_argument("A widget cannot be added as its own child");
+    }
+
+    if (child.parent_ == this) {
+        return child;
+    }
+
+    if (child.parent_ != nullptr) {
+        if (child.parent_->owns_child(child)) {
+            throw std::invalid_argument("Cannot reparent a widget owned by another parent");
+        }
+        child.parent_->detach_child(child, false);
+    }
+
+    children_.erase(std::remove(children_.begin(), children_.end(), &child), children_.end());
+    child.parent_ = this;
     children_.push_back(&child);
     return child;
 }
 
 Widget& Widget::add_child(std::unique_ptr<Widget> child)
 {
+    if (!child) {
+        throw std::invalid_argument("Cannot add a null widget child");
+    }
+
     auto& reference = *child;
+    if (&reference == this) {
+        throw std::invalid_argument("A widget cannot be added as its own child");
+    }
+
+    if (reference.parent_ != nullptr) {
+        reference.parent_->detach_child(reference, false);
+    }
+
+    children_.erase(std::remove(children_.begin(), children_.end(), &reference), children_.end());
+    reference.parent_ = this;
     owned_children_.push_back(std::move(child));
     children_.push_back(&reference);
     return reference;
 }
 
+bool Widget::remove_child(Widget& child) noexcept
+{
+    return detach_child(child, true);
+}
+
+void Widget::clear_children() noexcept
+{
+    for (auto* child : children_) {
+        if (child != nullptr && child->parent_ == this) {
+            child->parent_ = nullptr;
+        }
+    }
+
+    children_.clear();
+    owned_children_.clear();
+}
+
 const std::vector<Widget*>& Widget::children() const noexcept
 {
     return children_;
+}
+
+Widget* Widget::parent() noexcept
+{
+    return parent_;
+}
+
+const Widget* Widget::parent() const noexcept
+{
+    return parent_;
 }
 
 void Widget::set_state(WidgetState state, bool enabled) noexcept
@@ -291,6 +363,51 @@ bool Widget::on_click(const MouseEvent& event)
 {
     (void)event;
     return false;
+}
+
+void Widget::detach_from_parent() noexcept
+{
+    if (parent_ != nullptr) {
+        auto* parent = parent_;
+        parent_ = nullptr;
+        parent->detach_child(*this, false);
+    }
+}
+
+bool Widget::detach_child(Widget& child, bool destroy_owned) noexcept
+{
+    bool removed = false;
+    auto child_it = std::remove(children_.begin(), children_.end(), &child);
+    if (child_it != children_.end()) {
+        children_.erase(child_it, children_.end());
+        removed = true;
+    }
+
+    if (child.parent_ == this) {
+        child.parent_ = nullptr;
+        removed = true;
+    }
+
+    auto owned_it = std::find_if(owned_children_.begin(), owned_children_.end(), [&child](const auto& owned) {
+        return owned.get() == &child;
+    });
+
+    if (owned_it != owned_children_.end()) {
+        removed = true;
+        if (destroy_owned) {
+            (*owned_it)->parent_ = nullptr;
+            owned_children_.erase(owned_it);
+        }
+    }
+
+    return removed;
+}
+
+bool Widget::owns_child(const Widget& child) const noexcept
+{
+    return std::any_of(owned_children_.begin(), owned_children_.end(), [&child](const auto& owned) {
+        return owned.get() == &child;
+    });
 }
 
 Point Widget::to_local(Point point) const noexcept

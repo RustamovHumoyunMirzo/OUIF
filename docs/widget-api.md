@@ -17,6 +17,45 @@ Every widget has:
 - interaction state: `hovered()` and `pressed()`
 - custom state: `set_state(...)`, `toggle_state(...)`, and `has_state(...)`
 
+## Memory And Ownership
+
+OUIF supports two safe child patterns.
+
+Let OUIF construct and own the child:
+
+```cpp
+auto& tile = add_child<ColorTile>("#2f6c9c", "#4692c4", ouif::Size { 160.0f, 120.0f });
+```
+
+Or keep widgets as normal variables or members and register them with the parent:
+
+```cpp
+class DemoSurface : public ouif::RowLayout {
+public:
+    DemoSurface()
+    {
+        children(blue_, violet_, green_);
+    }
+
+private:
+    ColorTile blue_;
+    ColorTile violet_;
+    ColorTile green_;
+};
+```
+
+The framework tracks parent pointers internally:
+
+- external/member children automatically detach from their parent when destroyed
+- owned children are destroyed by their parent exactly once
+- duplicate `add_child(child)` calls do not register the same child twice
+- external/member children can move from one parent to another
+- internally owned children cannot be reparented by reference, because the original parent owns their memory
+
+`Widget` and `Application` are intentionally non-copyable and non-movable. This keeps registered widget addresses stable.
+
+Use `remove_child(child)` to detach or destroy a child. Use `clear_children()` to detach external children and destroy owned children.
+
 ## Style
 
 `ouif::Style` currently includes:

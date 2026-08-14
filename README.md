@@ -17,6 +17,7 @@ OUIF is early and intentionally raw. The current API exposes the foundation deve
 - event dispatch for hover, press, click, key, and resize events
 - style properties
 - layout constraints and padding
+- safe parent/child tracking for owned and member widgets
 - bgfx-backed rectangle rendering
 - GLFW-backed convenience windows
 - support for drawing into an existing native window
@@ -48,6 +49,17 @@ The example executable is written to:
 - [Getting Started](docs/getting-started.md)
 - [Raw Widget API](docs/widget-api.md)
 - [Build And Dependencies](docs/build-and-dependencies.md)
+
+## Memory Model
+
+OUIF supports both framework-owned widgets and Qt-like member widgets:
+
+```cpp
+row.add_child<ColorTile>("#2f6c9c", "#4692c4", ouif::Size { 160.0f, 120.0f });
+children(blue_, violet_, green_);
+```
+
+External/member children auto-detach when destroyed. OUIF-owned children are deleted by their parent exactly once. Widgets are non-movable so registered addresses stay stable.
 
 ## Use From CMake
 

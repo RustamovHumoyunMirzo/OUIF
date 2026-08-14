@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <memory>
+#include <stdexcept>
 
 int main()
 {
@@ -22,8 +23,51 @@ int main()
     root.layout({ 400.0f, 300.0f });
 
     assert(root.children().size() == 1);
+    assert(root.children().front()->parent() == &root);
     assert(root.children().front()->bounds().width == 400.0f);
     assert(root.children().front()->bounds().height == 300.0f);
+
+    root.clear_children();
+    assert(root.children().empty());
+
+    {
+        ouif::Widget parent;
+        {
+            ouif::Widget child;
+            parent.add_child(child);
+            parent.add_child(child);
+            assert(parent.children().size() == 1);
+            assert(child.parent() == &parent);
+        }
+        assert(parent.children().empty());
+    }
+
+    {
+        ouif::Widget first_parent;
+        ouif::Widget second_parent;
+        ouif::Widget child;
+        first_parent.add_child(child);
+        second_parent.add_child(child);
+        assert(first_parent.children().empty());
+        assert(second_parent.children().size() == 1);
+        assert(child.parent() == &second_parent);
+        assert(second_parent.remove_child(child));
+        assert(child.parent() == nullptr);
+    }
+
+    {
+        ouif::Widget first_parent;
+        ouif::Widget second_parent;
+        auto& owned = first_parent.add_child<ouif::Widget>();
+        bool threw = false;
+        try {
+            second_parent.add_child(owned);
+        } catch (const std::invalid_argument&) {
+            threw = true;
+        }
+        assert(threw);
+        assert(owned.parent() == &first_parent);
+    }
 
     ouif::Style style = ouif::Style()
         .with_background(ouif::Color::rgb(1, 2, 3))
@@ -58,6 +102,20 @@ int main()
 
     row.children()[0]->toggle_state(ouif::WidgetState::Selected);
     assert(row.children()[0]->has_state(ouif::WidgetState::Selected));
+
+    {
+        ouif::Application app;
+        ouif::Widget parent;
+        ouif::Widget child;
+        parent.add_child(child);
+        bool threw = false;
+        try {
+            app.set_root(child);
+        } catch (const std::invalid_argument&) {
+            threw = true;
+        }
+        assert(threw);
+    }
 
     return 0;
 }

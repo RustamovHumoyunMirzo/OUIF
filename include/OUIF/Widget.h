@@ -38,12 +38,12 @@ struct Layout {
 class OUIF_API Widget {
 public:
     Widget() = default;
-    virtual ~Widget() = default;
+    virtual ~Widget();
 
     Widget(const Widget&) = delete;
     Widget& operator=(const Widget&) = delete;
-    Widget(Widget&&) noexcept = default;
-    Widget& operator=(Widget&&) noexcept = default;
+    Widget(Widget&&) noexcept = delete;
+    Widget& operator=(Widget&&) noexcept = delete;
 
     void set_bounds(Rect bounds) noexcept;
     [[nodiscard]] Rect bounds() const noexcept;
@@ -64,6 +64,8 @@ public:
 
     Widget& add_child(Widget& child);
     Widget& add_child(std::unique_ptr<Widget> child);
+    bool remove_child(Widget& child) noexcept;
+    void clear_children() noexcept;
 
     template <typename... Widgets>
         requires(sizeof...(Widgets) > 0)
@@ -78,13 +80,12 @@ public:
     {
         static_assert(std::is_base_of_v<Widget, T>, "add_child<T> requires T to inherit ouif::Widget");
         auto child = std::make_unique<T>(std::forward<Args>(args)...);
-        auto& reference = *child;
-        owned_children_.push_back(std::move(child));
-        children_.push_back(&reference);
-        return reference;
+        return static_cast<T&>(add_child(std::move(child)));
     }
 
     [[nodiscard]] const std::vector<Widget*>& children() const noexcept;
+    [[nodiscard]] Widget* parent() noexcept;
+    [[nodiscard]] const Widget* parent() const noexcept;
 
     void set_state(WidgetState state, bool enabled) noexcept;
     void toggle_state(WidgetState state) noexcept;
@@ -111,9 +112,14 @@ protected:
     virtual bool on_click(const MouseEvent& event);
 
 private:
+    void detach_from_parent() noexcept;
+    bool detach_child(Widget& child, bool destroy_owned) noexcept;
+    [[nodiscard]] bool owns_child(const Widget& child) const noexcept;
+
     [[nodiscard]] Point to_local(Point point) const noexcept;
     [[nodiscard]] std::optional<MouseEvent> mouse_event_from(const Event& event) const noexcept;
 
+    Widget* parent_ = nullptr;
     Rect bounds_;
     Style style_;
     Layout layout_;

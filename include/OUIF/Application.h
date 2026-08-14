@@ -54,10 +54,10 @@ public:
 
     Application(const Application&) = delete;
     Application& operator=(const Application&) = delete;
-    Application(Application&&) noexcept;
-    Application& operator=(Application&&) noexcept;
+    Application(Application&&) noexcept = delete;
+    Application& operator=(Application&&) noexcept = delete;
 
-    Widget& set_root(Widget& root) noexcept;
+    Widget& set_root(Widget& root);
     Widget& set_root(std::unique_ptr<Widget> root);
 
     template <typename T, typename... Args>
@@ -65,10 +65,7 @@ public:
     {
         static_assert(std::is_base_of_v<Widget, T>, "set_root<T> requires T to inherit ouif::Widget");
         auto root = std::make_unique<T>(std::forward<Args>(args)...);
-        auto& reference = *root;
-        owned_root_ = std::move(root);
-        root_ = &reference;
-        return reference;
+        return static_cast<T&>(set_root(std::move(root)));
     }
 
     [[nodiscard]] Widget* root() noexcept;

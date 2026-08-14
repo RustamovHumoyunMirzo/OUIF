@@ -122,3 +122,30 @@ while (running) {
 ```
 
 You can also use `ouif::Renderer` directly if you want complete control over event routing and frame scheduling.
+
+## Ownership Rules
+
+For the easiest fully-owned tree, let OUIF construct widgets:
+
+```cpp
+auto& tile = row.add_child<ColorTile>("#2f6c9c", "#4692c4", ouif::Size { 160.0f, 120.0f });
+app.set_root<DemoSurface>();
+```
+
+For Qt-like member widgets, keep children as members and register them:
+
+```cpp
+class DemoSurface : public ouif::RowLayout {
+public:
+    DemoSurface()
+    {
+        children(blue_, green_);
+    }
+
+private:
+    ColorTile blue_;
+    ColorTile green_;
+};
+```
+
+External/member children auto-detach when they are destroyed. OUIF-owned children are deleted by their parent. Widgets are non-movable so registered addresses stay valid.
