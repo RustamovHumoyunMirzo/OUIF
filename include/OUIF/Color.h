@@ -12,9 +12,31 @@ struct Color {
     float b = 1.0f;
     float a = 1.0f;
 
+    constexpr Color() noexcept = default;
+
+    constexpr Color(float red, float green, float blue, float alpha = 1.0f) noexcept
+        : r(red)
+        , g(green)
+        , b(blue)
+        , a(alpha)
+    {
+    }
+
+    Color(std::string_view hex_value) noexcept
+    {
+        if (auto parsed = from_hex(hex_value)) {
+            *this = *parsed;
+        }
+    }
+
+    Color(const char* hex_value) noexcept
+        : Color(std::string_view(hex_value != nullptr ? hex_value : ""))
+    {
+    }
+
     static constexpr Color rgba(std::uint8_t red, std::uint8_t green, std::uint8_t blue, std::uint8_t alpha) noexcept
     {
-        return {
+        return Color {
             static_cast<float>(red) / 255.0f,
             static_cast<float>(green) / 255.0f,
             static_cast<float>(blue) / 255.0f,

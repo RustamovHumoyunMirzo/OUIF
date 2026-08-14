@@ -22,6 +22,9 @@ Every widget has:
 `ouif::Style` currently includes:
 
 - `background`
+- `hovered`
+- `pressed`
+- `selected`
 - `background_hovered`
 - `background_pressed`
 - `background_selected`
@@ -47,9 +50,21 @@ set_style(ouif::Style()
     .with_border_selected(ouif::Color::rgba(232, 237, 243, 220), 4.0f));
 ```
 
+For compact widget setup, `Style` also supports aggregate initialization:
+
+```cpp
+set_style(ouif::Style {
+    .background = "#1c1f26",
+    .hovered = "#20252e",
+    .pressed = "#181c23",
+    .border = { "#647084", 1.0f },
+});
+```
+
 Hex colors are supported:
 
 ```cpp
+ouif::Color color = "#2f6c9c";
 auto blue = ouif::Color::hex(0x2f6c9c);
 auto translucent = ouif::Color::hexa(0xe8edf3dc);
 auto parsed = ouif::Color::from_hex("#2f6c9c");
@@ -122,12 +137,18 @@ public:
     DemoSurface()
         : tile_(ouif::Color::hex(0x2f6c9c), ouif::Color::hex(0x4692c4), { 160.0f, 120.0f })
     {
-        add_child(tile_);
+        children(tile_);
     }
 
 private:
     ColorTile tile_;
 };
+```
+
+Register multiple member widgets in one call:
+
+```cpp
+children(blue_, violet_, green_);
 ```
 
 ```cpp

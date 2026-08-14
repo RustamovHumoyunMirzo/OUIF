@@ -73,12 +73,13 @@ public:
     Panel()
     {
         set_size({ 160.0f, 120.0f });
-        set_style(ouif::Style()
-            .with_background(ouif::Color::hex(0x2a5c82))
-            .with_background_hovered(ouif::Color::hex(0x3a76a0))
-            .with_background_selected(ouif::Color::hex(0x3a76a0))
-            .with_border(ouif::Color::hex(0xb4daff), 2.0f)
-            .with_border_selected(ouif::Color::hex(0xb4daff), 4.0f));
+        set_style(ouif::Style {
+            .background = "#2a5c82",
+            .hovered = "#3a76a0",
+            .selected = "#3a76a0",
+            .border = { "#b4daff", 2.0f },
+            .border_selected = { "#b4daff", 4.0f },
+        });
     }
 
 protected:

@@ -65,6 +65,14 @@ public:
     Widget& add_child(Widget& child);
     Widget& add_child(std::unique_ptr<Widget> child);
 
+    template <typename... Widgets>
+        requires(sizeof...(Widgets) > 0)
+    Widget& children(Widgets&... widgets)
+    {
+        (add_child(widgets), ...);
+        return *this;
+    }
+
     template <typename T, typename... Args>
     T& add_child(Args&&... args)
     {

@@ -240,12 +240,11 @@ void Widget::draw(Renderer& renderer)
         return;
     }
 
-    const Color background = selected_ ? style_.background_selected : (pressed_ ? style_.background_pressed : (hovered_ ? style_.background_hovered : style_.background));
+    const Color background = selected_ ? style_.selected : (pressed_ ? style_.pressed : (hovered_ ? style_.hovered : style_.background));
     renderer.fill_rect(bounds_, background);
-    const float border_width = selected_ && style_.border_width_selected > 0.0f ? style_.border_width_selected : style_.border_width;
-    const Color border = selected_ ? style_.border_selected : style_.border;
-    if (border_width > 0.0f) {
-        renderer.stroke_rect(bounds_, border, border_width);
+    const Border border = selected_ && style_.border_selected.width > 0.0f ? style_.border_selected : style_.border;
+    if (border.width > 0.0f) {
+        renderer.stroke_rect(bounds_, border.color, border.width);
     }
 }
 

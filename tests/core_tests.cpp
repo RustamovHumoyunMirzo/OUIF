@@ -30,8 +30,15 @@ int main()
         .with_background_selected(ouif::Color::rgb(4, 5, 6))
         .with_border(ouif::Color::rgb(7, 8, 9), 2.0f)
         .with_border_selected(ouif::Color::rgb(10, 11, 12), 4.0f);
-    assert(style.border_width == 2.0f);
-    assert(style.border_width_selected == 4.0f);
+    assert(style.border.width == 2.0f);
+    assert(style.border_selected.width == 4.0f);
+
+    ouif::Style aggregate_style {
+        .background = "#101218",
+        .hovered = "#20252e",
+        .border = { "#647084", 1.0f },
+    };
+    assert(aggregate_style.border.width == 1.0f);
 
     ouif::RowLayout row;
     row.set_bounds({ 0.0f, 0.0f, 400.0f, 100.0f });
@@ -43,6 +50,7 @@ int main()
     auto& second = row.add_child<ouif::Widget>();
     second.set_size({ 50.0f, 40.0f });
     row.add_child(first);
+    assert(row.children().size() == 2);
     row.layout({ 400.0f, 100.0f });
 
     assert(row.children()[0]->bounds().x == 140.0f);
