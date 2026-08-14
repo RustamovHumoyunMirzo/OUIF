@@ -68,6 +68,10 @@ Aliases:
 - `cross-alignment`
 - `gap`
 - `clip-content`
+- `scroll-offset`
+- `scroll-step`
+- `smooth-scroll`
+- `scroll-smoothing`
 - `focusable`
 - `keyboard-activation`
 - `role`

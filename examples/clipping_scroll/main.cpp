@@ -59,6 +59,8 @@ public:
         horizontal_.set_gap(16.0f);
         horizontal_.set_padding(ouif::Insets(16.0f));
         horizontal_.set_scroll_step(72.0f);
+        horizontal_.set_smooth_scroll_enabled(true);
+        horizontal_.set_scroll_smoothing(0.18f);
         horizontal_.set_style(ouif::Style()
                 .with_background(ouif::Color::hex(0x172232))
                 .with_border(ouif::Color::hex(0x405675), 1.0f)
@@ -68,6 +70,8 @@ public:
         vertical_.set_gap(12.0f);
         vertical_.set_padding(ouif::Insets(16.0f));
         vertical_.set_scroll_step(64.0f);
+        vertical_.set_smooth_scroll_enabled(true);
+        vertical_.set_scroll_smoothing(0.18f);
         vertical_.set_style(ouif::Style()
                 .with_background(ouif::Color::hex(0x172232))
                 .with_border(ouif::Color::hex(0x405675), 1.0f)

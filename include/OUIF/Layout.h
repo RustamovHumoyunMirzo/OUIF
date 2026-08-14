@@ -55,6 +55,12 @@ public:
     [[nodiscard]] Size content_size() const noexcept;
     void set_scroll_step(float step) noexcept;
     [[nodiscard]] float scroll_step() const noexcept;
+    void set_smooth_scroll_enabled(bool enabled) noexcept;
+    [[nodiscard]] bool smooth_scroll_enabled() const noexcept;
+    void set_scroll_smoothing(float smoothing) noexcept;
+    [[nodiscard]] float scroll_smoothing() const noexcept;
+    void jump_to_scroll_offset(float offset) noexcept;
+    [[nodiscard]] bool scroll_animating() const noexcept;
 
     bool event(const Event& event) override;
 
@@ -65,9 +71,12 @@ protected:
 private:
     Direction scroll_direction_;
     float scroll_offset_ = 0.0f;
+    float target_scroll_offset_ = 0.0f;
     float max_scroll_offset_ = 0.0f;
     float scroll_step_ = 48.0f;
+    float scroll_smoothing_ = 0.24f;
     Size content_size_ {};
+    bool smooth_scroll_enabled_ = true;
 };
 
 class OUIF_API RowScroll : public ScrollLayout {

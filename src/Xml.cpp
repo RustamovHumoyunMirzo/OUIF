@@ -367,6 +367,16 @@ void apply_common_attributes(Widget& widget, const XmlElement& element, std::str
         } else if (auto step = element.attribute_float("scroll-step")) {
             scroll->set_scroll_step(*step);
         }
+        if (auto smooth = element.attribute_bool("smooth_scroll")) {
+            scroll->set_smooth_scroll_enabled(*smooth);
+        } else if (auto smooth = element.attribute_bool("smooth-scroll")) {
+            scroll->set_smooth_scroll_enabled(*smooth);
+        }
+        if (auto smoothing = element.attribute_float("scroll_smoothing")) {
+            scroll->set_scroll_smoothing(*smoothing);
+        } else if (auto smoothing = element.attribute_float("scroll-smoothing")) {
+            scroll->set_scroll_smoothing(*smoothing);
+        }
     }
 
     if (auto visible = element.attribute_bool("visible")) {

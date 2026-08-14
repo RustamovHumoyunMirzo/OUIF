@@ -1,6 +1,7 @@
 #include <OUIF/Layout.h>
 
 #include <algorithm>
+#include <cmath>
 
 namespace ouif {
 namespace {
@@ -167,12 +168,15 @@ ScrollLayout::ScrollLayout(Direction direction)
 
 void ScrollLayout::set_scroll_offset(float offset) noexcept
 {
-    scroll_offset_ = std::clamp(offset, 0.0f, max_scroll_offset_);
+    target_scroll_offset_ = std::clamp(offset, 0.0f, max_scroll_offset_);
+    if (!smooth_scroll_enabled_) {
+        scroll_offset_ = target_scroll_offset_;
+    }
 }
 
 float ScrollLayout::scroll_offset() const noexcept
 {
-    return scroll_offset_;
+    return target_scroll_offset_;
 }
 
 float ScrollLayout::max_scroll_offset() const noexcept
@@ -195,15 +199,49 @@ float ScrollLayout::scroll_step() const noexcept
     return scroll_step_;
 }
 
+void ScrollLayout::set_smooth_scroll_enabled(bool enabled) noexcept
+{
+    smooth_scroll_enabled_ = enabled;
+    if (!smooth_scroll_enabled_) {
+        scroll_offset_ = target_scroll_offset_;
+    }
+}
+
+bool ScrollLayout::smooth_scroll_enabled() const noexcept
+{
+    return smooth_scroll_enabled_;
+}
+
+void ScrollLayout::set_scroll_smoothing(float smoothing) noexcept
+{
+    scroll_smoothing_ = std::clamp(smoothing, 0.01f, 1.0f);
+}
+
+float ScrollLayout::scroll_smoothing() const noexcept
+{
+    return scroll_smoothing_;
+}
+
+void ScrollLayout::jump_to_scroll_offset(float offset) noexcept
+{
+    target_scroll_offset_ = std::clamp(offset, 0.0f, max_scroll_offset_);
+    scroll_offset_ = target_scroll_offset_;
+}
+
+bool ScrollLayout::scroll_animating() const noexcept
+{
+    return std::abs(target_scroll_offset_ - scroll_offset_) > 0.1f;
+}
+
 bool ScrollLayout::event(const Event& event)
 {
     if (const auto* wheel = std::get_if<MouseWheelEvent>(&event)) {
         if (hit_test(wheel->position)) {
             const bool row = scroll_direction_ == Direction::Row;
             const float wheel_delta = row && wheel->delta_x != 0.0f ? wheel->delta_x : wheel->delta_y;
-            const float previous = scroll_offset_;
-            set_scroll_offset(scroll_offset_ - wheel_delta * scroll_step_);
-            if (scroll_offset_ != previous) {
+            const float previous = target_scroll_offset_;
+            set_scroll_offset(target_scroll_offset_ - wheel_delta * scroll_step_);
+            if (target_scroll_offset_ != previous) {
                 layout({ bounds().width, bounds().height });
                 return true;
             }
@@ -233,7 +271,18 @@ void ScrollLayout::on_layout(Rect content)
 
     content_size_ = row ? Size { total_main, max_cross } : Size { max_cross, total_main };
     max_scroll_offset_ = std::max(0.0f, total_main - available_main);
+    target_scroll_offset_ = std::clamp(target_scroll_offset_, 0.0f, max_scroll_offset_);
     scroll_offset_ = std::clamp(scroll_offset_, 0.0f, max_scroll_offset_);
+    if (smooth_scroll_enabled_) {
+        const float delta = target_scroll_offset_ - scroll_offset_;
+        if (std::abs(delta) <= 0.1f) {
+            scroll_offset_ = target_scroll_offset_;
+        } else {
+            scroll_offset_ += delta * scroll_smoothing_;
+        }
+    } else {
+        scroll_offset_ = target_scroll_offset_;
+    }
 
     float cursor = (row ? content.x : content.y) - scroll_offset_;
     if (max_scroll_offset_ <= 0.0f && alignment() == Align::Center) {

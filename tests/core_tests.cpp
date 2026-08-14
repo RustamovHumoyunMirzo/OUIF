@@ -288,6 +288,7 @@ int main()
 
     {
         ouif::ColScroll scroller;
+        scroller.set_smooth_scroll_enabled(false);
         scroller.set_bounds({ 0.0f, 0.0f, 120.0f, 100.0f });
         scroller.set_gap(10.0f);
         auto& a = scroller.add_child<ouif::Widget>();
@@ -317,6 +318,7 @@ int main()
 
     {
         ouif::RowScroll scroller;
+        scroller.set_smooth_scroll_enabled(false);
         scroller.set_bounds({ 0.0f, 0.0f, 100.0f, 80.0f });
         auto& a = scroller.add_child<ouif::Widget>();
         auto& b = scroller.add_child<ouif::Widget>();

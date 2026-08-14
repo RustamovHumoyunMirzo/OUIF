@@ -334,6 +334,8 @@ public:
     {
         set_gap(12.0f);
         set_scroll_step(56.0f);
+        set_smooth_scroll_enabled(true);
+        set_scroll_smoothing(0.18f);
         set_clip_content(true);
 
         for (int index = 0; index < 12; ++index) {
@@ -349,6 +351,10 @@ Useful scroll APIs:
 - `max_scroll_offset()`
 - `content_size()`
 - `set_scroll_step(float)` and `scroll_step()`
+- `set_smooth_scroll_enabled(bool)` and `smooth_scroll_enabled()`
+- `set_scroll_smoothing(float)` and `scroll_smoothing()`
+- `jump_to_scroll_offset(float)`
+- `scroll_animating()`
 
 Use `set_clip_content(false)` when a container should allow children to draw and receive mouse events outside its bounds.
 
