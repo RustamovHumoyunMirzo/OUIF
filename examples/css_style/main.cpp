@@ -105,7 +105,8 @@ int main()
     ouif::Application app(ouif::ApplicationConfig()
         .with_title("OUIF CSS Styling")
         .with_size(1040, 640)
-        .with_clear_color(ouif::Color::hex(0x10141c)));
+        .with_clear_color(ouif::Color::hex(0x10141c))
+        .with_render_quality(ouif::RendererQuality::Ultra));
 
     CssSurface surface;
     app.set_root(surface);

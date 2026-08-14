@@ -19,6 +19,7 @@ struct ApplicationConfig {
     void* native_window = nullptr;
     bool create_window = true;
     Color clear_color = Color::rgba(18, 20, 24, 255);
+    RendererQualityConfig render_quality {};
 
     ApplicationConfig& with_title(std::string value)
     {
@@ -43,6 +44,18 @@ struct ApplicationConfig {
     ApplicationConfig& with_clear_color(Color color) noexcept
     {
         clear_color = color;
+        return *this;
+    }
+
+    ApplicationConfig& with_render_quality(RendererQuality quality) noexcept
+    {
+        render_quality.preset = quality;
+        return *this;
+    }
+
+    ApplicationConfig& with_render_quality(RendererQualityConfig quality) noexcept
+    {
+        render_quality = quality;
         return *this;
     }
 };

@@ -220,6 +220,32 @@ set_style(ouif::Style()
 
 Uniform and mixed directional borders use rounded border rendering. Corner arcs smoothly blend adjacent side colors and widths while staying inside the rounded border shape.
 
+## Rendering Quality
+
+Rounded borders and corners are tessellated, so low segment counts can look pixelated. OUIF defaults to high quality, and apps can raise or lower the cost:
+
+```cpp
+ouif::Application app(ouif::ApplicationConfig()
+    .with_render_quality(ouif::RendererQuality::Ultra));
+```
+
+For explicit control:
+
+```cpp
+ouif::RendererQualityConfig quality;
+quality.preset = ouif::RendererQuality::High;
+quality.curve_segments = 24;
+quality.border_curve_segments = 48;
+quality.msaa_samples = 8;
+quality.smoothing = true;
+quality.hardware_acceleration = true;
+
+ouif::Application app(ouif::ApplicationConfig()
+    .with_render_quality(quality));
+```
+
+Higher segment counts make rounded fills and mixed directional border curves smoother. MSAA asks bgfx for hardware multisampling where the selected backend supports it.
+
 ## Layout
 
 `ouif::Layout` includes:

@@ -74,15 +74,14 @@ Color mix(Color from, Color to, float amount)
     };
 }
 
-void append_arc(std::vector<Point>& points, float cx, float cy, float radius, float start, float end)
+void append_arc(std::vector<Point>& points, float cx, float cy, float radius, float start, float end, std::uint16_t segments)
 {
-    constexpr int segments = 6;
     if (radius <= 0.0f) {
         points.push_back({ cx, cy });
         return;
     }
 
-    for (int index = 0; index <= segments; ++index) {
+    for (std::uint16_t index = 0; index <= segments; ++index) {
         const float t = static_cast<float>(index) / static_cast<float>(segments);
         const float angle = start + (end - start) * t;
         points.push_back({
@@ -131,15 +130,15 @@ void append_border_arc(
     float start_width,
     float end_width,
     Color start_color,
-    Color end_color
+    Color end_color,
+    std::uint16_t segments
 )
 {
-    constexpr int segments = 12;
     if (radius <= 0.0f) {
         return;
     }
 
-    for (int index = 0; index <= segments; ++index) {
+    for (std::uint16_t index = 0; index <= segments; ++index) {
         const float t = static_cast<float>(index) / static_cast<float>(segments);
         const float angle = start + (end - start) * t;
         const float width = start_width + (end_width - start_width) * t;
@@ -157,7 +156,7 @@ void append_border_arc(
     }
 }
 
-std::vector<Point> rounded_rect_points(Rect rect, CornerRadius radius)
+std::vector<Point> rounded_rect_points(Rect rect, CornerRadius radius, std::uint16_t segments)
 {
     constexpr float pi = 3.14159265358979323846f;
     const float top_left = clamp_radius(radius.top_left, rect);
@@ -167,10 +166,10 @@ std::vector<Point> rounded_rect_points(Rect rect, CornerRadius radius)
 
     std::vector<Point> points;
     points.reserve(32);
-    append_arc(points, rect.x + rect.width - top_right, rect.y + top_right, top_right, -pi * 0.5f, 0.0f);
-    append_arc(points, rect.x + rect.width - bottom_right, rect.y + rect.height - bottom_right, bottom_right, 0.0f, pi * 0.5f);
-    append_arc(points, rect.x + bottom_left, rect.y + rect.height - bottom_left, bottom_left, pi * 0.5f, pi);
-    append_arc(points, rect.x + top_left, rect.y + top_left, top_left, pi, pi * 1.5f);
+    append_arc(points, rect.x + rect.width - top_right, rect.y + top_right, top_right, -pi * 0.5f, 0.0f, segments);
+    append_arc(points, rect.x + rect.width - bottom_right, rect.y + rect.height - bottom_right, bottom_right, 0.0f, pi * 0.5f, segments);
+    append_arc(points, rect.x + bottom_left, rect.y + rect.height - bottom_left, bottom_left, pi * 0.5f, pi, segments);
+    append_arc(points, rect.x + top_left, rect.y + top_left, top_left, pi, pi * 1.5f, segments);
     return points;
 }
 
@@ -218,6 +217,54 @@ const char* shader_backend_directory()
     }
 }
 
+RendererQualityConfig normalized_quality(RendererQualityConfig quality)
+{
+    switch (quality.preset) {
+    case RendererQuality::Low:
+        quality.curve_segments = quality.curve_segments == 12 ? 6 : quality.curve_segments;
+        quality.border_curve_segments = quality.border_curve_segments == 24 ? 8 : quality.border_curve_segments;
+        quality.msaa_samples = quality.msaa_samples == 4 ? 1 : quality.msaa_samples;
+        break;
+    case RendererQuality::Balanced:
+        quality.curve_segments = quality.curve_segments == 12 ? 10 : quality.curve_segments;
+        quality.border_curve_segments = quality.border_curve_segments == 24 ? 16 : quality.border_curve_segments;
+        quality.msaa_samples = quality.msaa_samples == 4 ? 2 : quality.msaa_samples;
+        break;
+    case RendererQuality::Ultra:
+        quality.curve_segments = quality.curve_segments == 12 ? 24 : quality.curve_segments;
+        quality.border_curve_segments = quality.border_curve_segments == 24 ? 48 : quality.border_curve_segments;
+        quality.msaa_samples = quality.msaa_samples == 4 ? 8 : quality.msaa_samples;
+        break;
+    case RendererQuality::High:
+    default:
+        break;
+    }
+
+    if (!quality.smoothing) {
+        quality.msaa_samples = 1;
+    }
+    quality.curve_segments = std::clamp<std::uint16_t>(quality.curve_segments, 3, 96);
+    quality.border_curve_segments = std::clamp<std::uint16_t>(quality.border_curve_segments, 3, 128);
+    return quality;
+}
+
+std::uint32_t reset_flags(const RendererQualityConfig& quality, bool vsync)
+{
+    std::uint32_t flags = vsync ? BGFX_RESET_VSYNC : BGFX_RESET_NONE;
+    if (quality.smoothing) {
+        if (quality.msaa_samples >= 16) {
+            flags |= BGFX_RESET_MSAA_X16;
+        } else if (quality.msaa_samples >= 8) {
+            flags |= BGFX_RESET_MSAA_X8;
+        } else if (quality.msaa_samples >= 4) {
+            flags |= BGFX_RESET_MSAA_X4;
+        } else if (quality.msaa_samples >= 2) {
+            flags |= BGFX_RESET_MSAA_X2;
+        }
+    }
+    return flags;
+}
+
 } // namespace
 #endif
 
@@ -225,6 +272,8 @@ struct Renderer::Impl {
     bool initialized = false;
     std::uint32_t width = 0;
     std::uint32_t height = 0;
+    RendererQualityConfig quality {};
+    std::uint32_t reset_flags = 0;
 #if OUIF_WITH_BGFX
     bgfx::ProgramHandle rect_program = BGFX_INVALID_HANDLE;
 #endif
@@ -250,6 +299,9 @@ void Renderer::initialize(const RendererConfig& config)
     }
 
 #if OUIF_WITH_BGFX
+    impl_->quality = normalized_quality(config.quality);
+    impl_->reset_flags = reset_flags(impl_->quality, config.vsync);
+
     PosColorVertex::layout
         .begin()
         .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
@@ -257,10 +309,10 @@ void Renderer::initialize(const RendererConfig& config)
         .end();
 
     bgfx::Init init;
-    init.type = bgfx::RendererType::Count;
+    init.type = config.quality.hardware_acceleration ? bgfx::RendererType::Count : bgfx::RendererType::Noop;
     init.resolution.width = config.width;
     init.resolution.height = config.height;
-    init.resolution.reset = config.vsync ? BGFX_RESET_VSYNC : BGFX_RESET_NONE;
+    init.resolution.reset = impl_->reset_flags;
 
     if (config.native_window != nullptr) {
         init.platformData.nwh = config.native_window;
@@ -327,7 +379,7 @@ void Renderer::resize(std::uint32_t width, std::uint32_t height)
 
 #if OUIF_WITH_BGFX
     if (impl_->initialized) {
-        bgfx::reset(width, height, BGFX_RESET_VSYNC);
+        bgfx::reset(width, height, impl_->reset_flags);
         bgfx::setViewRect(0, 0, 0, width, height);
     }
 #endif
@@ -408,7 +460,7 @@ void Renderer::fill_rounded_rect(Rect rect, CornerRadius radius, Color color)
         return;
     }
 
-    const auto points = rounded_rect_points(rect, radius);
+    const auto points = rounded_rect_points(rect, radius, impl_->quality.curve_segments);
 
     const std::uint32_t vertex_count = static_cast<std::uint32_t>(points.size() + 1);
     const std::uint32_t index_count = static_cast<std::uint32_t>(points.size() * 3);
@@ -511,7 +563,8 @@ void Renderer::stroke_rounded_rect(Rect rect, CornerRadius radius, BorderEdges b
         borders.top.width,
         borders.right.width,
         visible_color(borders.top),
-        visible_color(borders.right)
+        visible_color(borders.right),
+        impl_->quality.border_curve_segments
     );
     append_border_line(
         points,
@@ -531,7 +584,8 @@ void Renderer::stroke_rounded_rect(Rect rect, CornerRadius radius, BorderEdges b
         borders.right.width,
         borders.bottom.width,
         visible_color(borders.right),
-        visible_color(borders.bottom)
+        visible_color(borders.bottom),
+        impl_->quality.border_curve_segments
     );
     append_border_line(
         points,
@@ -551,7 +605,8 @@ void Renderer::stroke_rounded_rect(Rect rect, CornerRadius radius, BorderEdges b
         borders.bottom.width,
         borders.left.width,
         visible_color(borders.bottom),
-        visible_color(borders.left)
+        visible_color(borders.left),
+        impl_->quality.border_curve_segments
     );
     append_border_line(
         points,
@@ -571,7 +626,8 @@ void Renderer::stroke_rounded_rect(Rect rect, CornerRadius radius, BorderEdges b
         borders.left.width,
         borders.top.width,
         visible_color(borders.left),
-        visible_color(borders.top)
+        visible_color(borders.top),
+        impl_->quality.border_curve_segments
     );
 
     if (points.size() < 2) {

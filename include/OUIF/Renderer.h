@@ -10,12 +10,29 @@
 
 namespace ouif {
 
+enum class RendererQuality {
+    Low,
+    Balanced,
+    High,
+    Ultra,
+};
+
+struct RendererQualityConfig {
+    RendererQuality preset = RendererQuality::High;
+    std::uint16_t curve_segments = 12;
+    std::uint16_t border_curve_segments = 24;
+    std::uint8_t msaa_samples = 4;
+    bool hardware_acceleration = true;
+    bool smoothing = true;
+};
+
 struct RendererConfig {
     void* native_window = nullptr;
     std::uint32_t width = 1280;
     std::uint32_t height = 720;
     const char* shader_directory = nullptr;
     bool vsync = true;
+    RendererQualityConfig quality {};
 };
 
 class OUIF_API Renderer {

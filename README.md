@@ -94,6 +94,13 @@ root.set_stylesheet(R"css(
 
 `set_style()` is the explicit override when both APIs touch the same widget. `join_stylesheet()` appends CSS, and `get_style()` / `get_stylesheet()` expose the current effective style and source CSS.
 
+Use render quality presets when rounded borders need smoother curves:
+
+```cpp
+ouif::Application app(ouif::ApplicationConfig()
+    .with_render_quality(ouif::RendererQuality::Ultra));
+```
+
 For live changes, use direct widget setters:
 
 ```cpp

@@ -264,6 +264,7 @@ void Application::initialize_renderer(void* native_window)
         config_.height,
         nullptr,
         true,
+        config_.render_quality,
     });
 }
 
