@@ -218,7 +218,7 @@ set_style(ouif::Style()
 }
 ```
 
-Uniform and mixed directional borders use rounded border rendering. Corner arcs blend between adjacent side colors and widths so CSS-style border mixes follow radius smoothly.
+Uniform and mixed directional borders use rounded border rendering. Adjacent side colors meet on straight corner splits, matching browser-style rounded borders.
 
 ## Layout
 
