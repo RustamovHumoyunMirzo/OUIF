@@ -53,6 +53,7 @@ Divider color uses the normal widget background style, so CSS can style it too:
 
 - Draws a styled line.
 - Handles no events.
+- Does not accept children.
 - Participates in row/column layout like any other widget.
 
 ## XML
@@ -61,3 +62,5 @@ Divider color uses the normal widget background style, so CSS can style it too:
 <Divider orientation="horizontal" thickness="1" color="#344052" />
 <Divider orientation="vertical" thickness="2" class="divider" />
 ```
+
+`Divider` is a leaf widget, so nested XML children are rejected.

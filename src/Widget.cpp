@@ -1087,6 +1087,10 @@ bool Widget::focus_next(bool reverse) noexcept
 
 Widget& Widget::add_child(Widget& child)
 {
+    if (!accepts_children_) {
+        throw std::invalid_argument("This widget does not accept child widgets");
+    }
+
     if (&child == this) {
         throw std::invalid_argument("A widget cannot be added as its own child");
     }
@@ -1111,6 +1115,10 @@ Widget& Widget::add_child(Widget& child)
 
 Widget& Widget::add_child(std::unique_ptr<Widget> child)
 {
+    if (!accepts_children_) {
+        throw std::invalid_argument("This widget does not accept child widgets");
+    }
+
     if (!child) {
         throw std::invalid_argument("Cannot add a null widget child");
     }
@@ -1147,6 +1155,19 @@ void Widget::clear_children() noexcept
 
     children_.clear();
     owned_children_.clear();
+}
+
+void Widget::set_accepts_children(bool accepts) noexcept
+{
+    accepts_children_ = accepts;
+    if (!accepts_children_) {
+        clear_children();
+    }
+}
+
+bool Widget::accepts_children() const noexcept
+{
+    return accepts_children_;
 }
 
 const std::vector<Widget*>& Widget::children() const noexcept

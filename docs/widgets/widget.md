@@ -58,6 +58,22 @@ private:
 
 Owned children are destroyed by the parent. Member/external children auto-detach when destroyed.
 
+## Leaf Widgets
+
+Widgets accept children by default. A custom widget can opt out when it should behave as a leaf:
+
+```cpp
+class Icon : public ouif::Widget {
+public:
+    Icon()
+    {
+        set_accepts_children(false);
+    }
+};
+```
+
+After that, all `add_child(...)` paths throw `std::invalid_argument`. Calling `set_accepts_children(false)` on a widget that already has children clears them first.
+
 ## Layout
 
 Important methods:

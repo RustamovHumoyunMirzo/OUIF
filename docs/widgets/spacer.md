@@ -32,6 +32,7 @@ Use fixed-size spacers when you need an exact gap that is easier to read as a ch
 
 - Draws nothing.
 - Handles no events.
+- Does not accept children.
 - Can still use normal layout APIs such as `set_size`, `set_margin`, and `set_flex`.
 
 ## XML
@@ -40,3 +41,5 @@ Use fixed-size spacers when you need an exact gap that is easier to read as a ch
 <Spacer flex="1" />
 <Spacer size="24,1" />
 ```
+
+`Spacer` is a leaf widget, so nested XML children are rejected.

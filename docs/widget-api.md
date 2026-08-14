@@ -13,6 +13,7 @@ Every widget has:
 - stylesheet: `set_stylesheet(css)`, `join_stylesheet(css)`, and `get_stylesheet()`
 - layout rules: `set_layout(Layout)` and `layout_rules()`
 - child widgets: `add_child(widget)` or `add_child<T>(args...)`
+- child support: `set_accepts_children(bool)` and `accepts_children()`
 - visibility: `set_visible(bool)` and `visible()`
 - enabled state: `set_enabled(bool)` and `enabled()`
 - content clipping: `set_clip_content(bool)` and `clip_content()`

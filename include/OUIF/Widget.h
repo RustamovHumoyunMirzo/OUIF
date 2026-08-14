@@ -166,6 +166,8 @@ public:
     Widget& add_child(std::unique_ptr<Widget> child);
     bool remove_child(Widget& child) noexcept;
     void clear_children() noexcept;
+    void set_accepts_children(bool accepts) noexcept;
+    [[nodiscard]] bool accepts_children() const noexcept;
 
     template <typename... Widgets>
         requires(sizeof...(Widgets) > 0)
@@ -251,6 +253,7 @@ private:
     bool visible_ = true;
     bool enabled_ = true;
     bool clip_content_ = true;
+    bool accepts_children_ = true;
     bool focusable_ = false;
     bool keyboard_activation_enabled_ = false;
     bool hovered_ = false;

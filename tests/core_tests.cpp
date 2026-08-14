@@ -168,6 +168,38 @@ int main()
         assert(divider.color().r > 0.8f);
     }
 
+    {
+        ouif::Spacer spacer;
+        ouif::Divider divider;
+        ouif::Widget child;
+        assert(!spacer.accepts_children());
+        assert(!divider.accepts_children());
+
+        bool spacer_threw = false;
+        try {
+            spacer.add_child(child);
+        } catch (const std::invalid_argument&) {
+            spacer_threw = true;
+        }
+        assert(spacer_threw);
+
+        bool divider_threw = false;
+        try {
+            divider.add_child<ouif::Widget>();
+        } catch (const std::invalid_argument&) {
+            divider_threw = true;
+        }
+        assert(divider_threw);
+
+        ouif::Widget container;
+        container.add_child<ouif::Widget>();
+        assert(container.accepts_children());
+        assert(container.children().size() == 1);
+        container.set_accepts_children(false);
+        assert(!container.accepts_children());
+        assert(container.children().empty());
+    }
+
     ouif::RowLayout weighted_row;
     weighted_row.set_bounds({ 0.0f, 0.0f, 320.0f, 100.0f });
     weighted_row.set_gap(20.0f);
@@ -387,6 +419,23 @@ int main()
         assert(divider != nullptr);
         assert(divider->orientation() == ouif::Orientation::Vertical);
         assert(std::fabs(divider->thickness() - 2.0f) < 0.01f);
+    }
+
+    {
+        ouif::Application app;
+        bool threw = false;
+        try {
+            app.load_xml_string(R"xml(
+                <Window>
+                    <Spacer>
+                        <Widget />
+                    </Spacer>
+                </Window>
+            )xml");
+        } catch (const std::invalid_argument&) {
+            threw = true;
+        }
+        assert(threw);
     }
 
     {

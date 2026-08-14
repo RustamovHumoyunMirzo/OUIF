@@ -11,7 +11,7 @@ enum class Orientation : std::uint8_t {
 
 class OUIF_API Spacer : public Widget {
 public:
-    Spacer() = default;
+    Spacer() noexcept;
     explicit Spacer(float flex) noexcept;
     explicit Spacer(Size size) noexcept;
 

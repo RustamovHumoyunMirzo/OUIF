@@ -6,13 +6,20 @@
 
 namespace ouif {
 
+Spacer::Spacer() noexcept
+{
+    set_accepts_children(false);
+}
+
 Spacer::Spacer(float flex) noexcept
 {
+    set_accepts_children(false);
     set_flex(flex);
 }
 
 Spacer::Spacer(Size size) noexcept
 {
+    set_accepts_children(false);
     set_size(size);
 }
 
@@ -31,6 +38,7 @@ Divider::Divider(Orientation orientation, float thickness)
     : orientation_(orientation)
     , thickness_(std::max(0.0f, thickness))
 {
+    set_accepts_children(false);
     apply_axis_size();
 }
 
