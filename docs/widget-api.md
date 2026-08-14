@@ -15,6 +15,7 @@ Every widget has:
 - child widgets: `add_child(widget)` or `add_child<T>(args...)`
 - visibility: `set_visible(bool)` and `visible()`
 - enabled state: `set_enabled(bool)` and `enabled()`
+- content clipping: `set_clip_content(bool)` and `clip_content()`
 - interaction state: `hovered()` and `pressed()`
 - custom state: `set_state(...)`, `toggle_state(...)`, and `has_state(...)`
 - focus state: `focus()`, `blur()`, and `focused()`
@@ -168,7 +169,7 @@ CSS property names intentionally mirror `Style` naming:
 - `border-left`, `border-top`, `border-right`, `border-bottom`
 - `border-left-width`, `border-top-width`, `border-right-width`, `border-bottom-width`
 - `border-radius`, `radius`, and per-corner radius names
-- `width`, `height`, `flex`, `margin`, `padding`
+- `width`, `height`, `flex`, `margin`, `padding`, `clip-content`
 
 `width` and `height` support `px`, `%`, `vw`, and `vh`. `margin`, `padding`, and radius currently resolve as pixel values.
 
@@ -313,6 +314,8 @@ OUIF includes simple linear layout containers:
 
 - `ouif::RowLayout`
 - `ouif::ColLayout`
+- `ouif::RowScroll`
+- `ouif::ColScroll`
 
 They support:
 
@@ -321,6 +324,33 @@ They support:
 - `set_alignment(ouif::Align::End)`
 - `set_gap(float)`
 - `set_cross_alignment(ouif::Align::Center)`
+
+`RowScroll` and `ColScroll` use the same alignment, gap, margin, and padding ideas, but measure overflowing content on the main axis and respond to mouse wheel events. Children are clipped to the scroll container by default through `clip_content`.
+
+```cpp
+class Palette : public ouif::ColScroll {
+public:
+    Palette()
+    {
+        set_gap(12.0f);
+        set_scroll_step(56.0f);
+        set_clip_content(true);
+
+        for (int index = 0; index < 12; ++index) {
+            add_child<ColorTile>(ouif::Size { 160.0f, 48.0f });
+        }
+    }
+};
+```
+
+Useful scroll APIs:
+
+- `set_scroll_offset(float)` and `scroll_offset()`
+- `max_scroll_offset()`
+- `content_size()`
+- `set_scroll_step(float)` and `scroll_step()`
+
+Use `set_clip_content(false)` when a container should allow children to draw and receive mouse events outside its bounds.
 
 ```cpp
 class DemoSurface : public ouif::RowLayout {

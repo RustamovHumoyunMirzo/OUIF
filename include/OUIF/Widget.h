@@ -142,6 +142,9 @@ public:
     void set_enabled(bool enabled) noexcept;
     [[nodiscard]] bool enabled() const noexcept;
 
+    void set_clip_content(bool clip) noexcept;
+    [[nodiscard]] bool clip_content() const noexcept;
+
     void set_focusable(bool focusable) noexcept;
     [[nodiscard]] bool focusable() const noexcept;
     [[nodiscard]] bool can_focus() const noexcept;
@@ -247,6 +250,7 @@ private:
     bool has_stylesheet_style_ = false;
     bool visible_ = true;
     bool enabled_ = true;
+    bool clip_content_ = true;
     bool focusable_ = false;
     bool keyboard_activation_enabled_ = false;
     bool hovered_ = false;

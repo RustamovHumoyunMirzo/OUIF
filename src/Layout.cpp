@@ -25,6 +25,16 @@ float fixed_height_for(const Widget& child, Size available)
     return child_bounds.height > 0.0f && rules.height != SizePolicy::Fill ? child_bounds.height : rules.preferred_size.height;
 }
 
+float main_size_for(const Widget& child, Size available, bool row)
+{
+    return row ? fixed_width_for(child, available) : fixed_height_for(child, available);
+}
+
+float cross_size_for(const Widget& child, Size available, bool row)
+{
+    return row ? fixed_height_for(child, available) : fixed_width_for(child, available);
+}
+
 } // namespace
 
 void LinearLayout::set_alignment(Align alignment) noexcept
@@ -146,6 +156,128 @@ RowLayout::RowLayout()
 
 ColLayout::ColLayout()
     : LinearLayout(Direction::Column)
+{
+}
+
+ScrollLayout::ScrollLayout(Direction direction)
+    : LinearLayout(direction)
+    , scroll_direction_(direction)
+{
+}
+
+void ScrollLayout::set_scroll_offset(float offset) noexcept
+{
+    scroll_offset_ = std::clamp(offset, 0.0f, max_scroll_offset_);
+}
+
+float ScrollLayout::scroll_offset() const noexcept
+{
+    return scroll_offset_;
+}
+
+float ScrollLayout::max_scroll_offset() const noexcept
+{
+    return max_scroll_offset_;
+}
+
+Size ScrollLayout::content_size() const noexcept
+{
+    return content_size_;
+}
+
+void ScrollLayout::set_scroll_step(float step) noexcept
+{
+    scroll_step_ = std::max(1.0f, step);
+}
+
+float ScrollLayout::scroll_step() const noexcept
+{
+    return scroll_step_;
+}
+
+bool ScrollLayout::event(const Event& event)
+{
+    if (const auto* wheel = std::get_if<MouseWheelEvent>(&event)) {
+        if (hit_test(wheel->position)) {
+            const bool row = scroll_direction_ == Direction::Row;
+            const float wheel_delta = row && wheel->delta_x != 0.0f ? wheel->delta_x : wheel->delta_y;
+            const float previous = scroll_offset_;
+            set_scroll_offset(scroll_offset_ - wheel_delta * scroll_step_);
+            if (scroll_offset_ != previous) {
+                layout({ bounds().width, bounds().height });
+                return true;
+            }
+        }
+    }
+
+    return LinearLayout::event(event);
+}
+
+void ScrollLayout::on_layout(Rect content)
+{
+    auto& items = mutable_children();
+    const bool row = scroll_direction_ == Direction::Row;
+    const float available_main = row ? content.width : content.height;
+    const float available_cross = row ? content.height : content.width;
+    const Size available { content.width, content.height };
+    float total_main = items.empty() ? 0.0f : gap() * static_cast<float>(items.size() - 1);
+    float max_cross = 0.0f;
+
+    for (const auto& child : items) {
+        const auto rules = child->layout_rules();
+        const float margin_main = row ? rules.margin.left + rules.margin.right : rules.margin.top + rules.margin.bottom;
+        const float margin_cross = row ? rules.margin.top + rules.margin.bottom : rules.margin.left + rules.margin.right;
+        total_main += main_size_for(*child, available, row) + margin_main;
+        max_cross = std::max(max_cross, cross_size_for(*child, available, row) + margin_cross);
+    }
+
+    content_size_ = row ? Size { total_main, max_cross } : Size { max_cross, total_main };
+    max_scroll_offset_ = std::max(0.0f, total_main - available_main);
+    scroll_offset_ = std::clamp(scroll_offset_, 0.0f, max_scroll_offset_);
+
+    float cursor = (row ? content.x : content.y) - scroll_offset_;
+    if (max_scroll_offset_ <= 0.0f && alignment() == Align::Center) {
+        cursor += (available_main - total_main) * 0.5f;
+    } else if (max_scroll_offset_ <= 0.0f && alignment() == Align::End) {
+        cursor += available_main - total_main;
+    }
+
+    for (const auto& child : items) {
+        const auto rules = child->layout_rules();
+        const bool fills_cross = row ? rules.height == SizePolicy::Fill : rules.width == SizePolicy::Fill;
+        const float margin_before = row ? rules.margin.left : rules.margin.top;
+        const float margin_after = row ? rules.margin.right : rules.margin.bottom;
+        const float margin_cross_before = row ? rules.margin.top : rules.margin.left;
+        const float margin_cross_after = row ? rules.margin.bottom : rules.margin.right;
+        const float main = main_size_for(*child, available, row);
+        const float preferred_cross = cross_size_for(*child, available, row);
+        const float cross_space = std::max(0.0f, available_cross - margin_cross_before - margin_cross_after);
+        const float cross = fills_cross ? cross_space : preferred_cross;
+        float cross_start = row ? content.y + margin_cross_before : content.x + margin_cross_before;
+        if (!fills_cross && cross_alignment() == Align::Center) {
+            cross_start = (row ? content.y : content.x) + margin_cross_before + (cross_space - cross) * 0.5f;
+        } else if (!fills_cross && cross_alignment() == Align::End) {
+            cross_start = (row ? content.y : content.x) + available_cross - margin_cross_after - cross;
+        }
+
+        cursor += margin_before;
+        if (row) {
+            child->set_bounds({ cursor, cross_start, main, cross });
+            cursor += main + margin_after + gap();
+        } else {
+            child->set_bounds({ cross_start, cursor, cross, main });
+            cursor += main + margin_after + gap();
+        }
+    }
+}
+
+RowScroll::RowScroll()
+    : ScrollLayout(Direction::Row)
+{
+}
+
+ColScroll::ColScroll()
+    : ScrollLayout(Direction::Column)
 {
 }
 

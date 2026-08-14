@@ -54,6 +54,8 @@ public:
     void stroke_rect(Rect rect, Color color, float width);
     void stroke_rounded_rect(Rect rect, CornerRadius radius, Color color, float width);
     void stroke_rounded_rect(Rect rect, CornerRadius radius, BorderEdges borders);
+    void push_clip(Rect rect);
+    void pop_clip();
     void end_frame();
 
     [[nodiscard]] bool initialized() const noexcept;

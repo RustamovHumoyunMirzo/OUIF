@@ -276,6 +276,12 @@ std::unique_ptr<Widget> make_builtin_widget(std::string_view tag)
     if (tag_is(tag, "ColLayout") || tag_is(tag, "Column") || tag_is(tag, "Col")) {
         return std::make_unique<ColLayout>();
     }
+    if (tag_is(tag, "RowScroll") || tag_is(tag, "HorizontalScroll")) {
+        return std::make_unique<RowScroll>();
+    }
+    if (tag_is(tag, "ColScroll") || tag_is(tag, "VerticalScroll")) {
+        return std::make_unique<ColScroll>();
+    }
     return nullptr;
 }
 
@@ -350,11 +356,29 @@ void apply_common_attributes(Widget& widget, const XmlElement& element, std::str
         }
     }
 
+    if (auto* scroll = dynamic_cast<ScrollLayout*>(&widget)) {
+        if (auto offset = element.attribute_float("scroll_offset")) {
+            scroll->set_scroll_offset(*offset);
+        } else if (auto offset = element.attribute_float("scroll-offset")) {
+            scroll->set_scroll_offset(*offset);
+        }
+        if (auto step = element.attribute_float("scroll_step")) {
+            scroll->set_scroll_step(*step);
+        } else if (auto step = element.attribute_float("scroll-step")) {
+            scroll->set_scroll_step(*step);
+        }
+    }
+
     if (auto visible = element.attribute_bool("visible")) {
         widget.set_visible(*visible);
     }
     if (auto enabled = element.attribute_bool("enabled")) {
         widget.set_enabled(*enabled);
+    }
+    if (auto clip = element.attribute_bool("clip_content")) {
+        widget.set_clip_content(*clip);
+    } else if (auto clip = element.attribute_bool("clip-content")) {
+        widget.set_clip_content(*clip);
     }
     if (auto focusable = element.attribute_bool("focusable")) {
         widget.set_focusable(*focusable);

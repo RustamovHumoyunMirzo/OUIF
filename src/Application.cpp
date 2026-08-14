@@ -91,6 +91,21 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int)
     }
 }
 
+void scroll_callback(GLFWwindow* window, double x, double y)
+{
+    if (auto* app = app_from(window)) {
+        double cursor_x = 0.0;
+        double cursor_y = 0.0;
+        glfwGetCursorPos(window, &cursor_x, &cursor_y);
+        app->dispatch_event(MouseWheelEvent {
+            { static_cast<float>(cursor_x), static_cast<float>(cursor_y) },
+            {},
+            static_cast<float>(x),
+            static_cast<float>(y),
+        });
+    }
+}
+
 void key_callback(GLFWwindow* window, int key, int, int action, int)
 {
     if (auto* app = app_from(window)) {
@@ -139,6 +154,7 @@ GlfwWindow create_window(const ApplicationConfig& config, Application* app)
     glfwSetWindowUserPointer(window, app);
     glfwSetCursorPosCallback(window, cursor_position_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
+    glfwSetScrollCallback(window, scroll_callback);
     glfwSetKeyCallback(window, key_callback);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     return { window, true };

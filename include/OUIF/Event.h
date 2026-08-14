@@ -47,6 +47,13 @@ struct MouseButtonEvent {
     bool pressed = false;
 };
 
+struct MouseWheelEvent {
+    Point position;
+    Point local_position;
+    float delta_x = 0.0f;
+    float delta_y = 0.0f;
+};
+
 struct MouseEvent {
     MouseEventType type = MouseEventType::Move;
     Point position;
@@ -67,6 +74,6 @@ struct ResizeEvent {
     Size size;
 };
 
-using Event = std::variant<MouseMoveEvent, MouseButtonEvent, MouseEvent, KeyEvent, ResizeEvent>;
+using Event = std::variant<MouseMoveEvent, MouseButtonEvent, MouseWheelEvent, MouseEvent, KeyEvent, ResizeEvent>;
 
 } // namespace ouif

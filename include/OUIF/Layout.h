@@ -47,4 +47,37 @@ public:
     ColLayout();
 };
 
+class OUIF_API ScrollLayout : public LinearLayout {
+public:
+    void set_scroll_offset(float offset) noexcept;
+    [[nodiscard]] float scroll_offset() const noexcept;
+    [[nodiscard]] float max_scroll_offset() const noexcept;
+    [[nodiscard]] Size content_size() const noexcept;
+    void set_scroll_step(float step) noexcept;
+    [[nodiscard]] float scroll_step() const noexcept;
+
+    bool event(const Event& event) override;
+
+protected:
+    explicit ScrollLayout(Direction direction);
+    void on_layout(Rect content) override;
+
+private:
+    Direction scroll_direction_;
+    float scroll_offset_ = 0.0f;
+    float max_scroll_offset_ = 0.0f;
+    float scroll_step_ = 48.0f;
+    Size content_size_ {};
+};
+
+class OUIF_API RowScroll : public ScrollLayout {
+public:
+    RowScroll();
+};
+
+class OUIF_API ColScroll : public ScrollLayout {
+public:
+    ColScroll();
+};
+
 } // namespace ouif

@@ -377,6 +377,20 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
         return;
     }
 
+    if (property == "clip-content" || property == "clip_content") {
+        const auto value = (first->unit == KATANA_VALUE_IDENT || first->unit == KATANA_VALUE_STRING || first->unit == KATANA_VALUE_PARSER_IDENTIFIER)
+            ? lower_copy(text_or_empty(first->string))
+            : std::string {};
+        if (value == "false" || value == "0" || value == "no" || value == "off" || value == "visible") {
+            widget.set_clip_content(false);
+        } else if (value == "true" || value == "1" || value == "yes" || value == "on" || value == "hidden") {
+            widget.set_clip_content(true);
+        } else if (auto numeric = pixels_from_value(*first)) {
+            widget.set_clip_content(*numeric != 0.0f);
+        }
+        return;
+    }
+
     if (property == "margin" || property == "padding") {
         float parts[4] {};
         unsigned int count = 0;
@@ -959,6 +973,16 @@ bool Widget::enabled() const noexcept
     return enabled_;
 }
 
+void Widget::set_clip_content(bool clip) noexcept
+{
+    clip_content_ = clip;
+}
+
+bool Widget::clip_content() const noexcept
+{
+    return clip_content_;
+}
+
 void Widget::set_focusable(bool focusable) noexcept
 {
     focusable_ = focusable;
@@ -1265,8 +1289,14 @@ void Widget::render(Renderer& renderer)
 
     draw(renderer);
 
+    if (clip_content_) {
+        renderer.push_clip(bounds_);
+    }
     for (auto* child : children_) {
         child->render(renderer);
+    }
+    if (clip_content_) {
+        renderer.pop_clip();
     }
 }
 
@@ -1281,6 +1311,19 @@ bool Widget::event(const Event& event)
     }
 
     const auto mouse = mouse_event_from(event);
+    const auto* wheel = std::get_if<MouseWheelEvent>(&event);
+    if ((mouse.has_value() || wheel != nullptr) && clip_content_) {
+        const Point position = mouse.has_value() ? mouse->position : wheel->position;
+        if (!hit_test(position)) {
+            if (hovered_) {
+                hovered_ = false;
+                pressed_ = false;
+                MouseEvent leave { MouseEventType::Leave, position, to_local(position), MouseButton::Left };
+                on_mouse_leave(leave);
+            }
+            return false;
+        }
+    }
 
     for (auto it = children_.rbegin(); it != children_.rend(); ++it) {
         if ((*it)->event(event)) {

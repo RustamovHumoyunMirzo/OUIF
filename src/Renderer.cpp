@@ -5,6 +5,7 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -275,10 +276,28 @@ struct Renderer::Impl {
     std::uint32_t height = 0;
     RendererQualityConfig quality {};
     std::uint32_t reset_flags = 0;
+    std::vector<Rect> clip_stack;
 #if OUIF_WITH_BGFX
     bgfx::ProgramHandle rect_program = BGFX_INVALID_HANDLE;
 #endif
 };
+
+#if OUIF_WITH_BGFX
+template <typename Impl>
+void apply_scissor(const Impl& impl)
+{
+    if (impl.clip_stack.empty()) {
+        return;
+    }
+
+    const auto rect = impl.clip_stack.back();
+    const auto x = static_cast<std::uint16_t>(std::clamp(rect.x, 0.0f, static_cast<float>(impl.width)));
+    const auto y = static_cast<std::uint16_t>(std::clamp(rect.y, 0.0f, static_cast<float>(impl.height)));
+    const auto right = static_cast<std::uint16_t>(std::clamp(rect.x + rect.width, 0.0f, static_cast<float>(impl.width)));
+    const auto bottom = static_cast<std::uint16_t>(std::clamp(rect.y + rect.height, 0.0f, static_cast<float>(impl.height)));
+    bgfx::setScissor(x, y, static_cast<std::uint16_t>(right - x), static_cast<std::uint16_t>(bottom - y));
+}
+#endif
 
 Renderer::Renderer()
     : impl_(std::make_unique<Impl>())
@@ -392,6 +411,7 @@ void Renderer::resize(std::uint32_t width, std::uint32_t height)
 
 void Renderer::begin_frame(Color clear_color)
 {
+    impl_->clip_stack.clear();
 #if OUIF_WITH_BGFX
     const auto r = static_cast<std::uint32_t>(clear_color.r * 255.0f) & 0xffU;
     const auto g = static_cast<std::uint32_t>(clear_color.g * 255.0f) & 0xffU;
@@ -404,6 +424,37 @@ void Renderer::begin_frame(Color clear_color)
 #else
     (void)clear_color;
 #endif
+}
+
+void Renderer::push_clip(Rect rect)
+{
+    rect.width = std::max(0.0f, rect.width);
+    rect.height = std::max(0.0f, rect.height);
+    if (!impl_->clip_stack.empty()) {
+        const auto parent = impl_->clip_stack.back();
+        const float left = std::max(parent.x, rect.x);
+        const float top = std::max(parent.y, rect.y);
+        const float right = std::min(parent.x + parent.width, rect.x + rect.width);
+        const float bottom = std::min(parent.y + parent.height, rect.y + rect.height);
+        rect = {
+            left,
+            top,
+            std::max(0.0f, right - left),
+            std::max(0.0f, bottom - top),
+        };
+    }
+
+    impl_->clip_stack.push_back(rect);
+
+}
+
+void Renderer::pop_clip()
+{
+    if (impl_->clip_stack.empty()) {
+        return;
+    }
+
+    impl_->clip_stack.pop_back();
 }
 
 void Renderer::fill_rect(Rect rect, Color color)
@@ -441,6 +492,7 @@ void Renderer::fill_rect(Rect rect, Color color)
     bgfx::setVertexBuffer(0, &vertices);
     bgfx::setIndexBuffer(&indices);
     bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
+    apply_scissor(*impl_);
     bgfx::submit(0, impl_->rect_program);
 #else
     (void)rect;
@@ -497,6 +549,7 @@ void Renderer::fill_rounded_rect(Rect rect, CornerRadius radius, Color color)
     bgfx::setVertexBuffer(0, &vertices);
     bgfx::setIndexBuffer(&indices);
     bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
+    apply_scissor(*impl_);
     bgfx::submit(0, impl_->rect_program);
 #else
     (void)radius;
@@ -674,6 +727,7 @@ void Renderer::stroke_rounded_rect(Rect rect, CornerRadius radius, BorderEdges b
     bgfx::setVertexBuffer(0, &vertices);
     bgfx::setIndexBuffer(&indices);
     bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
+    apply_scissor(*impl_);
     bgfx::submit(0, impl_->rect_program);
 #else
     (void)radius;

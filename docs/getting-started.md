@@ -199,7 +199,7 @@ Use `add_class("tile")`, `set_name("primary")`, and `set_type_name("Panel")` for
 
 ## XML UI
 
-XML can define the window metadata, linked CSS files, embedded CSS, and the widget tree. Built-in tags include `Widget`, `RowLayout`, and `ColLayout`; app-specific tags are registered from C++:
+XML can define the window metadata, linked CSS files, embedded CSS, and the widget tree. Built-in tags include `Widget`, `RowLayout`, `ColLayout`, `RowScroll`, and `ColScroll`; app-specific tags are registered from C++:
 
 ```cpp
 ouif::Application app;

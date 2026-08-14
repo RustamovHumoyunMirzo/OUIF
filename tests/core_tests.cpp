@@ -287,6 +287,49 @@ int main()
     }
 
     {
+        ouif::ColScroll scroller;
+        scroller.set_bounds({ 0.0f, 0.0f, 120.0f, 100.0f });
+        scroller.set_gap(10.0f);
+        auto& a = scroller.add_child<ouif::Widget>();
+        auto& b = scroller.add_child<ouif::Widget>();
+        auto& c = scroller.add_child<ouif::Widget>();
+        a.set_size({ 100.0f, 60.0f });
+        b.set_size({ 100.0f, 60.0f });
+        c.set_size({ 100.0f, 60.0f });
+
+        scroller.layout({ 120.0f, 100.0f });
+        assert(scroller.clip_content());
+        assert(std::fabs(scroller.content_size().height - 200.0f) < 0.01f);
+        assert(std::fabs(scroller.max_scroll_offset() - 100.0f) < 0.01f);
+        assert(std::fabs(a.bounds().y) < 0.01f);
+
+        assert(scroller.event(ouif::MouseWheelEvent { { 10.0f, 10.0f }, {}, 0.0f, -1.0f }));
+        assert(std::fabs(scroller.scroll_offset() - 48.0f) < 0.01f);
+        assert(std::fabs(a.bounds().y + 48.0f) < 0.01f);
+
+        scroller.set_scroll_offset(1000.0f);
+        scroller.layout({ 120.0f, 100.0f });
+        assert(std::fabs(scroller.scroll_offset() - 100.0f) < 0.01f);
+
+        scroller.set_clip_content(false);
+        assert(!scroller.clip_content());
+    }
+
+    {
+        ouif::RowScroll scroller;
+        scroller.set_bounds({ 0.0f, 0.0f, 100.0f, 80.0f });
+        auto& a = scroller.add_child<ouif::Widget>();
+        auto& b = scroller.add_child<ouif::Widget>();
+        a.set_size({ 70.0f, 40.0f });
+        b.set_size({ 70.0f, 40.0f });
+        scroller.layout({ 100.0f, 80.0f });
+        assert(std::fabs(scroller.max_scroll_offset() - 40.0f) < 0.01f);
+        assert(scroller.event(ouif::MouseWheelEvent { { 4.0f, 4.0f }, {}, 0.0f, -1.0f }));
+        assert(std::fabs(scroller.scroll_offset() - 40.0f) < 0.01f);
+        assert(std::fabs(a.bounds().x + 40.0f) < 0.01f);
+    }
+
+    {
         ouif::Application app;
         app.register_xml_widget("XmlTile", [](const ouif::XmlElement& element) {
             (void)element;
