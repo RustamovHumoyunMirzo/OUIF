@@ -142,21 +142,17 @@ void append_border_arc(
     for (int index = 0; index <= segments; ++index) {
         const float t = static_cast<float>(index) / static_cast<float>(segments);
         const float angle = start + (end - start) * t;
-        const float width = t <= 0.5f ? start_width : end_width;
+        const float width = start_width + (end_width - start_width) * t;
         const Point normal { std::cos(angle), std::sin(angle) };
         const Point outer { cx + normal.x * radius, cy + normal.y * radius };
         const Point inner { outer.x - normal.x * width, outer.y - normal.y * width };
-        const Color color = t <= 0.5f ? start_color : end_color;
+        const Color color = mix(start_color, end_color, t);
 
         if (!points.empty() && points.back().outer.x == outer.x && points.back().outer.y == outer.y) {
-            points.back().color = color;
+            points.back().color = mix(points.back().color, color, 0.5f);
             points.back().inner = inner;
         } else {
             points.push_back({ outer, inner, color });
-        }
-
-        if (index == segments / 2) {
-            points.push_back({ outer, { outer.x - normal.x * end_width, outer.y - normal.y * end_width }, end_color });
         }
     }
 }
