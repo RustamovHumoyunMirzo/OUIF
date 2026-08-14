@@ -165,6 +165,8 @@ CSS property names intentionally mirror `Style` naming:
 - `background`, `background-hovered`, `background-pressed`, `background-selected`, `background-focused`
 - `foreground` or `color`
 - `border`, `border-selected`, `border-focused`
+- `border-left`, `border-top`, `border-right`, `border-bottom`
+- `border-left-width`, `border-top-width`, `border-right-width`, `border-bottom-width`
 - `border-radius`, `radius`, and per-corner radius names
 - `width`, `height`, `flex`, `margin`, `padding`
 
@@ -178,15 +180,45 @@ For runtime changes, widgets also expose direct style setters and getters:
 tile.set_background("#2f6c9c");
 tile.set_background_hovered("#4692c4");
 tile.set_border("#e8edf3", 2.0f);
+tile.set_border_left("#9fd7ff", 8.0f);
+tile.set_border_bottom("#102838", 6.0f);
 tile.set_radius(8.0f);
 tile.set_opacity(0.85f);
 
 auto background = tile.get_background();
 auto border = tile.get_border();
+auto left_border = tile.get_border_left();
 auto radius = tile.get_radius();
 ```
 
 These convenience setters are C++ runtime style changes, so they also override stylesheet values for that widget.
+
+Directional borders follow web-style naming and can be mixed:
+
+```cpp
+set_style(ouif::Style()
+    .with_background("#263241")
+    .with_border_top("#53677d", 1.0f)
+    .with_border_right("#1c2530", 4.0f)
+    .with_border_bottom("#10151c", 6.0f)
+    .with_border_left("#9fd7ff", 8.0f));
+```
+
+```css
+.tile {
+    border-left: #9fd7ff 8px;
+    border-top: #53677d 1px;
+    border-right: #1c2530 4px;
+    border-bottom: #10151c 6px;
+}
+
+.tile:selected {
+    border-left: #ffffff 4px;
+    border-right: #ffffff 4px;
+}
+```
+
+Uniform borders still use rounded border rendering. Mixed directional borders render each requested side independently.
 
 ## Layout
 

@@ -76,6 +76,14 @@ public:
     [[nodiscard]] Color get_foreground() const noexcept;
     void set_border(Color color, float width) noexcept;
     [[nodiscard]] Border get_border() const noexcept;
+    void set_border_left(Color color, float width) noexcept;
+    [[nodiscard]] Border get_border_left() const noexcept;
+    void set_border_top(Color color, float width) noexcept;
+    [[nodiscard]] Border get_border_top() const noexcept;
+    void set_border_right(Color color, float width) noexcept;
+    [[nodiscard]] Border get_border_right() const noexcept;
+    void set_border_bottom(Color color, float width) noexcept;
+    [[nodiscard]] Border get_border_bottom() const noexcept;
     void set_border_selected(Color color, float width) noexcept;
     [[nodiscard]] Border get_border_selected() const noexcept;
     void set_border_focused(Color color, float width) noexcept;

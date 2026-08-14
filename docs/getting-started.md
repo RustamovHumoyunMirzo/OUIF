@@ -42,6 +42,7 @@ This explicit layout avoids slow or fragile recursive submodule fetching during 
 cmake -S . -B build/full-example -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug
 cmake --build build/full-example --target ouif_hello
 cmake --build build/full-example --target ouif_complex_layout
+cmake --build build/full-example --target ouif_css_style
 ```
 
 Run:
@@ -52,6 +53,10 @@ Run:
 
 ```powershell
 .\build\full-example\bin\ouif_complex_layout.exe
+```
+
+```powershell
+.\build\full-example\bin\ouif_css_style.exe
 ```
 
 The executable needs these files next to it:
@@ -171,7 +176,10 @@ row.set_stylesheet(R"css(
         width: 50%;
         height: 120px;
         border-radius: 10px;
-        border: #e8edf3 2px;
+        border-left: #9fd7ff 8px;
+        border-top: #e8edf3 2px;
+        border-right: #1c3f5c 4px;
+        border-bottom: #102838 6px;
     }
 
     .tile:selected {

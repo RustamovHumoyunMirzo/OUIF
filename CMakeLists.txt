@@ -216,6 +216,7 @@ endif()
 if(OUIF_BUILD_EXAMPLES)
     add_subdirectory(examples/hello)
     add_subdirectory(examples/complex_layout)
+    add_subdirectory(examples/css_style)
 endif()
 
 if(OUIF_BUILD_TESTS)

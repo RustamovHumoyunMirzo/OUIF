@@ -144,6 +144,26 @@ void apply_border(Style& style, CssState state, Color color, float width)
     }
 }
 
+void apply_border_side(Style& style, CssState state, std::string_view side, Color color, float width)
+{
+    BorderEdges* edges = &style.borders;
+    if (state == CssState::Selected) {
+        edges = &style.borders_selected;
+    } else if (state == CssState::Focus) {
+        edges = &style.borders_focused;
+    }
+
+    if (side == "left") {
+        edges->left = { color, width };
+    } else if (side == "top") {
+        edges->top = { color, width };
+    } else if (side == "right") {
+        edges->right = { color, width };
+    } else if (side == "bottom") {
+        edges->bottom = { color, width };
+    }
+}
+
 void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declaration, CssState state, bool& touched_style)
 {
     const auto property = lower_copy(text_or_empty(declaration.property));
@@ -223,10 +243,44 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
         return;
     }
 
+    if (property == "border-left" || property == "border-top" || property == "border-right" || property == "border-bottom") {
+        std::optional<Color> border_color;
+        std::optional<float> border_width;
+        for (unsigned int index = 0; declaration.values != nullptr && index < declaration.values->length; ++index) {
+            auto* value = value_at(declaration.values, index);
+            if (value == nullptr) {
+                continue;
+            }
+            if (!border_color) {
+                border_color = color_from_value(*value);
+            }
+            if (!border_width) {
+                border_width = pixels_from_value(*value);
+            }
+        }
+        if (border_color && border_width) {
+            apply_border_side(style, state, std::string_view(property).substr(7), *border_color, *border_width);
+            touched_style = true;
+        }
+        return;
+    }
+
     if (property == "border-width") {
         if (auto width = pixels_from_value(*first)) {
             style.border.width = *width;
+            style.borders.left.width = *width;
+            style.borders.top.width = *width;
+            style.borders.right.width = *width;
+            style.borders.bottom.width = *width;
             style.border_width = *width;
+            touched_style = true;
+        }
+        return;
+    }
+
+    if (property == "border-left-width" || property == "border-top-width" || property == "border-right-width" || property == "border-bottom-width") {
+        if (auto width = pixels_from_value(*first)) {
+            apply_border_side(style, state, std::string_view(property).substr(7, property.find("-width") - 7), style.border.color, *width);
             touched_style = true;
         }
         return;
@@ -406,6 +460,25 @@ float resolve_length(Length length, Size available, bool horizontal)
     return length.automatic() ? 0.0f : length.resolve(available, horizontal);
 }
 
+BorderEdges normalized_edges(BorderEdges edges, Border fallback)
+{
+    if (edges.empty() && fallback.width > 0.0f) {
+        return BorderEdges(fallback);
+    }
+    return edges;
+}
+
+BorderEdges active_border_edges(const Style& style, bool selected, bool focused)
+{
+    if (selected) {
+        return normalized_edges(style.borders_selected, style.border_selected);
+    }
+    if (focused) {
+        return normalized_edges(style.borders_focused, style.border_focused);
+    }
+    return normalized_edges(style.borders, style.border);
+}
+
 } // namespace
 
 Widget::~Widget()
@@ -583,6 +656,54 @@ void Widget::set_border(Color color, float width) noexcept
 Border Widget::get_border() const noexcept
 {
     return style_.border;
+}
+
+void Widget::set_border_left(Color color, float width) noexcept
+{
+    auto next = style_;
+    next.with_border_left(color, width);
+    set_style(next);
+}
+
+Border Widget::get_border_left() const noexcept
+{
+    return active_border_edges(style_, selected_, focused_).left;
+}
+
+void Widget::set_border_top(Color color, float width) noexcept
+{
+    auto next = style_;
+    next.with_border_top(color, width);
+    set_style(next);
+}
+
+Border Widget::get_border_top() const noexcept
+{
+    return active_border_edges(style_, selected_, focused_).top;
+}
+
+void Widget::set_border_right(Color color, float width) noexcept
+{
+    auto next = style_;
+    next.with_border_right(color, width);
+    set_style(next);
+}
+
+Border Widget::get_border_right() const noexcept
+{
+    return active_border_edges(style_, selected_, focused_).right;
+}
+
+void Widget::set_border_bottom(Color color, float width) noexcept
+{
+    auto next = style_;
+    next.with_border_bottom(color, width);
+    set_style(next);
+}
+
+Border Widget::get_border_bottom() const noexcept
+{
+    return active_border_edges(style_, selected_, focused_).bottom;
 }
 
 void Widget::set_border_selected(Color color, float width) noexcept
@@ -1091,11 +1212,27 @@ void Widget::draw(Renderer& renderer)
 
     const Color background = selected_ ? style_.selected : (focused_ ? style_.focused : (pressed_ ? style_.pressed : (hovered_ ? style_.hovered : style_.background)));
     renderer.fill_rounded_rect(bounds_, style_.radius, background);
-    const Border border = selected_ && style_.border_selected.width > 0.0f
-        ? style_.border_selected
-        : (focused_ && style_.border_focused.width > 0.0f ? style_.border_focused : style_.border);
-    if (border.width > 0.0f) {
-        renderer.stroke_rounded_rect(bounds_, style_.radius, border.color, border.width);
+    const auto borders = active_border_edges(style_, selected_, focused_);
+    if (borders.empty()) {
+        return;
+    }
+
+    if (borders.uniform() && borders.left.width > 0.0f) {
+        renderer.stroke_rounded_rect(bounds_, style_.radius, borders.left.color, borders.left.width);
+        return;
+    }
+
+    if (borders.top.width > 0.0f) {
+        renderer.fill_rect({ bounds_.x, bounds_.y, bounds_.width, borders.top.width }, borders.top.color);
+    }
+    if (borders.bottom.width > 0.0f) {
+        renderer.fill_rect({ bounds_.x, bounds_.y + bounds_.height - borders.bottom.width, bounds_.width, borders.bottom.width }, borders.bottom.color);
+    }
+    if (borders.left.width > 0.0f) {
+        renderer.fill_rect({ bounds_.x, bounds_.y, borders.left.width, bounds_.height }, borders.left.color);
+    }
+    if (borders.right.width > 0.0f) {
+        renderer.fill_rect({ bounds_.x + bounds_.width - borders.right.width, bounds_.y, borders.right.width, bounds_.height }, borders.right.color);
     }
 }
 

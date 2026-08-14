@@ -43,6 +43,7 @@ Configure, build, and test:
 cmake -S . -B build/full-example -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug
 cmake --build build/full-example --target ouif_hello
 cmake --build build/full-example --target ouif_complex_layout
+cmake --build build/full-example --target ouif_css_style
 ctest --test-dir build/full-example --output-on-failure
 ```
 
@@ -53,6 +54,10 @@ The example executable is written to:
 The complex layout stress example is written to:
 
 `build/full-example/bin/ouif_complex_layout.exe`
+
+The stylesheet example is written to:
+
+`build/full-example/bin/ouif_css_style.exe`
 
 ## Documentation
 
@@ -74,7 +79,10 @@ root.set_stylesheet(R"css(
         width: 50%;
         height: 120px;
         border-radius: 8px;
-        border: #e8edf3 2px;
+        border-left: #9fd7ff 8px;
+        border-top: #e8edf3 2px;
+        border-right: #1c3f5c 4px;
+        border-bottom: #102838 6px;
     }
 
     .tile:selected {
@@ -92,6 +100,7 @@ For live changes, use direct widget setters:
 tile.set_background("#2f6c9c");
 tile.set_background_hovered("#4692c4");
 tile.set_border("#e8edf3", 2.0f);
+tile.set_border_left("#9fd7ff", 8.0f);
 tile.set_radius(8.0f);
 ```
 

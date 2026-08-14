@@ -206,6 +206,27 @@ int main()
     }
 
     {
+        ouif::Widget widget;
+        widget.add_class("accented");
+        widget.set_stylesheet(R"css(
+            .accented {
+                border-left: #ff3355 6px;
+                border-top: #33dd88 2px;
+                border-right: #5599ff 4px;
+                border-bottom: #f5c542 8px;
+            }
+        )css");
+
+        assert(std::fabs(widget.get_border_left().width - 6.0f) < 0.01f);
+        assert(std::fabs(widget.get_border_top().width - 2.0f) < 0.01f);
+        assert(std::fabs(widget.get_border_right().width - 4.0f) < 0.01f);
+        assert(std::fabs(widget.get_border_bottom().width - 8.0f) < 0.01f);
+
+        widget.set_border_left(ouif::Color::hex(0xffffff), 10.0f);
+        assert(std::fabs(widget.get_border_left().width - 10.0f) < 0.01f);
+    }
+
+    {
         ouif::Application app;
         ouif::Widget parent;
         ouif::Widget child;
