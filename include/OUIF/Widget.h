@@ -8,6 +8,8 @@
 #include <memory>
 #include <optional>
 #include <cstdint>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace ouif {
@@ -60,8 +62,21 @@ public:
     void set_enabled(bool enabled) noexcept;
     [[nodiscard]] bool enabled() const noexcept;
 
-    void add_child(std::unique_ptr<Widget> child);
-    [[nodiscard]] const std::vector<std::unique_ptr<Widget>>& children() const noexcept;
+    Widget& add_child(Widget& child);
+    Widget& add_child(std::unique_ptr<Widget> child);
+
+    template <typename T, typename... Args>
+    T& add_child(Args&&... args)
+    {
+        static_assert(std::is_base_of_v<Widget, T>, "add_child<T> requires T to inherit ouif::Widget");
+        auto child = std::make_unique<T>(std::forward<Args>(args)...);
+        auto& reference = *child;
+        owned_children_.push_back(std::move(child));
+        children_.push_back(&reference);
+        return reference;
+    }
+
+    [[nodiscard]] const std::vector<Widget*>& children() const noexcept;
 
     void set_state(WidgetState state, bool enabled) noexcept;
     void toggle_state(WidgetState state) noexcept;
@@ -76,7 +91,7 @@ public:
     virtual bool event(const Event& event);
 
 protected:
-    [[nodiscard]] std::vector<std::unique_ptr<Widget>>& mutable_children() noexcept;
+    [[nodiscard]] std::vector<Widget*>& mutable_children() noexcept;
     virtual void draw(Renderer& renderer);
     virtual void on_layout(Rect content);
     virtual bool on_event(const Event& event);
@@ -94,7 +109,8 @@ private:
     Rect bounds_;
     Style style_;
     Layout layout_;
-    std::vector<std::unique_ptr<Widget>> children_;
+    std::vector<std::unique_ptr<Widget>> owned_children_;
+    std::vector<Widget*> children_;
     bool visible_ = true;
     bool enabled_ = true;
     bool hovered_ = false;

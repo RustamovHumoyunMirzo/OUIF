@@ -11,7 +11,7 @@ Every widget has:
 - bounds: `set_bounds(Rect)` and `bounds()`
 - style: `set_style(Style)` and `style()`
 - layout rules: `set_layout(Layout)` and `layout_rules()`
-- child widgets: `add_child(std::unique_ptr<Widget>)`
+- child widgets: `add_child(widget)` or `add_child<T>(args...)`
 - visibility: `set_visible(bool)` and `visible()`
 - enabled state: `set_enabled(bool)` and `enabled()`
 - interaction state: `hovered()` and `pressed()`
@@ -45,6 +45,14 @@ set_style(ouif::Style()
     .with_background_selected(active)
     .with_border(ouif::Color::rgba(232, 237, 243, 220), 2.0f)
     .with_border_selected(ouif::Color::rgba(232, 237, 243, 220), 4.0f));
+```
+
+Hex colors are supported:
+
+```cpp
+auto blue = ouif::Color::hex(0x2f6c9c);
+auto translucent = ouif::Color::hexa(0xe8edf3dc);
+auto parsed = ouif::Color::from_hex("#2f6c9c");
 ```
 
 ## Layout
@@ -101,8 +109,24 @@ public:
         set_gap(32.0f);
         set_layout_policy(ouif::SizePolicy::Fill, ouif::SizePolicy::Fill);
 
-        add_child(std::make_unique<ColorTile>(base, active, ouif::Size { 160.0f, 120.0f }));
+        add_child<ColorTile>(base, active, ouif::Size { 160.0f, 120.0f });
     }
+};
+```
+
+You can also define children as normal member variables and register them with the parent:
+
+```cpp
+class DemoSurface : public ouif::RowLayout {
+public:
+    DemoSurface()
+        : tile_(ouif::Color::hex(0x2f6c9c), ouif::Color::hex(0x4692c4), { 160.0f, 120.0f })
+    {
+        add_child(tile_);
+    }
+
+private:
+    ColorTile tile_;
 };
 ```
 

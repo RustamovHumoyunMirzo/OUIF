@@ -68,19 +68,17 @@ ctest --test-dir build/full-example --output-on-failure
 ```cpp
 #include <OUIF/OUIF.h>
 
-#include <memory>
-
 class Panel : public ouif::Widget {
 public:
     Panel()
     {
         set_size({ 160.0f, 120.0f });
         set_style(ouif::Style()
-            .with_background(ouif::Color::rgb(42, 92, 130))
-            .with_background_hovered(ouif::Color::rgb(58, 118, 160))
-            .with_background_selected(ouif::Color::rgb(58, 118, 160))
-            .with_border(ouif::Color::rgb(180, 218, 255), 2.0f)
-            .with_border_selected(ouif::Color::rgb(180, 218, 255), 4.0f));
+            .with_background(ouif::Color::hex(0x2a5c82))
+            .with_background_hovered(ouif::Color::hex(0x3a76a0))
+            .with_background_selected(ouif::Color::hex(0x3a76a0))
+            .with_border(ouif::Color::hex(0xb4daff), 2.0f)
+            .with_border_selected(ouif::Color::hex(0xb4daff), 4.0f));
     }
 
 protected:
@@ -96,7 +94,8 @@ int main()
     ouif::Application app(ouif::ApplicationConfig()
         .with_title("Hello OUIF")
         .with_size(960, 540));
-    app.set_root(std::make_unique<Panel>());
+    Panel panel;
+    app.set_root(panel);
     return app.run();
 }
 ```

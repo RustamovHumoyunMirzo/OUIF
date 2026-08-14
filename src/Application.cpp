@@ -160,19 +160,29 @@ Application::~Application() = default;
 Application::Application(Application&&) noexcept = default;
 Application& Application::operator=(Application&&) noexcept = default;
 
-void Application::set_root(std::unique_ptr<Widget> root)
+Widget& Application::set_root(Widget& root) noexcept
 {
-    root_ = std::move(root);
+    owned_root_.reset();
+    root_ = &root;
+    return root;
+}
+
+Widget& Application::set_root(std::unique_ptr<Widget> root)
+{
+    auto& reference = *root;
+    owned_root_ = std::move(root);
+    root_ = &reference;
+    return reference;
 }
 
 Widget* Application::root() noexcept
 {
-    return root_.get();
+    return root_;
 }
 
 const Widget* Application::root() const noexcept
 {
-    return root_.get();
+    return root_;
 }
 
 int Application::run()

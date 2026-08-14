@@ -71,12 +71,21 @@ bool Widget::enabled() const noexcept
     return enabled_;
 }
 
-void Widget::add_child(std::unique_ptr<Widget> child)
+Widget& Widget::add_child(Widget& child)
 {
-    children_.push_back(std::move(child));
+    children_.push_back(&child);
+    return child;
 }
 
-const std::vector<std::unique_ptr<Widget>>& Widget::children() const noexcept
+Widget& Widget::add_child(std::unique_ptr<Widget> child)
+{
+    auto& reference = *child;
+    owned_children_.push_back(std::move(child));
+    children_.push_back(&reference);
+    return reference;
+}
+
+const std::vector<Widget*>& Widget::children() const noexcept
 {
     return children_;
 }
@@ -139,7 +148,7 @@ void Widget::layout(Size available)
 
     const Rect content = bounds_.inset(layout_.padding);
     on_layout(content);
-    for (const auto& child : children_) {
+    for (auto* child : children_) {
         if (child->bounds().width == 0.0f && child->bounds().height == 0.0f) {
             child->set_bounds(content);
         }
@@ -155,7 +164,7 @@ void Widget::render(Renderer& renderer)
 
     draw(renderer);
 
-    for (const auto& child : children_) {
+    for (auto* child : children_) {
         child->render(renderer);
     }
 }
@@ -220,7 +229,7 @@ bool Widget::event(const Event& event)
     return on_event(event);
 }
 
-std::vector<std::unique_ptr<Widget>>& Widget::mutable_children() noexcept
+std::vector<Widget*>& Widget::mutable_children() noexcept
 {
     return children_;
 }

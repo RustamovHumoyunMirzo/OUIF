@@ -10,14 +10,20 @@ int main()
     assert(rect.contains({ 110.0f, 70.0f }));
     assert(!rect.contains({ 111.0f, 70.0f }));
 
-    auto root = std::make_unique<ouif::Widget>();
-    root->set_bounds({ 0.0f, 0.0f, 400.0f, 300.0f });
-    root->add_child(std::make_unique<ouif::Widget>());
-    root->layout({ 400.0f, 300.0f });
+    auto color = ouif::Color::hex(0x2f6c9c);
+    assert(color.b > color.r);
+    auto alpha = ouif::Color::from_hex("#e8edf3dc");
+    assert(alpha.has_value());
+    assert(alpha->a > 0.8f && alpha->a < 0.9f);
 
-    assert(root->children().size() == 1);
-    assert(root->children().front()->bounds().width == 400.0f);
-    assert(root->children().front()->bounds().height == 300.0f);
+    ouif::Widget root;
+    root.set_bounds({ 0.0f, 0.0f, 400.0f, 300.0f });
+    root.add_child<ouif::Widget>();
+    root.layout({ 400.0f, 300.0f });
+
+    assert(root.children().size() == 1);
+    assert(root.children().front()->bounds().width == 400.0f);
+    assert(root.children().front()->bounds().height == 300.0f);
 
     ouif::Style style = ouif::Style()
         .with_background(ouif::Color::rgb(1, 2, 3))
@@ -32,12 +38,11 @@ int main()
     row.set_alignment(ouif::Align::Center);
     row.set_gap(20.0f);
 
-    auto first = std::make_unique<ouif::Widget>();
-    first->set_size({ 50.0f, 40.0f });
-    auto second = std::make_unique<ouif::Widget>();
-    second->set_size({ 50.0f, 40.0f });
-    row.add_child(std::move(first));
-    row.add_child(std::move(second));
+    ouif::Widget first;
+    first.set_size({ 50.0f, 40.0f });
+    auto& second = row.add_child<ouif::Widget>();
+    second.set_size({ 50.0f, 40.0f });
+    row.add_child(first);
     row.layout({ 400.0f, 100.0f });
 
     assert(row.children()[0]->bounds().x == 140.0f);

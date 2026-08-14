@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 namespace ouif {
@@ -56,7 +57,20 @@ public:
     Application(Application&&) noexcept;
     Application& operator=(Application&&) noexcept;
 
-    void set_root(std::unique_ptr<Widget> root);
+    Widget& set_root(Widget& root) noexcept;
+    Widget& set_root(std::unique_ptr<Widget> root);
+
+    template <typename T, typename... Args>
+    T& set_root(Args&&... args)
+    {
+        static_assert(std::is_base_of_v<Widget, T>, "set_root<T> requires T to inherit ouif::Widget");
+        auto root = std::make_unique<T>(std::forward<Args>(args)...);
+        auto& reference = *root;
+        owned_root_ = std::move(root);
+        root_ = &reference;
+        return reference;
+    }
+
     [[nodiscard]] Widget* root() noexcept;
     [[nodiscard]] const Widget* root() const noexcept;
 
@@ -70,7 +84,8 @@ private:
 
     ApplicationConfig config_;
     Renderer renderer_;
-    std::unique_ptr<Widget> root_;
+    std::unique_ptr<Widget> owned_root_;
+    Widget* root_ = nullptr;
     bool running_ = false;
 };
 

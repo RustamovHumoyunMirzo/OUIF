@@ -75,14 +75,17 @@ class MyWidget : public ouif::Widget {
 public:
     MyWidget()
     {
-        ouif::Style style;
-        style.background = ouif::Color::rgb(42, 92, 130);
-        set_style(style);
+        set_size({ 160.0f, 120.0f });
+        set_style(ouif::Style()
+            .with_background(ouif::Color::hex(0x2a5c82))
+            .with_background_hovered(ouif::Color::hex(0x3a76a0))
+            .with_background_selected(ouif::Color::hex(0x3a76a0)));
     }
 
 protected:
     bool on_click(const ouif::MouseEvent&) override
     {
+        toggle_state(ouif::WidgetState::Selected);
         return true;
     }
 };
@@ -95,7 +98,8 @@ int main()
     config.height = 540;
 
     ouif::Application app(config);
-    app.set_root(std::make_unique<MyWidget>());
+    MyWidget widget;
+    app.set_root(widget);
     return app.run();
 }
 ```
