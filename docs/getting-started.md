@@ -40,12 +40,17 @@ This explicit layout avoids slow or fragile recursive submodule fetching during 
 ```powershell
 cmake -S . -B build/full-example -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug
 cmake --build build/full-example --target ouif_hello
+cmake --build build/full-example --target ouif_complex_layout
 ```
 
 Run:
 
 ```powershell
 .\build\full-example\bin\ouif_hello.exe
+```
+
+```powershell
+.\build\full-example\bin\ouif_complex_layout.exe
 ```
 
 The executable needs these files next to it:

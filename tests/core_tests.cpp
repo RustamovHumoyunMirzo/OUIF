@@ -103,6 +103,18 @@ int main()
     row.children()[0]->toggle_state(ouif::WidgetState::Selected);
     assert(row.children()[0]->has_state(ouif::WidgetState::Selected));
 
+    ouif::RowLayout fill_row;
+    fill_row.set_bounds({ 0.0f, 0.0f, 300.0f, 100.0f });
+    fill_row.set_gap(20.0f);
+    auto& fill_a = fill_row.add_child<ouif::Widget>();
+    auto& fill_b = fill_row.add_child<ouif::Widget>();
+    fill_a.set_layout_policy(ouif::SizePolicy::Fill, ouif::SizePolicy::Fill);
+    fill_b.set_layout_policy(ouif::SizePolicy::Fill, ouif::SizePolicy::Fill);
+    fill_row.layout({ 300.0f, 100.0f });
+    assert(fill_a.bounds().width == 140.0f);
+    assert(fill_b.bounds().width == 140.0f);
+    assert(fill_b.bounds().x == 160.0f);
+
     {
         ouif::Application app;
         ouif::Widget parent;

@@ -224,7 +224,8 @@ void Widget::layout(Size available)
         if (child->bounds().width == 0.0f && child->bounds().height == 0.0f) {
             child->set_bounds(content);
         }
-        child->layout({ content.width, content.height });
+        const auto child_bounds = child->bounds();
+        child->layout({ child_bounds.width, child_bounds.height });
     }
 }
 

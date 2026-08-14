@@ -181,6 +181,7 @@ endif()
 
 if(OUIF_BUILD_EXAMPLES)
     add_subdirectory(examples/hello)
+    add_subdirectory(examples/complex_layout)
 endif()
 
 if(OUIF_BUILD_TESTS)

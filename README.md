@@ -37,12 +37,17 @@ Configure, build, and test:
 ```sh
 cmake -S . -B build/full-example -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug
 cmake --build build/full-example --target ouif_hello
+cmake --build build/full-example --target ouif_complex_layout
 ctest --test-dir build/full-example --output-on-failure
 ```
 
 The example executable is written to:
 
 `build/full-example/bin/ouif_hello.exe`
+
+The complex layout stress example is written to:
+
+`build/full-example/bin/ouif_complex_layout.exe`
 
 ## Documentation
 
