@@ -14,8 +14,11 @@ public:
             .hovered = active,
             .pressed = "#10151d",
             .selected = active,
+            .focused = "#223148",
             .border = { "#344052", 1.0f },
             .border_selected = { "#d7e7ff", 3.0f },
+            .border_focused = { "#83b7ff", 2.0f },
+            .radius = ouif::CornerRadius(8.0f),
         });
     }
 
@@ -43,11 +46,7 @@ public:
         set_layout_policy(ouif::SizePolicy::Fixed, ouif::SizePolicy::Fill);
         set_alignment(ouif::Align::Start);
         set_gap(16.0f);
-        set_layout({
-            .padding = { 24.0f, 24.0f, 24.0f, 24.0f },
-            .width = ouif::SizePolicy::Fixed,
-            .height = ouif::SizePolicy::Fill,
-        });
+        set_padding(24.0f);
         set_style(ouif::Style {
             .background = "#131923",
             .hovered = "#151d28",
@@ -55,7 +54,8 @@ public:
         });
 
         children(header_, nav_a_, nav_b_, nav_c_);
-        add_child<Block>("#182231", "#26364a");
+        auto& spacer = add_child<Block>("#182231", "#26364a");
+        spacer.set_flex(1.0f);
         add_child(footer_);
     }
 
@@ -75,9 +75,12 @@ public:
         , health_("#3f684d", "#528562", { 0.0f, 112.0f })
     {
         set_gap(20.0f);
-        set_layout_policy(ouif::SizePolicy::Fill, ouif::SizePolicy::Fixed);
         set_size({ 0.0f, 112.0f });
+        set_layout_policy(ouif::SizePolicy::Fill, ouif::SizePolicy::Fixed);
 
+        revenue_.set_flex(1.2f);
+        usage_.set_flex(1.0f);
+        health_.set_flex(0.8f);
         revenue_.set_layout_policy(ouif::SizePolicy::Fill, ouif::SizePolicy::Fixed);
         usage_.set_layout_policy(ouif::SizePolicy::Fill, ouif::SizePolicy::Fixed);
         health_.set_layout_policy(ouif::SizePolicy::Fill, ouif::SizePolicy::Fixed);
@@ -100,11 +103,8 @@ public:
         , inspector_("#1f2a3a", "#2c3b51", { 280.0f, 0.0f })
     {
         set_gap(20.0f);
-        set_layout({
-            .padding = { 24.0f, 24.0f, 24.0f, 24.0f },
-            .width = ouif::SizePolicy::Fill,
-            .height = ouif::SizePolicy::Fill,
-        });
+        set_padding(24.0f);
+        set_layout_policy(ouif::SizePolicy::Fill, ouif::SizePolicy::Fill);
         set_style(ouif::Style {
             .background = "#0f141d",
             .hovered = "#121925",
@@ -113,6 +113,8 @@ public:
         toolbar_.set_layout_policy(ouif::SizePolicy::Fill, ouif::SizePolicy::Fixed);
         content_.set_layout_policy(ouif::SizePolicy::Fill, ouif::SizePolicy::Fill);
         inspector_.set_layout_policy(ouif::SizePolicy::Fixed, ouif::SizePolicy::Fill);
+        content_.set_flex(1.0f);
+        inspector_.set_margin({ 0.0f, 0.0f, 0.0f, 0.0f });
 
         main_row_.set_gap(20.0f);
         main_row_.set_layout_policy(ouif::SizePolicy::Fill, ouif::SizePolicy::Fill);

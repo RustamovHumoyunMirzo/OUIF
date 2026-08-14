@@ -1,6 +1,7 @@
 #include <OUIF/OUIF.h>
 
 #include <cassert>
+#include <cmath>
 #include <memory>
 #include <stdexcept>
 
@@ -80,9 +81,14 @@ int main()
     ouif::Style aggregate_style {
         .background = "#101218",
         .hovered = "#20252e",
+        .focused = "#223148",
         .border = { "#647084", 1.0f },
+        .border_focused = { "#83b7ff", 2.0f },
+        .radius = ouif::CornerRadius(4.0f, 8.0f, 12.0f, 16.0f),
     };
     assert(aggregate_style.border.width == 1.0f);
+    assert(aggregate_style.border_focused.width == 2.0f);
+    assert(aggregate_style.radius.bottom_left == 16.0f);
 
     ouif::RowLayout row;
     row.set_bounds({ 0.0f, 0.0f, 400.0f, 100.0f });
@@ -114,6 +120,24 @@ int main()
     assert(fill_a.bounds().width == 140.0f);
     assert(fill_b.bounds().width == 140.0f);
     assert(fill_b.bounds().x == 160.0f);
+
+    ouif::RowLayout weighted_row;
+    weighted_row.set_bounds({ 0.0f, 0.0f, 320.0f, 100.0f });
+    weighted_row.set_gap(20.0f);
+    auto& weighted_a = weighted_row.add_child<ouif::Widget>();
+    auto& weighted_b = weighted_row.add_child<ouif::Widget>();
+    weighted_a.set_flex(1.0f);
+    weighted_b.set_flex(2.0f);
+    weighted_b.set_margin({ 10.0f, 0.0f, 0.0f, 0.0f });
+    weighted_row.layout({ 320.0f, 100.0f });
+    assert(std::fabs(weighted_a.bounds().width - 96.66666f) < 0.01f);
+    assert(std::fabs(weighted_b.bounds().width - 193.33333f) < 0.01f);
+
+    weighted_a.focus();
+    assert(weighted_a.focused());
+    weighted_b.focus();
+    assert(!weighted_a.focused());
+    assert(weighted_b.focused());
 
     {
         ouif::Application app;

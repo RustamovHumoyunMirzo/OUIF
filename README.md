@@ -17,6 +17,9 @@ OUIF is early and intentionally raw. The current API exposes the foundation deve
 - event dispatch for hover, press, click, key, and resize events
 - style properties
 - layout constraints and padding
+- margin, padding, flex/weight, and alignment helpers
+- focus state and focus styles
+- border radius with per-corner values
 - safe parent/child tracking for owned and member widgets
 - bgfx-backed rectangle rendering
 - GLFW-backed convenience windows

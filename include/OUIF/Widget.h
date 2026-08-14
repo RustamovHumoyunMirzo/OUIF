@@ -24,13 +24,16 @@ enum class SizePolicy : std::uint8_t {
 
 enum class WidgetState : std::uint8_t {
     Selected,
+    Focused,
 };
 
 struct Layout {
     Size preferred_size { 0.0f, 0.0f };
     Size min_size { 0.0f, 0.0f };
     Size max_size { 100000.0f, 100000.0f };
+    Insets margin {};
     Insets padding {};
+    float flex = 0.0f;
     SizePolicy width = SizePolicy::Fill;
     SizePolicy height = SizePolicy::Fill;
 };
@@ -55,6 +58,9 @@ public:
     void set_layout(Layout layout) noexcept;
     [[nodiscard]] const Layout& layout_rules() const noexcept;
     void set_layout_policy(SizePolicy width, SizePolicy height) noexcept;
+    void set_margin(Insets margin) noexcept;
+    void set_padding(Insets padding) noexcept;
+    void set_flex(float flex) noexcept;
 
     void set_visible(bool visible) noexcept;
     [[nodiscard]] bool visible() const noexcept;
@@ -93,6 +99,9 @@ public:
 
     [[nodiscard]] bool hovered() const noexcept;
     [[nodiscard]] bool pressed() const noexcept;
+    [[nodiscard]] bool focused() const noexcept;
+    void focus() noexcept;
+    void blur() noexcept;
     [[nodiscard]] bool hit_test(Point point) const noexcept;
 
     virtual void layout(Size available);
@@ -106,6 +115,8 @@ protected:
     virtual bool on_event(const Event& event);
     virtual void on_mouse_enter(const MouseEvent& event);
     virtual void on_mouse_leave(const MouseEvent& event);
+    virtual void on_focus();
+    virtual void on_blur();
     virtual bool on_mouse_move(const MouseEvent& event);
     virtual bool on_mouse_down(const MouseEvent& event);
     virtual bool on_mouse_up(const MouseEvent& event);
@@ -130,6 +141,9 @@ private:
     bool hovered_ = false;
     bool pressed_ = false;
     bool selected_ = false;
+    bool focused_ = false;
+
+    static Widget* focused_widget_;
 };
 
 } // namespace ouif

@@ -16,6 +16,7 @@ Every widget has:
 - enabled state: `set_enabled(bool)` and `enabled()`
 - interaction state: `hovered()` and `pressed()`
 - custom state: `set_state(...)`, `toggle_state(...)`, and `has_state(...)`
+- focus state: `focus()`, `blur()`, and `focused()`
 
 ## Memory And Ownership
 
@@ -64,12 +65,14 @@ Use `remove_child(child)` to detach or destroy a child. Use `clear_children()` t
 - `hovered`
 - `pressed`
 - `selected`
+- `focused`
 - `background_hovered`
 - `background_pressed`
 - `background_selected`
 - `foreground`
 - `border`
 - `border_selected`
+- `border_focused`
 - `border_width`
 - `border_width_selected`
 - `radius`
@@ -96,8 +99,22 @@ set_style(ouif::Style {
     .background = "#1c1f26",
     .hovered = "#20252e",
     .pressed = "#181c23",
+    .focused = "#223148",
     .border = { "#647084", 1.0f },
+    .border_focused = { "#83b7ff", 2.0f },
+    .radius = ouif::CornerRadius(8.0f),
 });
+```
+
+Per-corner radius is supported:
+
+```cpp
+.radius = ouif::CornerRadius(
+    8.0f,  // top-left
+    12.0f, // top-right
+    12.0f, // bottom-right
+    8.0f   // bottom-left
+)
 ```
 
 Hex colors are supported:
@@ -116,7 +133,9 @@ auto parsed = ouif::Color::from_hex("#2f6c9c");
 - `preferred_size`
 - `min_size`
 - `max_size`
+- `margin`
 - `padding`
+- `flex`
 - `width`
 - `height`
 
@@ -140,6 +159,22 @@ Use `set_layout_policy(width, height)` for fill/content behavior:
 set_layout_policy(ouif::SizePolicy::Fill, ouif::SizePolicy::Fill);
 ```
 
+Spacing helpers:
+
+```cpp
+set_margin(ouif::Insets(12.0f));
+set_padding(24.0f);
+```
+
+Flex/weight works like Android weight or CSS flex grow:
+
+```cpp
+left.set_flex(1.0f);
+right.set_flex(2.0f);
+```
+
+The second widget receives twice as much remaining main-axis space as the first.
+
 ## Built-In Layout Containers
 
 OUIF includes simple linear layout containers:
@@ -153,6 +188,7 @@ They support:
 - `set_alignment(ouif::Align::Center)`
 - `set_alignment(ouif::Align::End)`
 - `set_gap(float)`
+- `set_cross_alignment(ouif::Align::Center)`
 
 ```cpp
 class DemoSurface : public ouif::RowLayout {
@@ -160,6 +196,7 @@ public:
     DemoSurface()
     {
         set_alignment(ouif::Align::Center);
+        set_cross_alignment(ouif::Align::Center);
         set_gap(32.0f);
         set_layout_policy(ouif::SizePolicy::Fill, ouif::SizePolicy::Fill);
 

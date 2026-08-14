@@ -7,8 +7,14 @@
 
 namespace ouif {
 
+Widget* Widget::focused_widget_ = nullptr;
+
 Widget::~Widget()
 {
+    if (focused_widget_ == this) {
+        focused_widget_ = nullptr;
+    }
+
     detach_from_parent();
 
     for (auto* child : children_) {
@@ -32,11 +38,19 @@ Rect Widget::bounds() const noexcept
 
 void Widget::set_size(Size size) noexcept
 {
-    bounds_.width = size.width;
-    bounds_.height = size.height;
+    if (size.width > 0.0f) {
+        bounds_.width = size.width;
+        layout_.preferred_size.width = size.width;
+        layout_.width = SizePolicy::Fixed;
+    }
+
+    if (size.height > 0.0f) {
+        bounds_.height = size.height;
+        layout_.preferred_size.height = size.height;
+        layout_.height = SizePolicy::Fixed;
+    }
+
     layout_.preferred_size = size;
-    layout_.width = SizePolicy::Fixed;
-    layout_.height = SizePolicy::Fixed;
 }
 
 void Widget::set_style(Style style) noexcept
@@ -63,6 +77,21 @@ void Widget::set_layout_policy(SizePolicy width, SizePolicy height) noexcept
 {
     layout_.width = width;
     layout_.height = height;
+}
+
+void Widget::set_margin(Insets margin) noexcept
+{
+    layout_.margin = margin;
+}
+
+void Widget::set_padding(Insets padding) noexcept
+{
+    layout_.padding = padding;
+}
+
+void Widget::set_flex(float flex) noexcept
+{
+    layout_.flex = std::max(0.0f, flex);
 }
 
 void Widget::set_visible(bool visible) noexcept
@@ -166,6 +195,12 @@ void Widget::set_state(WidgetState state, bool enabled) noexcept
 {
     if (state == WidgetState::Selected) {
         selected_ = enabled;
+    } else if (state == WidgetState::Focused) {
+        if (enabled) {
+            focus();
+        } else {
+            blur();
+        }
     }
 }
 
@@ -179,6 +214,9 @@ bool Widget::has_state(WidgetState state) const noexcept
     if (state == WidgetState::Selected) {
         return selected_;
     }
+    if (state == WidgetState::Focused) {
+        return focused_;
+    }
     return false;
 }
 
@@ -190,6 +228,39 @@ bool Widget::hovered() const noexcept
 bool Widget::pressed() const noexcept
 {
     return pressed_;
+}
+
+bool Widget::focused() const noexcept
+{
+    return focused_;
+}
+
+void Widget::focus() noexcept
+{
+    if (focused_widget_ == this) {
+        return;
+    }
+
+    if (focused_widget_ != nullptr) {
+        focused_widget_->blur();
+    }
+
+    focused_widget_ = this;
+    focused_ = true;
+    on_focus();
+}
+
+void Widget::blur() noexcept
+{
+    if (!focused_) {
+        return;
+    }
+
+    focused_ = false;
+    if (focused_widget_ == this) {
+        focused_widget_ = nullptr;
+    }
+    on_blur();
 }
 
 bool Widget::hit_test(Point point) const noexcept
@@ -284,6 +355,9 @@ bool Widget::event(const Event& event)
 
     if (mouse->type == MouseEventType::Down) {
         pressed_ = inside;
+        if (inside) {
+            focus();
+        }
         return inside && on_mouse_down(*mouse);
     }
 
@@ -313,9 +387,11 @@ void Widget::draw(Renderer& renderer)
         return;
     }
 
-    const Color background = selected_ ? style_.selected : (pressed_ ? style_.pressed : (hovered_ ? style_.hovered : style_.background));
-    renderer.fill_rect(bounds_, background);
-    const Border border = selected_ && style_.border_selected.width > 0.0f ? style_.border_selected : style_.border;
+    const Color background = selected_ ? style_.selected : (focused_ ? style_.focused : (pressed_ ? style_.pressed : (hovered_ ? style_.hovered : style_.background)));
+    renderer.fill_rounded_rect(bounds_, style_.radius, background);
+    const Border border = selected_ && style_.border_selected.width > 0.0f
+        ? style_.border_selected
+        : (focused_ && style_.border_focused.width > 0.0f ? style_.border_focused : style_.border);
     if (border.width > 0.0f) {
         renderer.stroke_rect(bounds_, border.color, border.width);
     }
@@ -340,6 +416,14 @@ void Widget::on_mouse_enter(const MouseEvent& event)
 void Widget::on_mouse_leave(const MouseEvent& event)
 {
     (void)event;
+}
+
+void Widget::on_focus()
+{
+}
+
+void Widget::on_blur()
+{
 }
 
 bool Widget::on_mouse_move(const MouseEvent& event)

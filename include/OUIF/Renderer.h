@@ -32,6 +32,7 @@ public:
     void resize(std::uint32_t width, std::uint32_t height);
     void begin_frame(Color clear_color);
     void fill_rect(Rect rect, Color color);
+    void fill_rounded_rect(Rect rect, CornerRadius radius, Color color);
     void stroke_rect(Rect rect, Color color, float width);
     void end_frame();
 

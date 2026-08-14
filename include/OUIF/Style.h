@@ -1,6 +1,7 @@
 #pragma once
 
 #include <OUIF/Color.h>
+#include <OUIF/Geometry.h>
 
 namespace ouif {
 
@@ -22,15 +23,17 @@ struct Style {
     Color hovered = Color::rgba(46, 52, 64, 255);
     Color pressed = Color::rgba(54, 63, 79, 255);
     Color selected = Color::rgba(54, 63, 79, 255);
+    Color focused = Color::rgba(46, 52, 64, 255);
     Color background_hovered = Color::rgba(46, 52, 64, 255);
     Color background_pressed = Color::rgba(54, 63, 79, 255);
     Color background_selected = Color::rgba(54, 63, 79, 255);
     Color foreground = Color::rgba(242, 244, 248, 255);
     Border border {};
     Border border_selected {};
+    Border border_focused {};
     float border_width = 0.0f;
     float border_width_selected = 0.0f;
-    float radius = 0.0f;
+    CornerRadius radius {};
     float opacity = 1.0f;
 
     constexpr Style& with_background(Color color) noexcept
@@ -60,6 +63,12 @@ struct Style {
         return *this;
     }
 
+    constexpr Style& with_background_focused(Color color) noexcept
+    {
+        focused = color;
+        return *this;
+    }
+
     constexpr Style& with_foreground(Color color) noexcept
     {
         foreground = color;
@@ -80,7 +89,19 @@ struct Style {
         return *this;
     }
 
+    constexpr Style& with_border_focused(Color color, float width) noexcept
+    {
+        border_focused = { color, width };
+        return *this;
+    }
+
     constexpr Style& with_radius(float value) noexcept
+    {
+        radius = CornerRadius(value);
+        return *this;
+    }
+
+    constexpr Style& with_radius(CornerRadius value) noexcept
     {
         radius = value;
         return *this;

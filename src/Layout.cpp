@@ -14,6 +14,16 @@ Align LinearLayout::alignment() const noexcept
     return alignment_;
 }
 
+void LinearLayout::set_cross_alignment(Align alignment) noexcept
+{
+    cross_alignment_ = alignment;
+}
+
+Align LinearLayout::cross_alignment() const noexcept
+{
+    return cross_alignment_;
+}
+
 void LinearLayout::set_gap(float gap) noexcept
 {
     gap_ = std::max(0.0f, gap);
@@ -40,29 +50,30 @@ void LinearLayout::on_layout(Rect content)
     const float available_main = row ? content.width : content.height;
     const float available_cross = row ? content.height : content.width;
     float total_main = gap_ * static_cast<float>(items.size() - 1);
-    std::size_t fill_count = 0;
+    float total_flex = 0.0f;
 
     for (const auto& child : items) {
         const auto child_bounds = child->bounds();
         const auto rules = child->layout_rules();
-        const bool fills_main = row ? rules.width == SizePolicy::Fill : rules.height == SizePolicy::Fill;
+        const bool fills_main = rules.flex > 0.0f || (row ? rules.width == SizePolicy::Fill : rules.height == SizePolicy::Fill);
         const float main = row ? child_bounds.width : child_bounds.height;
         const float preferred_main = row ? rules.preferred_size.width : rules.preferred_size.height;
+        const float margin_main = row ? rules.margin.left + rules.margin.right : rules.margin.top + rules.margin.bottom;
 
         if (fills_main) {
-            ++fill_count;
+            total_flex += rules.flex > 0.0f ? rules.flex : 1.0f;
+            total_main += margin_main;
         } else {
-            total_main += main > 0.0f ? main : preferred_main;
+            total_main += (main > 0.0f ? main : preferred_main) + margin_main;
         }
     }
 
     const float remaining = std::max(0.0f, available_main - total_main);
-    const float fill_main = fill_count > 0 ? remaining / static_cast<float>(fill_count) : 0.0f;
 
     float cursor = row ? content.x : content.y;
-    if (fill_count == 0 && alignment_ == Align::Center) {
+    if (total_flex == 0.0f && alignment_ == Align::Center) {
         cursor += (available_main - total_main) * 0.5f;
-    } else if (fill_count == 0 && alignment_ == Align::End) {
+    } else if (total_flex == 0.0f && alignment_ == Align::End) {
         cursor += available_main - total_main;
     }
 
@@ -71,24 +82,37 @@ void LinearLayout::on_layout(Rect content)
     for (const auto& child : items) {
         const auto child_bounds = child->bounds();
         const auto rules = child->layout_rules();
-        const bool fills_main = row ? rules.width == SizePolicy::Fill : rules.height == SizePolicy::Fill;
+        const bool fills_main = rules.flex > 0.0f || (row ? rules.width == SizePolicy::Fill : rules.height == SizePolicy::Fill);
         const bool fills_cross = row ? rules.height == SizePolicy::Fill : rules.width == SizePolicy::Fill;
+        const float flex = rules.flex > 0.0f ? rules.flex : (fills_main ? 1.0f : 0.0f);
+        const float margin_before = row ? rules.margin.left : rules.margin.top;
+        const float margin_after = row ? rules.margin.right : rules.margin.bottom;
+        const float margin_cross_before = row ? rules.margin.top : rules.margin.left;
+        const float margin_cross_after = row ? rules.margin.bottom : rules.margin.right;
         const float preferred_width = child_bounds.width > 0.0f && rules.width != SizePolicy::Fill ? child_bounds.width : rules.preferred_size.width;
         const float preferred_height = child_bounds.height > 0.0f && rules.height != SizePolicy::Fill ? child_bounds.height : rules.preferred_size.height;
+        const float weighted_main = total_flex > 0.0f && fills_main ? remaining * (flex / total_flex) : 0.0f;
+        const float cross_space = std::max(0.0f, available_cross - margin_cross_before - margin_cross_after);
         const float width = row
-            ? (fills_main ? fill_main : preferred_width)
-            : (fills_cross ? available_cross : preferred_width);
+            ? (fills_main ? weighted_main : preferred_width)
+            : (fills_cross ? cross_space : preferred_width);
         const float height = row
-            ? (fills_cross ? available_cross : preferred_height)
-            : (fills_main ? fill_main : preferred_height);
-        const float cross_start = row ? content.y + (available_cross - height) * 0.5f : content.x + (available_cross - width) * 0.5f;
+            ? (fills_cross ? cross_space : preferred_height)
+            : (fills_main ? weighted_main : preferred_height);
+        float cross_start = row ? content.y + margin_cross_before : content.x + margin_cross_before;
+        if (!fills_cross && cross_alignment_ == Align::Center) {
+            cross_start = (row ? content.y : content.x) + margin_cross_before + (cross_space - (row ? height : width)) * 0.5f;
+        } else if (!fills_cross && cross_alignment_ == Align::End) {
+            cross_start = (row ? content.y : content.x) + available_cross - margin_cross_after - (row ? height : width);
+        }
 
+        cursor += margin_before;
         if (row) {
             child->set_bounds({ cursor, cross_start, width, height });
-            cursor += width + gap_;
+            cursor += width + margin_after + gap_;
         } else {
             child->set_bounds({ cross_start, cursor, width, height });
-            cursor += height + gap_;
+            cursor += height + margin_after + gap_;
         }
     }
 }

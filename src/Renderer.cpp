@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
@@ -45,6 +46,39 @@ std::uint32_t pack_abgr(Color color)
     const auto b = clamp_channel(color.b);
     const auto a = clamp_channel(color.a);
     return (a << 24U) | (b << 16U) | (g << 8U) | r;
+}
+
+float clamp_radius(float radius, Rect rect)
+{
+    return std::clamp(radius, 0.0f, std::min(rect.width, rect.height) * 0.5f);
+}
+
+PosColorVertex vertex_from_point(Point point, std::uint32_t width, std::uint32_t height, std::uint32_t abgr)
+{
+    return {
+        (point.x / static_cast<float>(width)) * 2.0f - 1.0f,
+        1.0f - (point.y / static_cast<float>(height)) * 2.0f,
+        0.0f,
+        abgr,
+    };
+}
+
+void append_arc(std::vector<Point>& points, float cx, float cy, float radius, float start, float end)
+{
+    constexpr int segments = 6;
+    if (radius <= 0.0f) {
+        points.push_back({ cx, cy });
+        return;
+    }
+
+    for (int index = 0; index <= segments; ++index) {
+        const float t = static_cast<float>(index) / static_cast<float>(segments);
+        const float angle = start + (end - start) * t;
+        points.push_back({
+            cx + std::cos(angle) * radius,
+            cy + std::sin(angle) * radius,
+        });
+    }
 }
 
 std::vector<char> read_file(const std::filesystem::path& path)
@@ -261,6 +295,68 @@ void Renderer::fill_rect(Rect rect, Color color)
 #else
     (void)rect;
     (void)color;
+#endif
+}
+
+void Renderer::fill_rounded_rect(Rect rect, CornerRadius radius, Color color)
+{
+#if OUIF_WITH_BGFX
+    const float top_left = clamp_radius(radius.top_left, rect);
+    const float top_right = clamp_radius(radius.top_right, rect);
+    const float bottom_right = clamp_radius(radius.bottom_right, rect);
+    const float bottom_left = clamp_radius(radius.bottom_left, rect);
+
+    if (top_left == 0.0f && top_right == 0.0f && bottom_right == 0.0f && bottom_left == 0.0f) {
+        fill_rect(rect, color);
+        return;
+    }
+
+    if (!bgfx::isValid(impl_->rect_program) || rect.width <= 0.0f || rect.height <= 0.0f) {
+        return;
+    }
+
+    constexpr float pi = 3.14159265358979323846f;
+    std::vector<Point> points;
+    points.reserve(32);
+    append_arc(points, rect.x + rect.width - top_right, rect.y + top_right, top_right, -pi * 0.5f, 0.0f);
+    append_arc(points, rect.x + rect.width - bottom_right, rect.y + rect.height - bottom_right, bottom_right, 0.0f, pi * 0.5f);
+    append_arc(points, rect.x + bottom_left, rect.y + rect.height - bottom_left, bottom_left, pi * 0.5f, pi);
+    append_arc(points, rect.x + top_left, rect.y + top_left, top_left, pi, pi * 1.5f);
+
+    const std::uint32_t vertex_count = static_cast<std::uint32_t>(points.size() + 1);
+    const std::uint32_t index_count = static_cast<std::uint32_t>(points.size() * 3);
+    if (vertex_count > bgfx::getAvailTransientVertexBuffer(vertex_count, PosColorVertex::layout)
+        || index_count > bgfx::getAvailTransientIndexBuffer(index_count)) {
+        return;
+    }
+
+    bgfx::TransientVertexBuffer vertices;
+    bgfx::TransientIndexBuffer indices;
+    bgfx::allocTransientVertexBuffer(&vertices, vertex_count, PosColorVertex::layout);
+    bgfx::allocTransientIndexBuffer(&indices, index_count);
+
+    const auto abgr = pack_abgr(color);
+    auto* vertex_data = reinterpret_cast<PosColorVertex*>(vertices.data);
+    vertex_data[0] = vertex_from_point({ rect.x + rect.width * 0.5f, rect.y + rect.height * 0.5f }, impl_->width, impl_->height, abgr);
+    for (std::size_t index = 0; index < points.size(); ++index) {
+        vertex_data[index + 1] = vertex_from_point(points[index], impl_->width, impl_->height, abgr);
+    }
+
+    auto* index_data = reinterpret_cast<std::uint16_t*>(indices.data);
+    for (std::uint16_t index = 0; index < static_cast<std::uint16_t>(points.size()); ++index) {
+        const std::uint16_t next = static_cast<std::uint16_t>((index + 1U) % points.size());
+        index_data[index * 3U + 0U] = 0;
+        index_data[index * 3U + 1U] = static_cast<std::uint16_t>(index + 1U);
+        index_data[index * 3U + 2U] = static_cast<std::uint16_t>(next + 1U);
+    }
+
+    bgfx::setVertexBuffer(0, &vertices);
+    bgfx::setIndexBuffer(&indices);
+    bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
+    bgfx::submit(0, impl_->rect_program);
+#else
+    (void)radius;
+    fill_rect(rect, color);
 #endif
 }
 

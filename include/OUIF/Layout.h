@@ -15,6 +15,9 @@ public:
     void set_alignment(Align alignment) noexcept;
     [[nodiscard]] Align alignment() const noexcept;
 
+    void set_cross_alignment(Align alignment) noexcept;
+    [[nodiscard]] Align cross_alignment() const noexcept;
+
     void set_gap(float gap) noexcept;
     [[nodiscard]] float gap() const noexcept;
 
@@ -30,6 +33,7 @@ protected:
 private:
     Direction direction_;
     Align alignment_ = Align::Start;
+    Align cross_alignment_ = Align::Center;
     float gap_ = 0.0f;
 };
 
