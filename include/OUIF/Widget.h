@@ -1,5 +1,6 @@
 #pragma once
 
+#include <OUIF/Animation.h>
 #include <OUIF/Event.h>
 #include <OUIF/Export.h>
 #include <OUIF/Geometry.h>
@@ -111,6 +112,18 @@ public:
     [[nodiscard]] CornerRadius get_radius() const noexcept;
     void set_opacity(float opacity) noexcept;
     [[nodiscard]] float get_opacity() const noexcept;
+
+    void set_transition(StyleTransition transition) noexcept;
+    void set_transition(float duration, Easing easing = Easing::EaseOut) noexcept;
+    void clear_transition() noexcept;
+    [[nodiscard]] const StyleTransition& transition() const noexcept;
+    [[nodiscard]] const StyleTransition& get_transition() const noexcept;
+
+    void set_animation(StyleAnimation animation);
+    void clear_animation() noexcept;
+    [[nodiscard]] const std::optional<StyleAnimation>& animation() const noexcept;
+    [[nodiscard]] const std::optional<StyleAnimation>& get_animation() const noexcept;
+    [[nodiscard]] bool animation_running() const noexcept;
 
     void set_stylesheet(std::string stylesheet);
     void join_stylesheet(std::string_view stylesheet);
@@ -231,6 +244,8 @@ private:
     bool handle_focused_key_event(const KeyEvent& event);
     void collect_focusable_widgets(std::vector<Widget*>& widgets) noexcept;
     [[nodiscard]] bool contains_widget(const Widget& widget) const noexcept;
+    void advance_style_motion(float dt) noexcept;
+    [[nodiscard]] Style sample_animation_style(const Style& base, float progress) const noexcept;
 
     [[nodiscard]] Point to_local(Point point) const noexcept;
     [[nodiscard]] std::optional<MouseEvent> mouse_event_from(const Event& event) const noexcept;
@@ -238,8 +253,13 @@ private:
     Widget* parent_ = nullptr;
     Rect bounds_;
     Style style_;
+    Style target_style_;
+    Style transition_from_style_;
+    Style transition_to_style_;
     Style inline_style_;
     Style stylesheet_style_;
+    StyleTransition transition_;
+    std::optional<StyleAnimation> animation_;
     Layout layout_;
     std::string stylesheet_;
     std::string name_;
@@ -250,6 +270,10 @@ private:
     std::vector<Widget*> children_;
     bool has_inline_style_ = false;
     bool has_stylesheet_style_ = false;
+    bool has_computed_style_ = false;
+    bool transition_active_ = false;
+    float transition_elapsed_ = 0.0f;
+    float animation_elapsed_ = 0.0f;
     bool visible_ = true;
     bool enabled_ = true;
     bool clip_content_ = true;

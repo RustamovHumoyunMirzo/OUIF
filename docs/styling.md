@@ -6,6 +6,8 @@ OUIF supports three styling paths:
 - runtime setters such as `set_background(...)`
 - CSS strings or files through `set_stylesheet(...)`, `join_stylesheet(...)`, and XML `<Stylesheet>`
 
+Motion uses the same style pipeline. See `docs/animations.md` for C++ transitions, CSS `@keyframes`, and XML animation attributes.
+
 ## C++ Style
 
 ```cpp
@@ -83,6 +85,8 @@ Selectors currently support type names, classes, names, and state pseudo classes
 - `margin`
 - `padding`
 - `clip-content`
+- `transition`, `transition-duration`, `transition-timing-function`
+- `animation`, `animation-name`, `animation-duration`, `animation-timing-function`, `animation-iteration-count`
 
 `width` and `height` support `px`, `%`, `vw`, and `vh`. Spacing and radius values currently resolve as pixels.
 

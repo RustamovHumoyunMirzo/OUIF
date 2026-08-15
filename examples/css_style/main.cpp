@@ -54,6 +54,8 @@ public:
                 border-radius: 14px;
                 border-top: #53677d 1px;
                 border-bottom: #10151c 5px;
+                transition: 180ms ease-out;
+                animation: tilePulse 1.8s ease-in-out infinite;
             }
 
             .blue {
@@ -73,6 +75,12 @@ public:
                 background: #4c8a5f;
                 background-hovered: #68b07e;
                 border-left: #b7f2c0 8px;
+            }
+
+            @keyframes tilePulse {
+                from { opacity: 0.82; }
+                50% { opacity: 1.0; }
+                to { opacity: 0.82; }
             }
         )css");
     }

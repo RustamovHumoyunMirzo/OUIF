@@ -119,6 +119,7 @@ add_library(OUIF::ouif ALIAS ouif)
 target_sources(
     ouif
     PRIVATE
+        src/Animation.cpp
         src/Application.cpp
         src/Layout.cpp
         src/Renderer.cpp
@@ -130,6 +131,7 @@ target_sources(
         BASE_DIRS include
         FILES
             include/OUIF/OUIF.h
+            include/OUIF/Animation.h
             include/OUIF/Application.h
             include/OUIF/Color.h
             include/OUIF/Event.h

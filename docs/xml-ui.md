@@ -83,6 +83,8 @@ Aliases:
 - `aria-label`
 - `aria-description`
 - `style`
+- `transition`
+- `animation`
 
 ## CSS Order
 
@@ -93,3 +95,13 @@ Styles are loaded in this order:
 3. Generated inline `style="..."`
 
 C++ runtime setters can still manage widgets after XML loading.
+
+Motion attributes are converted into inline CSS and share the same runtime as C++:
+
+```xml
+<Style>
+    @keyframes pulse { from { opacity: 0.6; } to { opacity: 1.0; } }
+</Style>
+
+<Widget transition="180ms ease-out" animation="pulse 1s linear infinite" />
+```

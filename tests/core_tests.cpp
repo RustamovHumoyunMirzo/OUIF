@@ -322,6 +322,52 @@ int main()
 
     {
         ouif::Widget widget;
+        widget.set_style(ouif::Style().with_background(ouif::Color::hex(0x000000)).with_opacity(1.0f));
+        widget.set_transition(0.5f, ouif::Easing::Linear);
+        widget.set_background(ouif::Color::hex(0xffffff));
+        assert(widget.get_background().r < 0.01f);
+        widget.layout({ 100.0f, 100.0f });
+        assert(widget.get_background().r > 0.01f && widget.get_background().r < 1.0f);
+        assert(widget.get_transition().enabled);
+
+        widget.set_animation({
+            .name = "fade",
+            .duration = 1.0f,
+            .easing = ouif::Easing::Linear,
+            .loop = true,
+            .keyframes = {
+                { 0.0f, ouif::Style().with_opacity(0.25f), ouif::style_property_mask(ouif::StyleProperty::Opacity) },
+                { 1.0f, ouif::Style().with_opacity(1.0f), ouif::style_property_mask(ouif::StyleProperty::Opacity) },
+            },
+        });
+        widget.layout({ 100.0f, 100.0f });
+        assert(widget.animation_running());
+        assert(widget.get_opacity() >= 0.25f && widget.get_opacity() <= 1.0f);
+    }
+
+    {
+        ouif::Widget widget;
+        widget.add_class("motion");
+        widget.set_stylesheet(R"css(
+            @keyframes breathe {
+                from { opacity: 0.20; }
+                to { opacity: 1.0; }
+            }
+
+            .motion {
+                transition: 300ms ease-in-out;
+                animation: breathe 1s linear infinite;
+            }
+        )css");
+        assert(widget.get_transition().enabled);
+        assert(widget.get_animation().has_value());
+        assert(widget.get_animation()->name == "breathe");
+        widget.layout({ 100.0f, 100.0f });
+        assert(widget.get_opacity() >= 0.20f && widget.get_opacity() <= 1.0f);
+    }
+
+    {
+        ouif::Widget widget;
         widget.add_class("accented");
         widget.set_stylesheet(R"css(
             .accented {
@@ -396,10 +442,11 @@ int main()
         auto& loaded = app.load_xml_string(R"xml(
             <Window title="XML Test" width="640" height="360" clear_color="#101218">
                 <Style>
+                    @keyframes xmlPulse { from { opacity: 0.5; } to { opacity: 1.0; } }
                     .tile { background-hovered: #4692c4; }
                 </Style>
-                <RowLayout id="surface" class="surface" gap="12" alignment="center" policy="fill,fill">
-                    <XmlTile id="tile_a" class="tile" size="80,40" style="background: #2f6c9c; border: 2px solid #e8edf3;" />
+                <RowLayout id="surface" class="surface" gap="12" alignment="center" policy="fill,fill" transition="200ms ease-out">
+                    <XmlTile id="tile_a" class="tile" size="80,40" animation="xmlPulse 1s linear infinite" style="background: #2f6c9c; border: 2px solid #e8edf3;" />
                     <Spacer flex="1" />
                     <Divider orientation="vertical" thickness="2" color="#e8edf3" />
                 </RowLayout>
@@ -414,6 +461,8 @@ int main()
         assert(row->children()[0]->name() == "tile_a");
         assert(row->children()[0]->layout_rules().preferred_size.width == 80.0f);
         assert(std::fabs(row->children()[0]->get_border().width - 2.0f) < 0.01f);
+        assert(row->get_transition().enabled);
+        assert(row->children()[0]->get_animation().has_value());
         assert(dynamic_cast<ouif::Spacer*>(row->children()[1]) != nullptr);
         auto* divider = dynamic_cast<ouif::Divider*>(row->children()[2]);
         assert(divider != nullptr);

@@ -443,13 +443,31 @@ void apply_common_attributes(Widget& widget, const XmlElement& element, std::str
         widget.set_accessibility_description(std::string(element.attribute("accessibility-description")));
     }
 
+    std::string inline_declarations;
     if (element.has_attribute("style")) {
+        inline_declarations += element.attribute("style");
+        if (!inline_declarations.empty() && inline_declarations.back() != ';') {
+            inline_declarations += ";";
+        }
+    }
+    if (element.has_attribute("transition")) {
+        inline_declarations += " transition: ";
+        inline_declarations += element.attribute("transition");
+        inline_declarations += ";";
+    }
+    if (element.has_attribute("animation")) {
+        inline_declarations += " animation: ";
+        inline_declarations += element.attribute("animation");
+        inline_declarations += ";";
+    }
+
+    if (!inline_declarations.empty()) {
         const auto inline_class = "ouif-inline-x" + std::to_string(++inline_counter);
         widget.add_class(inline_class);
         inline_css += ".";
         inline_css += inline_class;
         inline_css += " { ";
-        inline_css += element.attribute("style");
+        inline_css += inline_declarations;
         inline_css += " }\n";
     }
 }

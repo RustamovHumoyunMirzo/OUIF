@@ -10,6 +10,7 @@ Every widget has:
 
 - bounds: `set_bounds(Rect)` and `bounds()`
 - style: `set_style(Style)` and `style()`
+- motion: `set_transition(...)`, `set_animation(...)`, `clear_transition()`, and `clear_animation()`
 - stylesheet: `set_stylesheet(css)`, `join_stylesheet(css)`, and `get_stylesheet()`
 - layout rules: `set_layout(Layout)` and `layout_rules()`
 - child widgets: `add_child(widget)` or `add_child<T>(args...)`
@@ -82,6 +83,8 @@ Use `remove_child(child)` to detach or destroy a child. Use `clear_children()` t
 - `opacity`
 
 The current bgfx renderer draws filled rectangles, rounded rectangles, borders, and rounded borders.
+
+Transitions and animations are defined in `OUIF/Animation.h`, included by `OUIF/OUIF.h`. They use the same `Style` fields as C++ stylesheets and XML.
 
 Styles support a fluent builder API:
 

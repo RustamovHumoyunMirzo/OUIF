@@ -1,5 +1,6 @@
 #pragma once
 
+#include <OUIF/Animation.h>
 #include <OUIF/Application.h>
 #include <OUIF/Color.h>
 #include <OUIF/Event.h>

@@ -4,12 +4,14 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstring>
 #include <functional>
 #include <iterator>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 
 #if OUIF_WITH_KATANA
 #include <katana.h>
@@ -40,6 +42,18 @@ enum class CssState {
     Selected,
     Focus,
 };
+
+struct CssMotionDeclaration {
+    StyleTransition transition {};
+    bool has_transition = false;
+    std::string animation_name;
+    float animation_duration = 1.0f;
+    Easing animation_easing = Easing::Linear;
+    bool animation_loop = false;
+    bool has_animation = false;
+};
+
+using ParsedKeyframes = std::unordered_map<std::string, std::vector<StyleKeyframe>>;
 
 std::string_view text_or_empty(const char* text) noexcept
 {
@@ -82,6 +96,49 @@ std::optional<float> pixels_from_value(const KatanaValue& value)
         return static_cast<float>(value.fValue);
     }
 
+    return std::nullopt;
+}
+
+std::optional<float> seconds_from_value(const KatanaValue& value)
+{
+    if (value.unit == KATANA_VALUE_MS) {
+        return static_cast<float>(value.fValue) / 1000.0f;
+    }
+    if (value.unit == KATANA_VALUE_S) {
+        return static_cast<float>(value.fValue);
+    }
+    if (value.unit == KATANA_VALUE_NUMBER || value.unit == KATANA_VALUE_PARSER_INTEGER) {
+        return pixels_from_value(value);
+    }
+    return std::nullopt;
+}
+
+std::optional<Easing> easing_from_text(std::string_view value)
+{
+    const auto lower = lower_copy(value);
+    if (lower == "linear") {
+        return Easing::Linear;
+    }
+    if (lower == "ease-in") {
+        return Easing::EaseIn;
+    }
+    if (lower == "ease-out" || lower == "ease") {
+        return Easing::EaseOut;
+    }
+    if (lower == "ease-in-out") {
+        return Easing::EaseInOut;
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> ident_from_value(const KatanaValue& value)
+{
+    if (value.unit == KATANA_VALUE_IDENT || value.unit == KATANA_VALUE_STRING || value.unit == KATANA_VALUE_PARSER_IDENTIFIER) {
+        const auto text = text_or_empty(value.string);
+        if (!text.empty()) {
+            return std::string(text);
+        }
+    }
     return std::nullopt;
 }
 
@@ -192,7 +249,23 @@ void apply_border_side(Style& style, CssState state, std::string_view side, Colo
     }
 }
 
-void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declaration, CssState state, bool& touched_style)
+void mark_property(StyleProperties* properties, StyleProperty property) noexcept
+{
+    if (properties != nullptr) {
+        *properties |= style_property_mask(property);
+    }
+}
+
+void apply_declaration(
+    Widget& widget,
+    Style& style,
+    KatanaDeclaration& declaration,
+    CssState state,
+    bool& touched_style,
+    bool allow_widget_properties = true,
+    StyleProperties* touched_properties = nullptr,
+    CssMotionDeclaration* motion = nullptr
+)
 {
     const auto property = lower_copy(text_or_empty(declaration.property));
     auto* first = value_at(declaration.values, 0);
@@ -203,6 +276,7 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
     if (property == "background" || property == "background-color" || property == "with-background") {
         if (auto color = color_from_value(*first)) {
             apply_background(style, state, *color);
+            mark_property(touched_properties, state == CssState::Base ? StyleProperty::Background : StyleProperty::StatefulBackgrounds);
             touched_style = true;
         }
         return;
@@ -211,6 +285,7 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
     if (property == "background-hovered" || property == "hover-background" || property == "with-background-hovered") {
         if (auto color = color_from_value(*first)) {
             style.with_background_hovered(*color);
+            mark_property(touched_properties, StyleProperty::StatefulBackgrounds);
             touched_style = true;
         }
         return;
@@ -219,6 +294,7 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
     if (property == "background-pressed" || property == "pressed-background" || property == "with-background-pressed") {
         if (auto color = color_from_value(*first)) {
             style.with_background_pressed(*color);
+            mark_property(touched_properties, StyleProperty::StatefulBackgrounds);
             touched_style = true;
         }
         return;
@@ -227,6 +303,7 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
     if (property == "background-selected" || property == "selected-background" || property == "with-background-selected") {
         if (auto color = color_from_value(*first)) {
             style.with_background_selected(*color);
+            mark_property(touched_properties, StyleProperty::StatefulBackgrounds);
             touched_style = true;
         }
         return;
@@ -235,6 +312,7 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
     if (property == "background-focused" || property == "focused-background" || property == "with-background-focused") {
         if (auto color = color_from_value(*first)) {
             style.with_background_focused(*color);
+            mark_property(touched_properties, StyleProperty::StatefulBackgrounds);
             touched_style = true;
         }
         return;
@@ -243,6 +321,7 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
     if (property == "foreground" || property == "color" || property == "with-foreground") {
         if (auto color = color_from_value(*first)) {
             style.with_foreground(*color);
+            mark_property(touched_properties, StyleProperty::Foreground);
             touched_style = true;
         }
         return;
@@ -265,6 +344,8 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
         if (border_color && border_width) {
             const CssState target = property == "border-selected" ? CssState::Selected : (property == "border-focused" ? CssState::Focus : state);
             apply_border(style, target, *border_color, *border_width);
+            mark_property(touched_properties, target == CssState::Base ? StyleProperty::Border : StyleProperty::StatefulBorders);
+            mark_property(touched_properties, target == CssState::Base ? StyleProperty::BorderEdges : StyleProperty::StatefulBorderEdges);
             touched_style = true;
         }
         return;
@@ -286,6 +367,7 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
         }
         if (border_color && border_width) {
             apply_border_side(style, state, std::string_view(property).substr(7), *border_color, *border_width);
+            mark_property(touched_properties, state == CssState::Base ? StyleProperty::BorderEdges : StyleProperty::StatefulBorderEdges);
             touched_style = true;
         }
         return;
@@ -299,6 +381,8 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
             style.borders.right.width = *width;
             style.borders.bottom.width = *width;
             style.border_width = *width;
+            mark_property(touched_properties, StyleProperty::Border);
+            mark_property(touched_properties, StyleProperty::BorderEdges);
             touched_style = true;
         }
         return;
@@ -307,6 +391,7 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
     if (property == "border-left-width" || property == "border-top-width" || property == "border-right-width" || property == "border-bottom-width") {
         if (auto width = pixels_from_value(*first)) {
             apply_border_side(style, state, std::string_view(property).substr(7, property.find("-width") - 7), style.border.color, *width);
+            mark_property(touched_properties, state == CssState::Base ? StyleProperty::BorderEdges : StyleProperty::StatefulBorderEdges);
             touched_style = true;
         }
         return;
@@ -315,6 +400,7 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
     if (property == "radius" || property == "border-radius" || property == "with-radius") {
         if (auto radius = pixels_from_value(*first)) {
             style.with_radius(*radius);
+            mark_property(touched_properties, StyleProperty::Radius);
             touched_style = true;
         }
         return;
@@ -323,6 +409,7 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
     if (property == "radius-top-left" || property == "border-top-left-radius") {
         if (auto radius = pixels_from_value(*first)) {
             style.radius.top_left = *radius;
+            mark_property(touched_properties, StyleProperty::Radius);
             touched_style = true;
         }
         return;
@@ -331,6 +418,7 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
     if (property == "radius-top-right" || property == "border-top-right-radius") {
         if (auto radius = pixels_from_value(*first)) {
             style.radius.top_right = *radius;
+            mark_property(touched_properties, StyleProperty::Radius);
             touched_style = true;
         }
         return;
@@ -339,6 +427,7 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
     if (property == "radius-bottom-right" || property == "border-bottom-right-radius") {
         if (auto radius = pixels_from_value(*first)) {
             style.radius.bottom_right = *radius;
+            mark_property(touched_properties, StyleProperty::Radius);
             touched_style = true;
         }
         return;
@@ -347,6 +436,7 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
     if (property == "radius-bottom-left" || property == "border-bottom-left-radius") {
         if (auto radius = pixels_from_value(*first)) {
             style.radius.bottom_left = *radius;
+            mark_property(touched_properties, StyleProperty::Radius);
             touched_style = true;
         }
         return;
@@ -355,8 +445,125 @@ void apply_declaration(Widget& widget, Style& style, KatanaDeclaration& declarat
     if (property == "opacity") {
         if (auto opacity = pixels_from_value(*first)) {
             style.with_opacity(std::clamp(*opacity, 0.0f, 1.0f));
+            mark_property(touched_properties, StyleProperty::Opacity);
             touched_style = true;
         }
+        return;
+    }
+
+    if (property == "transition") {
+        if (motion == nullptr) {
+            return;
+        }
+        motion->has_transition = true;
+        motion->transition.enabled = true;
+        for (auto* value : flattened_values(declaration.values)) {
+            if (value == nullptr) {
+                continue;
+            }
+            if (auto seconds = seconds_from_value(*value)) {
+                motion->transition.duration = std::max(0.0f, *seconds);
+                continue;
+            }
+            if (auto ident = ident_from_value(*value)) {
+                if (auto easing = easing_from_text(*ident)) {
+                    motion->transition.easing = *easing;
+                }
+            }
+        }
+        return;
+    }
+
+    if (property == "transition-duration") {
+        if (motion != nullptr) {
+            motion->has_transition = true;
+            motion->transition.enabled = true;
+            motion->transition.duration = std::max(0.0f, seconds_from_value(*first).value_or(motion->transition.duration));
+        }
+        return;
+    }
+
+    if (property == "transition-timing-function") {
+        if (motion != nullptr) {
+            motion->has_transition = true;
+            motion->transition.enabled = true;
+            if (auto ident = ident_from_value(*first)) {
+                if (auto easing = easing_from_text(*ident)) {
+                    motion->transition.easing = *easing;
+                }
+            }
+        }
+        return;
+    }
+
+    if (property == "animation") {
+        if (motion == nullptr) {
+            return;
+        }
+        motion->has_animation = true;
+        for (auto* value : flattened_values(declaration.values)) {
+            if (value == nullptr) {
+                continue;
+            }
+            if (auto seconds = seconds_from_value(*value)) {
+                motion->animation_duration = std::max(0.0f, *seconds);
+                continue;
+            }
+            if (auto ident = ident_from_value(*value)) {
+                const auto lower = lower_copy(*ident);
+                if (auto easing = easing_from_text(lower)) {
+                    motion->animation_easing = *easing;
+                } else if (lower == "infinite") {
+                    motion->animation_loop = true;
+                } else if (lower != "normal" && lower != "none") {
+                    motion->animation_name = std::move(*ident);
+                }
+            }
+        }
+        return;
+    }
+
+    if (property == "animation-name") {
+        if (motion != nullptr) {
+            motion->has_animation = true;
+            motion->animation_name = ident_from_value(*first).value_or("");
+        }
+        return;
+    }
+
+    if (property == "animation-duration") {
+        if (motion != nullptr) {
+            motion->has_animation = true;
+            motion->animation_duration = std::max(0.0f, seconds_from_value(*first).value_or(motion->animation_duration));
+        }
+        return;
+    }
+
+    if (property == "animation-timing-function") {
+        if (motion != nullptr) {
+            motion->has_animation = true;
+            if (auto ident = ident_from_value(*first)) {
+                if (auto easing = easing_from_text(*ident)) {
+                    motion->animation_easing = *easing;
+                }
+            }
+        }
+        return;
+    }
+
+    if (property == "animation-iteration-count") {
+        if (motion != nullptr) {
+            motion->has_animation = true;
+            if (auto ident = ident_from_value(*first); ident && equals_ignore_case(*ident, "infinite")) {
+                motion->animation_loop = true;
+            } else if (auto count = pixels_from_value(*first)) {
+                motion->animation_loop = *count != 1.0f;
+            }
+        }
+        return;
+    }
+
+    if (!allow_widget_properties) {
         return;
     }
 
@@ -468,11 +675,118 @@ bool selector_matches(Widget& widget, KatanaSelector* selector, CssState& state)
     return true;
 }
 
-bool apply_stylesheet_rule(Widget& widget, KatanaStyleRule& rule, Style& css_style)
+std::optional<float> offset_from_keyframe_selector(const KatanaValue& value)
+{
+    if (auto ident = ident_from_value(value)) {
+        if (equals_ignore_case(*ident, "from")) {
+            return 0.0f;
+        }
+        if (equals_ignore_case(*ident, "to")) {
+            return 1.0f;
+        }
+    }
+    if (value.unit == KATANA_VALUE_PERCENTAGE) {
+        return std::clamp(static_cast<float>(value.fValue) / 100.0f, 0.0f, 1.0f);
+    }
+    return std::nullopt;
+}
+
+ParsedKeyframes collect_keyframes(KatanaStylesheet& stylesheet, Widget& parser_widget)
+{
+    ParsedKeyframes keyframes;
+    for (unsigned int rule_index = 0; rule_index < stylesheet.rules.length; ++rule_index) {
+        auto* base_rule = static_cast<KatanaRule*>(stylesheet.rules.data[rule_index]);
+        if (base_rule == nullptr || base_rule->type != KatanaRuleKeyframes) {
+            continue;
+        }
+
+        auto* keyframe_rule = reinterpret_cast<KatanaKeyframesRule*>(base_rule);
+        std::vector<StyleKeyframe> frames;
+        for (unsigned int frame_index = 0; keyframe_rule->keyframes != nullptr && frame_index < keyframe_rule->keyframes->length; ++frame_index) {
+            auto* frame = static_cast<KatanaKeyframe*>(keyframe_rule->keyframes->data[frame_index]);
+            if (frame == nullptr) {
+                continue;
+            }
+
+            Style frame_style {};
+            StyleProperties properties = style_property_mask(StyleProperty::None);
+            bool touched = false;
+            for (unsigned int declaration_index = 0; frame->declarations != nullptr && declaration_index < frame->declarations->length; ++declaration_index) {
+                apply_declaration(
+                    parser_widget,
+                    frame_style,
+                    *static_cast<KatanaDeclaration*>(frame->declarations->data[declaration_index]),
+                    CssState::Base,
+                    touched,
+                    false,
+                    &properties
+                );
+            }
+
+            if (!touched) {
+                continue;
+            }
+
+            bool pushed = false;
+            for (unsigned int selector_index = 0; frame->selectors != nullptr && selector_index < frame->selectors->length; ++selector_index) {
+                auto* selector = static_cast<KatanaValue*>(frame->selectors->data[selector_index]);
+                if (selector == nullptr) {
+                    continue;
+                }
+                if (auto offset = offset_from_keyframe_selector(*selector)) {
+                    frames.push_back({ *offset, frame_style, properties });
+                    pushed = true;
+                }
+            }
+            if (!pushed) {
+                const float offset = keyframe_rule->keyframes->length <= 1
+                    ? 1.0f
+                    : static_cast<float>(frame_index) / static_cast<float>(keyframe_rule->keyframes->length - 1U);
+                frames.push_back({ offset, frame_style, properties });
+            }
+        }
+
+        std::sort(frames.begin(), frames.end(), [](const auto& left, const auto& right) {
+            return left.offset < right.offset;
+        });
+        if (!frames.empty()) {
+            keyframes[std::string(text_or_empty(keyframe_rule->name))] = std::move(frames);
+        }
+    }
+    return keyframes;
+}
+
+void apply_motion_declaration(Widget& widget, const CssMotionDeclaration& motion, const ParsedKeyframes& keyframes)
+{
+    if (motion.has_transition) {
+        widget.set_transition(motion.transition);
+    }
+
+    if (!motion.has_animation) {
+        return;
+    }
+
+    const auto found = keyframes.find(motion.animation_name);
+    if (motion.animation_name.empty() || found == keyframes.end()) {
+        widget.clear_animation();
+        return;
+    }
+
+    widget.set_animation({
+        .name = motion.animation_name,
+        .duration = std::max(0.0001f, motion.animation_duration),
+        .easing = motion.animation_easing,
+        .loop = motion.animation_loop,
+        .keyframes = found->second,
+    });
+}
+
+bool apply_stylesheet_rule(Widget& widget, KatanaStyleRule& rule, Style& css_style, const ParsedKeyframes& keyframes)
 {
     bool touched_style = false;
     bool matched = false;
     CssState state = CssState::Base;
+    CssMotionDeclaration motion;
 
     for (unsigned int selector_index = 0; rule.selectors != nullptr && selector_index < rule.selectors->length; ++selector_index) {
         CssState selector_state = CssState::Base;
@@ -488,9 +802,19 @@ bool apply_stylesheet_rule(Widget& widget, KatanaStyleRule& rule, Style& css_sty
     }
 
     for (unsigned int declaration_index = 0; declaration_index < rule.declarations->length; ++declaration_index) {
-        apply_declaration(widget, css_style, *static_cast<KatanaDeclaration*>(rule.declarations->data[declaration_index]), state, touched_style);
+        apply_declaration(
+            widget,
+            css_style,
+            *static_cast<KatanaDeclaration*>(rule.declarations->data[declaration_index]),
+            state,
+            touched_style,
+            true,
+            nullptr,
+            &motion
+        );
     }
 
+    apply_motion_declaration(widget, motion, keyframes);
     return touched_style;
 }
 #endif
@@ -498,6 +822,19 @@ bool apply_stylesheet_rule(Widget& widget, KatanaStyleRule& rule, Style& css_sty
 float resolve_length(Length length, Size available, bool horizontal)
 {
     return length.automatic() ? 0.0f : length.resolve(available, horizontal);
+}
+
+float normalized_animation_progress(const StyleAnimation& animation, float elapsed) noexcept
+{
+    if (animation.duration <= 0.0f) {
+        return 1.0f;
+    }
+
+    if (animation.loop) {
+        return std::fmod(std::max(0.0f, elapsed), animation.duration) / animation.duration;
+    }
+
+    return std::clamp(elapsed / animation.duration, 0.0f, 1.0f);
 }
 
 BorderEdges normalized_edges(BorderEdges edges, Border fallback)
@@ -799,6 +1136,68 @@ void Widget::set_opacity(float opacity) noexcept
 float Widget::get_opacity() const noexcept
 {
     return style_.opacity;
+}
+
+void Widget::set_transition(StyleTransition transition) noexcept
+{
+    transition.duration = std::max(0.0f, transition.duration);
+    transition.enabled = transition.enabled && transition.duration > 0.0f;
+    transition_ = transition;
+}
+
+void Widget::set_transition(float duration, Easing easing) noexcept
+{
+    set_transition({ std::max(0.0f, duration), easing, duration > 0.0f });
+}
+
+void Widget::clear_transition() noexcept
+{
+    transition_ = {};
+    transition_active_ = false;
+    transition_elapsed_ = 0.0f;
+    style_ = target_style_;
+}
+
+const StyleTransition& Widget::transition() const noexcept
+{
+    return transition_;
+}
+
+const StyleTransition& Widget::get_transition() const noexcept
+{
+    return transition();
+}
+
+void Widget::set_animation(StyleAnimation animation)
+{
+    std::sort(animation.keyframes.begin(), animation.keyframes.end(), [](const auto& left, const auto& right) {
+        return left.offset < right.offset;
+    });
+    animation.duration = std::max(0.0001f, animation.duration);
+    animation_ = std::move(animation);
+    animation_elapsed_ = 0.0f;
+}
+
+void Widget::clear_animation() noexcept
+{
+    animation_.reset();
+    animation_elapsed_ = 0.0f;
+    style_ = transition_active_ ? style_ : target_style_;
+}
+
+const std::optional<StyleAnimation>& Widget::animation() const noexcept
+{
+    return animation_;
+}
+
+const std::optional<StyleAnimation>& Widget::get_animation() const noexcept
+{
+    return animation();
+}
+
+bool Widget::animation_running() const noexcept
+{
+    return animation_.has_value();
 }
 
 void Widget::set_stylesheet(std::string stylesheet)
@@ -1264,6 +1663,8 @@ bool Widget::hit_test(Point point) const noexcept
 
 void Widget::layout(Size available)
 {
+    advance_style_motion(1.0f / 60.0f);
+
     const auto clamp_width = [this](float value) {
         return std::clamp(value, layout_.min_size.width, layout_.max_size.width);
     };
@@ -1549,10 +1950,89 @@ bool Widget::owns_child(const Widget& child) const noexcept
 
 void Widget::recompute_style() noexcept
 {
-    style_ = has_stylesheet_style_ ? stylesheet_style_ : Style {};
+    Style next = has_stylesheet_style_ ? stylesheet_style_ : Style {};
     if (has_inline_style_) {
-        style_ = inline_style_;
+        next = inline_style_;
     }
+
+    if (!has_computed_style_) {
+        style_ = next;
+        target_style_ = next;
+        has_computed_style_ = true;
+        return;
+    }
+
+    if (style_equals(target_style_, next)) {
+        return;
+    }
+
+    target_style_ = next;
+    if (transition_.enabled && transition_.duration > 0.0f) {
+        transition_from_style_ = style_;
+        transition_to_style_ = next;
+        transition_elapsed_ = 0.0f;
+        transition_active_ = true;
+    } else {
+        style_ = next;
+        transition_active_ = false;
+        transition_elapsed_ = 0.0f;
+    }
+}
+
+Style Widget::sample_animation_style(const Style& base, float progress) const noexcept
+{
+    if (!animation_ || animation_->keyframes.empty()) {
+        return base;
+    }
+
+    const auto& frames = animation_->keyframes;
+    const float eased = apply_easing(animation_->easing, progress);
+    const auto upper = std::find_if(frames.begin(), frames.end(), [eased](const auto& frame) {
+        return frame.offset >= eased;
+    });
+
+    if (upper == frames.begin()) {
+        return apply_animated_style(base, upper->style, upper->properties);
+    }
+
+    if (upper == frames.end()) {
+        return apply_animated_style(base, frames.back().style, frames.back().properties);
+    }
+
+    const auto& to = *upper;
+    const auto& from = *(upper - 1);
+    const float span = std::max(0.0001f, to.offset - from.offset);
+    const float local = std::clamp((eased - from.offset) / span, 0.0f, 1.0f);
+    const Style from_style = apply_animated_style(base, from.style, from.properties);
+    const Style to_style = apply_animated_style(base, to.style, to.properties);
+    const Style sampled = interpolate_style(from_style, to_style, local);
+    return apply_animated_style(base, sampled, from.properties | to.properties);
+}
+
+void Widget::advance_style_motion(float dt) noexcept
+{
+    Style base = target_style_;
+    if (transition_active_) {
+        transition_elapsed_ += std::max(0.0f, dt);
+        const float progress = transition_.duration <= 0.0f ? 1.0f : std::clamp(transition_elapsed_ / transition_.duration, 0.0f, 1.0f);
+        base = interpolate_style(transition_from_style_, transition_to_style_, apply_easing(transition_.easing, progress));
+        if (progress >= 1.0f) {
+            transition_active_ = false;
+            base = target_style_;
+        }
+    }
+
+    if (animation_) {
+        animation_elapsed_ += std::max(0.0f, dt);
+        const float progress = normalized_animation_progress(*animation_, animation_elapsed_);
+        style_ = sample_animation_style(base, progress);
+        if (!animation_->loop && animation_elapsed_ >= animation_->duration) {
+            animation_elapsed_ = animation_->duration;
+        }
+        return;
+    }
+
+    style_ = base;
 }
 
 void Widget::apply_stylesheet_to_tree()
@@ -1573,6 +2053,8 @@ void Widget::apply_stylesheet_to_tree()
         return;
     }
 
+    const auto keyframes = collect_keyframes(*output->stylesheet, *this);
+
     const auto apply_to = [&](Widget& widget) {
         Style css_style {};
         bool touched = false;
@@ -1581,7 +2063,7 @@ void Widget::apply_stylesheet_to_tree()
             if (base_rule == nullptr || base_rule->type != KatanaRuleStyle) {
                 continue;
             }
-            touched = apply_stylesheet_rule(widget, *reinterpret_cast<KatanaStyleRule*>(base_rule), css_style) || touched;
+            touched = apply_stylesheet_rule(widget, *reinterpret_cast<KatanaStyleRule*>(base_rule), css_style, keyframes) || touched;
         }
         widget.stylesheet_style_ = css_style;
         widget.has_stylesheet_style_ = touched;
