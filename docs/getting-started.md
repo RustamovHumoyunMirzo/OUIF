@@ -44,6 +44,7 @@ cmake -S . -B build/full-example -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug
 cmake --build build/full-example --target ouif_hello
 cmake --build build/full-example --target ouif_complex_layout
 cmake --build build/full-example --target ouif_css_style
+cmake --build build/full-example --target ouif_animations
 cmake --build build/full-example --target ouif_xml_ui
 cmake --build build/full-example --target ouif_clipping_scroll
 ```
@@ -60,6 +61,10 @@ Run:
 
 ```powershell
 .\build\full-example\bin\ouif_css_style.exe
+```
+
+```powershell
+.\build\full-example\bin\ouif_animations.exe
 ```
 
 ```powershell

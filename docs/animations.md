@@ -120,3 +120,19 @@ tile.clear_animation();
 ```
 
 `get_style()` returns the effective rendered style for the current frame, including active transition or animation sampling.
+
+## Example
+
+Build and run the dedicated motion example:
+
+```powershell
+cmake --build build/full-example --target ouif_animations
+.\build\full-example\bin\ouif_animations.exe
+```
+
+The example includes:
+
+- a C++ transition tile that changes style on click
+- a C++ keyframe tile driven by `StyleAnimation`
+- a CSS `@keyframes` tile
+- a stylesheet-driven animated bar
