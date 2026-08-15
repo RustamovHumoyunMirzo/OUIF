@@ -244,6 +244,7 @@ private:
     bool handle_focused_key_event(const KeyEvent& event);
     void collect_focusable_widgets(std::vector<Widget*>& widgets) noexcept;
     [[nodiscard]] bool contains_widget(const Widget& widget) const noexcept;
+    void clear_mouse_state(Point position) noexcept;
     void advance_style_motion(float dt) noexcept;
     [[nodiscard]] Style sample_animation_style(const Style& base, float progress) const noexcept;
 

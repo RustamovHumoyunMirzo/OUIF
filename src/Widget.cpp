@@ -1776,16 +1776,16 @@ bool Widget::event(const Event& event)
     }
 
     const auto mouse = mouse_event_from(event);
+    if (mouse.has_value() && mouse->type == MouseEventType::Leave) {
+        clear_mouse_state(mouse->position);
+        return on_event(event);
+    }
+
     const auto* wheel = std::get_if<MouseWheelEvent>(&event);
     if ((mouse.has_value() || wheel != nullptr) && clip_content_) {
         const Point position = mouse.has_value() ? mouse->position : wheel->position;
         if (!hit_test(position)) {
-            if (hovered_) {
-                hovered_ = false;
-                pressed_ = false;
-                MouseEvent leave { MouseEventType::Leave, position, to_local(position), MouseButton::Left };
-                on_mouse_leave(leave);
-            }
+            clear_mouse_state(position);
             return false;
         }
     }
@@ -2186,6 +2186,23 @@ bool Widget::contains_widget(const Widget& widget) const noexcept
     return std::any_of(children_.begin(), children_.end(), [&widget](const auto* child) {
         return child != nullptr && child->contains_widget(widget);
     });
+}
+
+void Widget::clear_mouse_state(Point position) noexcept
+{
+    for (auto* child : children_) {
+        if (child != nullptr) {
+            child->clear_mouse_state(position);
+        }
+    }
+
+    if (hovered_) {
+        hovered_ = false;
+        MouseEvent leave { MouseEventType::Leave, position, to_local(position), MouseButton::Left };
+        on_mouse_leave(leave);
+    }
+
+    pressed_ = false;
 }
 
 Point Widget::to_local(Point point) const noexcept

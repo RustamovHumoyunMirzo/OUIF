@@ -76,6 +76,25 @@ void cursor_position_callback(GLFWwindow* window, double x, double y)
     }
 }
 
+void cursor_enter_callback(GLFWwindow* window, int entered)
+{
+    if (entered == GLFW_TRUE) {
+        return;
+    }
+
+    if (auto* app = app_from(window)) {
+        double x = 0.0;
+        double y = 0.0;
+        glfwGetCursorPos(window, &x, &y);
+        app->dispatch_event(MouseEvent {
+            MouseEventType::Leave,
+            { static_cast<float>(x), static_cast<float>(y) },
+            {},
+            MouseButton::Left,
+        });
+    }
+}
+
 void mouse_button_callback(GLFWwindow* window, int button, int action, int)
 {
     if (auto* app = app_from(window)) {
@@ -153,6 +172,7 @@ GlfwWindow create_window(const ApplicationConfig& config, Application* app)
 
     glfwSetWindowUserPointer(window, app);
     glfwSetCursorPosCallback(window, cursor_position_callback);
+    glfwSetCursorEnterCallback(window, cursor_enter_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetScrollCallback(window, scroll_callback);
     glfwSetKeyCallback(window, key_callback);

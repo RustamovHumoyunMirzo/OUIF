@@ -19,6 +19,17 @@ protected:
     }
 };
 
+class HoverTracker : public ouif::Widget {
+public:
+    int leaves = 0;
+
+protected:
+    void on_mouse_leave(const ouif::MouseEvent&) override
+    {
+        ++leaves;
+    }
+};
+
 class XmlTile : public ouif::Widget {
 public:
     XmlTile() = default;
@@ -334,6 +345,29 @@ int main()
         assert(widget.hit_test({ 10.0f, 20.0f }));
         assert(!widget.hit_test({ 109.0f, 20.0f }));
         assert(!widget.hit_test({ 10.0f, 99.0f }));
+    }
+
+    {
+        ouif::Widget root;
+        root.set_bounds({ 0.0f, 0.0f, 200.0f, 120.0f });
+        auto& child = root.add_child<HoverTracker>();
+        child.set_bounds({ 20.0f, 20.0f, 80.0f, 60.0f });
+
+        root.event(ouif::MouseMoveEvent { { 40.0f, 40.0f }, {} });
+        assert(child.hovered());
+        assert(root.event(ouif::MouseButtonEvent { { 40.0f, 40.0f }, {}, ouif::MouseButton::Left, true }));
+        assert(child.pressed());
+
+        root.event(ouif::MouseEvent { ouif::MouseEventType::Leave, { -10.0f, 40.0f }, {}, ouif::MouseButton::Left });
+        assert(!child.hovered());
+        assert(!child.pressed());
+        assert(child.leaves == 1);
+
+        root.event(ouif::MouseMoveEvent { { 40.0f, 40.0f }, {} });
+        assert(child.hovered());
+        root.event(ouif::MouseMoveEvent { { 220.0f, 40.0f }, {} });
+        assert(!child.hovered());
+        assert(child.leaves == 2);
     }
 
     {
