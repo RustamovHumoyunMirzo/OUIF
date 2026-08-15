@@ -230,3 +230,7 @@ XML can link stylesheets and use inline CSS attributes:
 ```
 
 After `load_xml()`, the returned root is a normal `Widget&`, so C++ can still add classes, join stylesheets, add children, or inspect/manage the tree.
+
+## Windowing
+
+Window control, dialog builders, and the multi-window API are documented in `docs/windowing.md`.

@@ -551,5 +551,70 @@ int main()
         assert(threw);
     }
 
+    {
+        auto config = ouif::WindowConfig()
+            .with_title("Tools")
+            .with_size(640, 360)
+            .with_position(40.0f, 60.0f)
+            .with_decorated(false)
+            .with_resizable(false)
+            .with_always_on_top(true)
+            .with_transparent_framebuffer(true)
+            .with_theme(ouif::WindowTheme::Dark)
+            .with_material(ouif::WindowMaterial::Transparent)
+            .with_background("#101218");
+
+        assert(config.title == "Tools");
+        assert(config.width == 640);
+        assert(config.height == 360);
+        assert(config.position.has_value());
+        assert(!config.decorated);
+        assert(!config.resizable);
+        assert(config.always_on_top);
+        assert(config.transparent_framebuffer);
+        assert(config.theme == ouif::WindowTheme::Dark);
+        assert(config.material == ouif::WindowMaterial::Transparent);
+
+        ouif::ApplicationConfig app_config;
+        app_config.with_window(config);
+        assert(app_config.title == "Tools");
+        assert(app_config.width == 640);
+        assert(app_config.height == 360);
+
+        ouif::Window detached;
+        assert(!detached.valid());
+        detached.set_title("Detached");
+        detached.set_size(320, 200);
+        detached.set_position(12.0f, 24.0f);
+        detached.set_decorated(false);
+        detached.set_resizable(false);
+        detached.set_always_on_top(true);
+        detached.set_theme(ouif::WindowTheme::Light);
+        detached.set_material(ouif::WindowMaterial::Solid);
+        assert(detached.title() == "Detached");
+        assert(detached.size().width == 320.0f);
+        assert(detached.position().x == 12.0f);
+        assert(!detached.decorated());
+        assert(!detached.resizable());
+        assert(detached.always_on_top());
+        assert(detached.theme() == ouif::WindowTheme::Light);
+        assert(detached.material() == ouif::WindowMaterial::Solid);
+        config.with_owner(detached);
+        assert(config.owner == &detached);
+
+        auto dialog = ouif::DialogBuilder()
+            .with_title("Confirm")
+            .with_size(420, 220)
+            .with_modal(true)
+            .with_theme(ouif::WindowTheme::Dark)
+            .with_material(ouif::WindowMaterial::Solid)
+            .with_background("#181c23")
+            .with_owner(detached);
+        assert(dialog.config().title == "Confirm");
+        assert(dialog.config().width == 420);
+        assert(dialog.config().modal);
+        assert(dialog.config().owner == &detached);
+    }
+
     return 0;
 }

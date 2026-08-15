@@ -10,5 +10,6 @@
 #include <OUIF/Renderer.h>
 #include <OUIF/Style.h>
 #include <OUIF/Widget.h>
+#include <OUIF/Window.h>
 #include <OUIF/Widgets.h>
 #include <OUIF/Xml.h>
