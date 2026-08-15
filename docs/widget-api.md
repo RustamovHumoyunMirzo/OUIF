@@ -524,5 +524,6 @@ The default `hit_test(Point)` checks:
 - widget is visible
 - widget is enabled
 - point is inside bounds
+- point is inside the current rounded corner shape
 
-Override event hooks for behavior, and use `set_enabled(false)` or `set_visible(false)` to remove a widget from interaction.
+Override `hit_test(Point)` for custom non-rectangular widgets. Override event hooks for behavior, and use `set_enabled(false)` or `set_visible(false)` to remove a widget from interaction.

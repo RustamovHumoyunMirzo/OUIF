@@ -211,7 +211,7 @@ public:
     [[nodiscard]] bool focused() const noexcept;
     void focus() noexcept;
     void blur() noexcept;
-    [[nodiscard]] bool hit_test(Point point) const noexcept;
+    [[nodiscard]] virtual bool hit_test(Point point) const noexcept;
 
     virtual void layout(Size available);
     virtual void render(Renderer& renderer);

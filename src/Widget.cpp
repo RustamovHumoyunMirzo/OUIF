@@ -856,6 +856,49 @@ BorderEdges active_border_edges(const Style& style, bool selected, bool focused)
     return normalized_edges(style.borders, style.border);
 }
 
+float clamp_hit_radius(float radius, Rect rect) noexcept
+{
+    return std::clamp(radius, 0.0f, std::min(rect.width, rect.height) * 0.5f);
+}
+
+bool point_in_corner(Point point, Point center, float radius) noexcept
+{
+    if (radius <= 0.0f) {
+        return true;
+    }
+
+    const float dx = point.x - center.x;
+    const float dy = point.y - center.y;
+    return dx * dx + dy * dy <= radius * radius;
+}
+
+bool rounded_rect_contains(Rect rect, CornerRadius radius, Point point) noexcept
+{
+    if (!rect.contains(point)) {
+        return false;
+    }
+
+    const float top_left = clamp_hit_radius(radius.top_left, rect);
+    const float top_right = clamp_hit_radius(radius.top_right, rect);
+    const float bottom_right = clamp_hit_radius(radius.bottom_right, rect);
+    const float bottom_left = clamp_hit_radius(radius.bottom_left, rect);
+
+    if (top_left > 0.0f && point.x < rect.x + top_left && point.y < rect.y + top_left) {
+        return point_in_corner(point, { rect.x + top_left, rect.y + top_left }, top_left);
+    }
+    if (top_right > 0.0f && point.x > rect.x + rect.width - top_right && point.y < rect.y + top_right) {
+        return point_in_corner(point, { rect.x + rect.width - top_right, rect.y + top_right }, top_right);
+    }
+    if (bottom_right > 0.0f && point.x > rect.x + rect.width - bottom_right && point.y > rect.y + rect.height - bottom_right) {
+        return point_in_corner(point, { rect.x + rect.width - bottom_right, rect.y + rect.height - bottom_right }, bottom_right);
+    }
+    if (bottom_left > 0.0f && point.x < rect.x + bottom_left && point.y > rect.y + rect.height - bottom_left) {
+        return point_in_corner(point, { rect.x + bottom_left, rect.y + rect.height - bottom_left }, bottom_left);
+    }
+
+    return true;
+}
+
 } // namespace
 
 Widget::~Widget()
@@ -1658,7 +1701,7 @@ void Widget::blur() noexcept
 
 bool Widget::hit_test(Point point) const noexcept
 {
-    return visible_ && enabled_ && bounds_.contains(point);
+    return visible_ && enabled_ && rounded_rect_contains(bounds_, style_.radius, point);
 }
 
 void Widget::layout(Size available)

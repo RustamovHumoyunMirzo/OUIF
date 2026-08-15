@@ -322,6 +322,22 @@ int main()
 
     {
         ouif::Widget widget;
+        widget.set_bounds({ 10.0f, 20.0f, 100.0f, 80.0f });
+        widget.set_radius(20.0f);
+
+        assert(widget.hit_test({ 60.0f, 60.0f }));
+        assert(widget.hit_test({ 30.0f, 20.0f }));
+        assert(!widget.hit_test({ 10.0f, 20.0f }));
+        assert(!widget.hit_test({ 109.0f, 20.0f }));
+
+        widget.set_radius({ 0.0f, 20.0f, 0.0f, 20.0f });
+        assert(widget.hit_test({ 10.0f, 20.0f }));
+        assert(!widget.hit_test({ 109.0f, 20.0f }));
+        assert(!widget.hit_test({ 10.0f, 99.0f }));
+    }
+
+    {
+        ouif::Widget widget;
         widget.set_style(ouif::Style().with_background(ouif::Color::hex(0x000000)).with_opacity(1.0f));
         widget.set_transition(0.5f, ouif::Easing::Linear);
         widget.set_background(ouif::Color::hex(0xffffff));
