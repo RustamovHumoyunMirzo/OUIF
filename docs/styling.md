@@ -87,6 +87,7 @@ Selectors currently support type names, classes, names, and state pseudo classes
 - `clip-content`
 - `transition`, `transition-duration`, `transition-timing-function`
 - `animation`, `animation-name`, `animation-duration`, `animation-timing-function`, `animation-iteration-count`
+- label text: `font-size`, `font-family`, `text-color`, `text-align`, `text-overflow`
 
 `width` and `height` support `px`, `%`, `vw`, and `vh`. Spacing and radius values currently resolve as pixels.
 

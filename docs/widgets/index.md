@@ -14,5 +14,6 @@ Current widget/container docs:
 - [ColScroll](col-scroll.md)
 - [Spacer](spacer.md)
 - [Divider](divider.md)
+- [Label](label.md)
 
-Future controls such as buttons, sliders, inputs, lists, and text widgets should get their own page in this directory when they are added.
+Future controls such as buttons, sliders, inputs, and lists should get their own page in this directory when they are added.

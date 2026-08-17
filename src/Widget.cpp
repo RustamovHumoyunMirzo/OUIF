@@ -1,6 +1,7 @@
 #include <OUIF/Widget.h>
 
 #include <OUIF/Renderer.h>
+#include <OUIF/Widgets.h>
 
 #include <algorithm>
 #include <cctype>
@@ -561,6 +562,46 @@ void apply_declaration(
             }
         }
         return;
+    }
+
+    if (auto* label = dynamic_cast<Label*>(&widget)) {
+        if (property == "font-size") {
+            if (auto size = pixels_from_value(*first)) {
+                label->set_font_size(*size);
+            }
+            return;
+        }
+        if (property == "font-family") {
+            if (auto family = ident_from_value(*first)) {
+                label->set_font_family(std::move(*family));
+            }
+            return;
+        }
+        if (property == "text-color") {
+            if (auto color = color_from_value(*first)) {
+                label->set_text_color(*color);
+            }
+            return;
+        }
+        if (property == "text-align") {
+            if (auto align = ident_from_value(*first)) {
+                const auto lower = lower_copy(*align);
+                if (lower == "center") {
+                    label->set_text_align(TextAlign::Center);
+                } else if (lower == "right" || lower == "end") {
+                    label->set_text_align(TextAlign::End);
+                } else {
+                    label->set_text_align(TextAlign::Start);
+                }
+            }
+            return;
+        }
+        if (property == "text-overflow") {
+            if (auto overflow = ident_from_value(*first)) {
+                label->set_text_overflow(equals_ignore_case(*overflow, "wrap") ? TextOverflow::Wrap : TextOverflow::Clip);
+            }
+            return;
+        }
     }
 
     if (!allow_widget_properties) {

@@ -7,6 +7,9 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
 
 namespace ouif {
 
@@ -35,6 +38,69 @@ struct RendererConfig {
     RendererQualityConfig quality {};
 };
 
+enum class TextAlign : std::uint8_t {
+    Start,
+    Center,
+    End,
+};
+
+enum class TextOverflow : std::uint8_t {
+    Clip,
+    Wrap,
+};
+
+struct TextStyle {
+    std::string font_family = "OUIF Sans";
+    float font_size = 16.0f;
+    float line_height = 1.25f;
+    float letter_spacing = 0.0f;
+    Color color = Color::rgba(242, 244, 248, 255);
+    TextAlign align = TextAlign::Start;
+    TextOverflow overflow = TextOverflow::Clip;
+
+    TextStyle& with_font_family(std::string value)
+    {
+        font_family = std::move(value);
+        return *this;
+    }
+
+    TextStyle& with_font_size(float value) noexcept
+    {
+        font_size = value;
+        return *this;
+    }
+
+    TextStyle& with_line_height(float value) noexcept
+    {
+        line_height = value;
+        return *this;
+    }
+
+    TextStyle& with_letter_spacing(float value) noexcept
+    {
+        letter_spacing = value;
+        return *this;
+    }
+
+    TextStyle& with_color(Color value) noexcept
+    {
+        color = value;
+        return *this;
+    }
+
+    TextStyle& with_align(TextAlign value) noexcept
+    {
+        align = value;
+        return *this;
+    }
+
+    TextStyle& with_overflow(TextOverflow value) noexcept
+    {
+        overflow = value;
+        return *this;
+    }
+};
+
 class OUIF_API Renderer {
 public:
     Renderer();
@@ -54,6 +120,8 @@ public:
     void stroke_rect(Rect rect, Color color, float width);
     void stroke_rounded_rect(Rect rect, CornerRadius radius, Color color, float width);
     void stroke_rounded_rect(Rect rect, CornerRadius radius, BorderEdges borders);
+    [[nodiscard]] Size measure_text(std::string_view text, const TextStyle& style) const noexcept;
+    void draw_text(std::string_view text, Rect rect, const TextStyle& style);
     void push_clip(Rect rect);
     void pop_clip();
     void end_frame();

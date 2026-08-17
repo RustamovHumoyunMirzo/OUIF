@@ -298,6 +298,9 @@ std::unique_ptr<Widget> make_builtin_widget(std::string_view tag)
     if (tag_is(tag, "Divider")) {
         return std::make_unique<Divider>();
     }
+    if (tag_is(tag, "Label") || tag_is(tag, "Text")) {
+        return std::make_unique<Label>();
+    }
     return nullptr;
 }
 
@@ -409,6 +412,24 @@ void apply_common_attributes(Widget& widget, const XmlElement& element, std::str
         }
     }
 
+    if (auto* label = dynamic_cast<Label*>(&widget)) {
+        if (element.has_attribute("text")) {
+            label->set_text(std::string(element.attribute("text")));
+        } else if (element.has_attribute("value")) {
+            label->set_text(std::string(element.attribute("value")));
+        }
+        if (auto font_size = element.attribute_float("font-size")) {
+            label->set_font_size(*font_size);
+        } else if (auto font_size = element.attribute_float("font_size")) {
+            label->set_font_size(*font_size);
+        }
+        if (auto color = element.attribute_color("text-color")) {
+            label->set_text_color(*color);
+        } else if (auto color = element.attribute_color("text_color")) {
+            label->set_text_color(*color);
+        }
+    }
+
     if (auto visible = element.attribute_bool("visible")) {
         widget.set_visible(*visible);
     }
@@ -494,6 +515,12 @@ std::unique_ptr<Widget> build_widget(
     }
 
     apply_common_attributes(*widget, element, inline_css, inline_counter);
+    if (auto* label = dynamic_cast<Label*>(widget.get()); label != nullptr && label->text().empty()) {
+        const auto text = trim_copy(node.child_value());
+        if (!text.empty()) {
+            label->set_text(text);
+        }
+    }
 
     for (auto child : node.children()) {
         if (child.type() != pugi::node_element) {

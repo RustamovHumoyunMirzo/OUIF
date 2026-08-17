@@ -182,9 +182,20 @@ int main()
     {
         ouif::Spacer spacer;
         ouif::Divider divider;
+        ouif::Label label("Hello");
         ouif::Widget child;
         assert(!spacer.accepts_children());
         assert(!divider.accepts_children());
+        assert(!label.accepts_children());
+        assert(label.text() == "Hello");
+        label.set_font_size(18.0f);
+        label.set_text_color("#e8edf3");
+        label.set_text_align(ouif::TextAlign::Center);
+        label.set_text_overflow(ouif::TextOverflow::Wrap);
+        assert(label.font_size() == 18.0f);
+        assert(label.text_color().r > 0.8f);
+        assert(label.text_align() == ouif::TextAlign::Center);
+        assert(label.text_overflow() == ouif::TextOverflow::Wrap);
 
         bool spacer_threw = false;
         try {
@@ -201,6 +212,14 @@ int main()
             divider_threw = true;
         }
         assert(divider_threw);
+
+        bool label_threw = false;
+        try {
+            label.add_child<ouif::Widget>();
+        } catch (const std::invalid_argument&) {
+            label_threw = true;
+        }
+        assert(label_threw);
 
         ouif::Widget container;
         container.add_child<ouif::Widget>();
@@ -438,6 +457,27 @@ int main()
     }
 
     {
+        ouif::Label label("CSS Label");
+        label.add_class("title");
+        label.set_stylesheet(R"css(
+            .title {
+                color: #e8edf3;
+                font-size: 22px;
+                font-family: OUIF;
+                text-align: center;
+                text-overflow: wrap;
+            }
+        )css");
+
+        assert(label.text() == "CSS Label");
+        assert(label.get_foreground().r > 0.8f);
+        assert(label.font_size() == 22.0f);
+        assert(label.font_family() == "OUIF");
+        assert(label.text_align() == ouif::TextAlign::Center);
+        assert(label.text_overflow() == ouif::TextOverflow::Wrap);
+    }
+
+    {
         ouif::ColScroll scroller;
         scroller.set_smooth_scroll_enabled(false);
         scroller.set_bounds({ 0.0f, 0.0f, 120.0f, 100.0f });
@@ -496,6 +536,7 @@ int main()
                     .tile { background-hovered: #4692c4; }
                 </Style>
                 <RowLayout id="surface" class="surface" gap="12" alignment="center" policy="fill,fill" transition="200ms ease-out">
+                    <Label id="caption" text="Hello Text" font-size="18" text-color="#e8edf3" />
                     <XmlTile id="tile_a" class="tile" size="80,40" animation="xmlPulse 1s linear infinite" style="background: #2f6c9c; border: 2px solid #e8edf3;" />
                     <Spacer flex="1" />
                     <Divider orientation="vertical" thickness="2" color="#e8edf3" />
@@ -507,14 +548,18 @@ int main()
         assert(row != nullptr);
         assert(row->name() == "surface");
         assert(row->gap() == 12.0f);
-        assert(row->children().size() == 3);
-        assert(row->children()[0]->name() == "tile_a");
-        assert(row->children()[0]->layout_rules().preferred_size.width == 80.0f);
-        assert(std::fabs(row->children()[0]->get_border().width - 2.0f) < 0.01f);
+        assert(row->children().size() == 4);
+        auto* caption = dynamic_cast<ouif::Label*>(row->children()[0]);
+        assert(caption != nullptr);
+        assert(caption->text() == "Hello Text");
+        assert(caption->font_size() == 18.0f);
+        assert(row->children()[1]->name() == "tile_a");
+        assert(row->children()[1]->layout_rules().preferred_size.width == 80.0f);
+        assert(std::fabs(row->children()[1]->get_border().width - 2.0f) < 0.01f);
         assert(row->get_transition().enabled);
-        assert(row->children()[0]->get_animation().has_value());
-        assert(dynamic_cast<ouif::Spacer*>(row->children()[1]) != nullptr);
-        auto* divider = dynamic_cast<ouif::Divider*>(row->children()[2]);
+        assert(row->children()[1]->get_animation().has_value());
+        assert(dynamic_cast<ouif::Spacer*>(row->children()[2]) != nullptr);
+        auto* divider = dynamic_cast<ouif::Divider*>(row->children()[3]);
         assert(divider != nullptr);
         assert(divider->orientation() == ouif::Orientation::Vertical);
         assert(std::fabs(divider->thickness() - 2.0f) < 0.01f);

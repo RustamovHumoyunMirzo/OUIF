@@ -16,15 +16,18 @@ public:
     }
 };
 
-class DemoSurface : public ouif::RowLayout {
+class DemoSurface : public ouif::ColLayout {
 public:
     DemoSurface()
         : blue_("#2f6c9c", "#4692c4", { 160.0f, 120.0f })
         , violet_("#7a529c", "#a270c6", { 160.0f, 120.0f })
         , green_("#4c8a5f", "#68b07e", { 160.0f, 120.0f })
+        , title_("HELLO OUIF")
     {
         set_alignment(ouif::Align::Center);
-        set_gap(32.0f);
+        set_cross_alignment(ouif::Align::Center);
+        set_gap(24.0f);
+        set_padding(ouif::Insets(32.0f));
         set_layout_policy(ouif::SizePolicy::Fill, ouif::SizePolicy::Fill);
 
         set_style(ouif::Style {
@@ -34,13 +37,30 @@ public:
             .border = { "#647084", 1.0f },
         });
 
-        children(blue_, violet_, green_);
+        title_.set_size({ 520.0f, 48.0f });
+        title_.set_text_align(ouif::TextAlign::Center);
+        title_.set_font_size(24.0f);
+        title_.set_style(ouif::Style()
+            .with_background("#263241")
+            .with_foreground("#e8edf3")
+            .with_border("#34445a", 1.0f)
+            .with_radius(10.0f));
+
+        row_.set_gap(32.0f);
+        row_.set_alignment(ouif::Align::Center);
+        row_.set_cross_alignment(ouif::Align::Center);
+        row_.set_flex(1.0f);
+        row_.children(blue_, violet_, green_);
+
+        children(title_, row_);
     }
 
 private:
+    ouif::RowLayout row_;
     ColorTile blue_;
     ColorTile violet_;
     ColorTile green_;
+    ouif::Label title_;
 };
 
 int main()

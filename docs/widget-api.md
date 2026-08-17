@@ -86,6 +86,8 @@ The current bgfx renderer draws filled rectangles, rounded rectangles, borders, 
 
 Transitions and animations are defined in `OUIF/Animation.h`, included by `OUIF/OUIF.h`. They use the same `Style` fields as C++ stylesheets and XML.
 
+Text drawing is a renderer feature. Use `Renderer::draw_text(...)` inside custom `draw()` methods, or use `ouif::Label` when you want a ready-made leaf widget.
+
 Styles support a fluent builder API:
 
 ```cpp

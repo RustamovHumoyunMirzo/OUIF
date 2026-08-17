@@ -3,6 +3,7 @@
 #include <OUIF/Renderer.h>
 
 #include <algorithm>
+#include <utility>
 
 namespace ouif {
 
@@ -94,6 +95,113 @@ void Divider::apply_axis_size() noexcept
         set_layout_policy(SizePolicy::Fixed, SizePolicy::Fill);
         set_size({ thickness_, 0.0f });
     }
+}
+
+Label::Label()
+{
+    set_accepts_children(false);
+    set_size({ 160.0f, 32.0f });
+}
+
+Label::Label(std::string text)
+    : Label()
+{
+    set_text(std::move(text));
+}
+
+void Label::set_text(std::string text)
+{
+    text_ = std::move(text);
+}
+
+std::string_view Label::text() const noexcept
+{
+    return text_;
+}
+
+std::string_view Label::get_text() const noexcept
+{
+    return text();
+}
+
+void Label::set_text_style(TextStyle style) noexcept
+{
+    text_style_ = std::move(style);
+    has_text_color_ = true;
+}
+
+const TextStyle& Label::text_style() const noexcept
+{
+    return text_style_;
+}
+
+const TextStyle& Label::get_text_style() const noexcept
+{
+    return text_style();
+}
+
+void Label::set_font_family(std::string family)
+{
+    text_style_.font_family = std::move(family);
+}
+
+std::string_view Label::font_family() const noexcept
+{
+    return text_style_.font_family;
+}
+
+void Label::set_font_size(float size) noexcept
+{
+    text_style_.font_size = std::max(1.0f, size);
+}
+
+float Label::font_size() const noexcept
+{
+    return text_style_.font_size;
+}
+
+void Label::set_text_color(Color color) noexcept
+{
+    text_style_.color = color;
+    has_text_color_ = true;
+}
+
+Color Label::text_color() const noexcept
+{
+    return has_text_color_ ? text_style_.color : get_style().foreground;
+}
+
+void Label::set_text_align(TextAlign align) noexcept
+{
+    text_style_.align = align;
+}
+
+TextAlign Label::text_align() const noexcept
+{
+    return text_style_.align;
+}
+
+void Label::set_text_overflow(TextOverflow overflow) noexcept
+{
+    text_style_.overflow = overflow;
+}
+
+TextOverflow Label::text_overflow() const noexcept
+{
+    return text_style_.overflow;
+}
+
+bool Label::event(const Event& event)
+{
+    return Widget::event(event);
+}
+
+void Label::draw(Renderer& renderer)
+{
+    Widget::draw(renderer);
+    auto style = text_style_;
+    style.color = text_color();
+    renderer.draw_text(text_, bounds().inset(layout_rules().padding), style);
 }
 
 } // namespace ouif
