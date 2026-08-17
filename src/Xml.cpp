@@ -481,6 +481,11 @@ void apply_common_attributes(Widget& widget, const XmlElement& element, std::str
         inline_declarations += element.attribute("animation");
         inline_declarations += ";";
     }
+    if (element.has_attribute("transform")) {
+        inline_declarations += " transform: ";
+        inline_declarations += element.attribute("transform");
+        inline_declarations += ";";
+    }
 
     if (!inline_declarations.empty()) {
         const auto inline_class = "ouif-inline-x" + std::to_string(++inline_counter);

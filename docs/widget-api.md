@@ -13,6 +13,7 @@ Every widget has:
 - motion: `set_transition(...)`, `set_animation(...)`, `clear_transition()`, and `clear_animation()`
 - stylesheet: `set_stylesheet(css)`, `join_stylesheet(css)`, and `get_stylesheet()`
 - layout rules: `set_layout(Layout)` and `layout_rules()`
+- transform: `set_transform(...)`, `set_translation(...)`, `set_scale(...)`, `set_rotation(...)`
 - child widgets: `add_child(widget)` or `add_child<T>(args...)`
 - child support: `set_accepts_children(bool)` and `accepts_children()`
 - visibility: `set_visible(bool)` and `visible()`

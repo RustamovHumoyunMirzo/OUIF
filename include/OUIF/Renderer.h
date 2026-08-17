@@ -122,6 +122,8 @@ public:
     void stroke_rounded_rect(Rect rect, CornerRadius radius, BorderEdges borders);
     [[nodiscard]] Size measure_text(std::string_view text, const TextStyle& style) const noexcept;
     void draw_text(std::string_view text, Rect rect, const TextStyle& style);
+    void push_transform(Rect bounds, Transform transform);
+    void pop_transform();
     void push_clip(Rect rect);
     void pop_clip();
     void end_frame();

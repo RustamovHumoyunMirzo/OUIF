@@ -132,4 +132,48 @@ struct Rect {
     }
 };
 
+struct Transform {
+    float translate_x = 0.0f;
+    float translate_y = 0.0f;
+    float scale_x = 1.0f;
+    float scale_y = 1.0f;
+    float rotation_degrees = 0.0f;
+    float origin_x = 0.5f;
+    float origin_y = 0.5f;
+
+    constexpr Transform& with_translate(float x, float y) noexcept
+    {
+        translate_x = x;
+        translate_y = y;
+        return *this;
+    }
+
+    constexpr Transform& with_scale(float scale) noexcept
+    {
+        scale_x = scale;
+        scale_y = scale;
+        return *this;
+    }
+
+    constexpr Transform& with_scale(float x, float y) noexcept
+    {
+        scale_x = x;
+        scale_y = y;
+        return *this;
+    }
+
+    constexpr Transform& with_rotation(float degrees) noexcept
+    {
+        rotation_degrees = degrees;
+        return *this;
+    }
+
+    constexpr Transform& with_origin(float x, float y) noexcept
+    {
+        origin_x = x;
+        origin_y = y;
+        return *this;
+    }
+};
+
 } // namespace ouif

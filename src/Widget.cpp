@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <iterator>
@@ -196,6 +197,147 @@ std::vector<KatanaValue*> flattened_values(KatanaArray* source)
         }
     }
     return values;
+}
+
+std::vector<KatanaValue*> function_args(const KatanaValue& value)
+{
+    std::vector<KatanaValue*> values;
+    if (value.unit != KATANA_VALUE_PARSER_FUNCTION || value.function == nullptr) {
+        return values;
+    }
+    return flattened_values(value.function->args);
+}
+
+void apply_transform_value(Transform& transform, const KatanaValue& value)
+{
+    if (value.unit != KATANA_VALUE_PARSER_FUNCTION || value.function == nullptr) {
+        return;
+    }
+
+    const auto name = lower_copy(text_or_empty(value.function->name));
+    const auto args = function_args(value);
+    if (name == "translate" || name == "translate3d") {
+        if (!args.empty()) {
+            transform.translate_x = pixels_from_value(*args[0]).value_or(transform.translate_x);
+        }
+        if (args.size() > 1) {
+            transform.translate_y = pixels_from_value(*args[1]).value_or(transform.translate_y);
+        }
+        return;
+    }
+    if (name == "translatex") {
+        if (!args.empty()) {
+            transform.translate_x = pixels_from_value(*args[0]).value_or(transform.translate_x);
+        }
+        return;
+    }
+    if (name == "translatey") {
+        if (!args.empty()) {
+            transform.translate_y = pixels_from_value(*args[0]).value_or(transform.translate_y);
+        }
+        return;
+    }
+    if (name == "scale" || name == "scale3d") {
+        if (!args.empty()) {
+            transform.scale_x = pixels_from_value(*args[0]).value_or(transform.scale_x);
+            transform.scale_y = args.size() > 1 ? pixels_from_value(*args[1]).value_or(transform.scale_x) : transform.scale_x;
+        }
+        return;
+    }
+    if (name == "scalex") {
+        if (!args.empty()) {
+            transform.scale_x = pixels_from_value(*args[0]).value_or(transform.scale_x);
+        }
+        return;
+    }
+    if (name == "scaley") {
+        if (!args.empty()) {
+            transform.scale_y = pixels_from_value(*args[0]).value_or(transform.scale_y);
+        }
+        return;
+    }
+    if (name == "rotate" || name == "rotatez") {
+        if (!args.empty()) {
+            transform.rotation_degrees = pixels_from_value(*args[0]).value_or(transform.rotation_degrees);
+        }
+    }
+}
+
+std::vector<float> numbers_from_text(std::string_view text)
+{
+    std::vector<float> values;
+    const char* cursor = text.data();
+    const char* end = text.data() + text.size();
+    while (cursor < end) {
+        char* parsed_end = nullptr;
+        const float value = std::strtof(cursor, &parsed_end);
+        if (parsed_end != cursor) {
+            values.push_back(value);
+            cursor = parsed_end;
+        } else {
+            ++cursor;
+        }
+    }
+    return values;
+}
+
+void apply_transform_text(Transform& transform, std::string_view text)
+{
+    const auto lower = lower_copy(text);
+    std::size_t cursor = 0;
+    while (cursor < lower.size()) {
+        const auto open = lower.find('(', cursor);
+        if (open == std::string::npos) {
+            break;
+        }
+        const auto close = lower.find(')', open + 1);
+        if (close == std::string::npos) {
+            break;
+        }
+
+        std::size_t name_start = open;
+        while (name_start > 0 && (std::isalpha(static_cast<unsigned char>(lower[name_start - 1])) != 0 || lower[name_start - 1] == '-')) {
+            --name_start;
+        }
+
+        const auto name = std::string_view(lower).substr(name_start, open - name_start);
+        const auto values = numbers_from_text(std::string_view(lower).substr(open + 1, close - open - 1));
+        if (name == "translate" || name == "translate3d") {
+            if (!values.empty()) {
+                transform.translate_x = values[0];
+            }
+            if (values.size() > 1) {
+                transform.translate_y = values[1];
+            }
+        } else if (name == "translatex") {
+            if (!values.empty()) {
+                transform.translate_x = values[0];
+            }
+        } else if (name == "translatey") {
+            if (!values.empty()) {
+                transform.translate_y = values[0];
+            }
+        } else if (name == "scale" || name == "scale3d") {
+            if (!values.empty()) {
+                transform.scale_x = values[0];
+                transform.scale_y = values.size() > 1 ? values[1] : values[0];
+            }
+        } else if (name == "scalex") {
+            if (!values.empty()) {
+                transform.scale_x = values[0];
+            }
+        } else if (name == "scaley") {
+            if (!values.empty()) {
+                transform.scale_y = values[0];
+            }
+        } else if (name == "rotate" || name == "rotatez") {
+            if (!values.empty()) {
+                transform.rotation_degrees = values[0];
+            }
+        }
+
+        cursor = close + 1;
+    }
 }
 
 void apply_background(Style& style, CssState state, Color color)
@@ -561,6 +703,90 @@ void apply_declaration(
                 motion->animation_loop = *count != 1.0f;
             }
         }
+        return;
+    }
+
+    if (property == "transform") {
+        Transform transform = widget.get_transform();
+        for (auto* value : flattened_values(declaration.values)) {
+            if (value != nullptr) {
+                apply_transform_value(transform, *value);
+            }
+        }
+        const auto raw = text_or_empty(declaration.raw);
+        if (!raw.empty()) {
+            apply_transform_text(transform, raw);
+        } else if (declaration.string != nullptr) {
+            apply_transform_text(transform, text_or_empty(declaration.string));
+        }
+        widget.set_transform(transform);
+        return;
+    }
+
+    if (property == "translate" || property == "translation") {
+        Transform transform = widget.get_transform();
+        transform.translate_x = pixels_from_value(*first).value_or(transform.translate_x);
+        if (auto* second = value_at(declaration.values, 1)) {
+            transform.translate_y = pixels_from_value(*second).value_or(transform.translate_y);
+        }
+        widget.set_transform(transform);
+        return;
+    }
+
+    if (property == "translate-x") {
+        Transform transform = widget.get_transform();
+        transform.translate_x = pixels_from_value(*first).value_or(transform.translate_x);
+        widget.set_transform(transform);
+        return;
+    }
+
+    if (property == "translate-y") {
+        Transform transform = widget.get_transform();
+        transform.translate_y = pixels_from_value(*first).value_or(transform.translate_y);
+        widget.set_transform(transform);
+        return;
+    }
+
+    if (property == "scale") {
+        Transform transform = widget.get_transform();
+        transform.scale_x = pixels_from_value(*first).value_or(transform.scale_x);
+        if (auto* second = value_at(declaration.values, 1)) {
+            transform.scale_y = pixels_from_value(*second).value_or(transform.scale_x);
+        } else {
+            transform.scale_y = transform.scale_x;
+        }
+        widget.set_transform(transform);
+        return;
+    }
+
+    if (property == "scale-x") {
+        Transform transform = widget.get_transform();
+        transform.scale_x = pixels_from_value(*first).value_or(transform.scale_x);
+        widget.set_transform(transform);
+        return;
+    }
+
+    if (property == "scale-y") {
+        Transform transform = widget.get_transform();
+        transform.scale_y = pixels_from_value(*first).value_or(transform.scale_y);
+        widget.set_transform(transform);
+        return;
+    }
+
+    if (property == "rotate" || property == "rotation") {
+        Transform transform = widget.get_transform();
+        transform.rotation_degrees = pixels_from_value(*first).value_or(transform.rotation_degrees);
+        widget.set_transform(transform);
+        return;
+    }
+
+    if (property == "transform-origin") {
+        Transform transform = widget.get_transform();
+        transform.origin_x = pixels_from_value(*first).value_or(transform.origin_x);
+        if (auto* second = value_at(declaration.values, 1)) {
+            transform.origin_y = pixels_from_value(*second).value_or(transform.origin_y);
+        }
+        widget.set_transform(transform);
         return;
     }
 
@@ -1430,6 +1656,49 @@ float Widget::get_flex() const noexcept
     return layout_.flex;
 }
 
+void Widget::set_transform(Transform transform) noexcept
+{
+    transform_ = transform;
+}
+
+const Transform& Widget::transform() const noexcept
+{
+    return transform_;
+}
+
+const Transform& Widget::get_transform() const noexcept
+{
+    return transform();
+}
+
+void Widget::set_translation(float x, float y) noexcept
+{
+    transform_.translate_x = x;
+    transform_.translate_y = y;
+}
+
+void Widget::set_scale(float scale) noexcept
+{
+    set_scale(scale, scale);
+}
+
+void Widget::set_scale(float x, float y) noexcept
+{
+    transform_.scale_x = x;
+    transform_.scale_y = y;
+}
+
+void Widget::set_rotation(float degrees) noexcept
+{
+    transform_.rotation_degrees = degrees;
+}
+
+void Widget::set_transform_origin(float x, float y) noexcept
+{
+    transform_.origin_x = x;
+    transform_.origin_y = y;
+}
+
 void Widget::set_visible(bool visible) noexcept
 {
     visible_ = visible;
@@ -1793,6 +2062,7 @@ void Widget::render(Renderer& renderer)
         return;
     }
 
+    renderer.push_transform(bounds_, transform_);
     draw(renderer);
 
     if (clip_content_) {
@@ -1804,6 +2074,7 @@ void Widget::render(Renderer& renderer)
     if (clip_content_) {
         renderer.pop_clip();
     }
+    renderer.pop_transform();
 }
 
 bool Widget::event(const Event& event)

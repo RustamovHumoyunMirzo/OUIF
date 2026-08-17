@@ -88,6 +88,7 @@ Selectors currently support type names, classes, names, and state pseudo classes
 - `transition`, `transition-duration`, `transition-timing-function`
 - `animation`, `animation-name`, `animation-duration`, `animation-timing-function`, `animation-iteration-count`
 - label text: `font-size`, `font-family`, `text-color`, `text-align`, `text-overflow`
+- transforms: `transform`, `translate`, `translate-x`, `translate-y`, `scale`, `scale-x`, `scale-y`, `rotate`, `transform-origin`
 
 `width` and `height` support `px`, `%`, `vw`, and `vh`. Spacing and radius values currently resolve as pixels.
 
@@ -103,3 +104,28 @@ Selectors currently support type names, classes, names, and state pseudo classes
 ```
 
 Directional borders follow rounded corners and blend around arcs.
+
+## Transforms
+
+Transforms are applied at render time to a widget and its children:
+
+```cpp
+tile.set_translation(8.0f, 0.0f);
+tile.set_scale(1.08f);
+tile.set_rotation(4.0f);
+tile.set_transform_origin(0.5f, 0.5f);
+```
+
+CSS supports both shorthand and longhand:
+
+```css
+.tile {
+    transform: translate(8px, 0px) rotate(4deg) scale(1.08);
+}
+```
+
+XML can use the same syntax:
+
+```xml
+<Widget transform="translate(8px, 0px) rotate(4deg) scale(1.08)" />
+```

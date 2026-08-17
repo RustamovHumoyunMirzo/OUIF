@@ -196,6 +196,14 @@ int main()
         assert(label.text_color().r > 0.8f);
         assert(label.text_align() == ouif::TextAlign::Center);
         assert(label.text_overflow() == ouif::TextOverflow::Wrap);
+        label.set_translation(4.0f, 8.0f);
+        label.set_scale(1.5f, 0.75f);
+        label.set_rotation(12.0f);
+        label.set_transform_origin(0.25f, 0.75f);
+        assert(label.get_transform().translate_x == 4.0f);
+        assert(label.get_transform().scale_x == 1.5f);
+        assert(label.get_transform().rotation_degrees == 12.0f);
+        assert(label.get_transform().origin_y == 0.75f);
 
         bool spacer_threw = false;
         try {
@@ -466,6 +474,7 @@ int main()
                 font-family: OUIF;
                 text-align: center;
                 text-overflow: wrap;
+                transform: translate(4px, 8px) rotate(15deg) scale(1.25, 0.75);
             }
         )css");
 
@@ -475,6 +484,11 @@ int main()
         assert(label.font_family() == "OUIF");
         assert(label.text_align() == ouif::TextAlign::Center);
         assert(label.text_overflow() == ouif::TextOverflow::Wrap);
+        assert(label.get_transform().translate_x == 4.0f);
+        assert(label.get_transform().translate_y == 8.0f);
+        assert(label.get_transform().rotation_degrees == 15.0f);
+        assert(label.get_transform().scale_x == 1.25f);
+        assert(label.get_transform().scale_y == 0.75f);
     }
 
     {
@@ -536,7 +550,7 @@ int main()
                     .tile { background-hovered: #4692c4; }
                 </Style>
                 <RowLayout id="surface" class="surface" gap="12" alignment="center" policy="fill,fill" transition="200ms ease-out">
-                    <Label id="caption" text="Hello Text" font-size="18" text-color="#e8edf3" />
+                    <Label id="caption" text="Hello Text" font-size="18" text-color="#e8edf3" transform="translate(2px, 3px) scale(1.1)" />
                     <XmlTile id="tile_a" class="tile" size="80,40" animation="xmlPulse 1s linear infinite" style="background: #2f6c9c; border: 2px solid #e8edf3;" />
                     <Spacer flex="1" />
                     <Divider orientation="vertical" thickness="2" color="#e8edf3" />
@@ -553,6 +567,8 @@ int main()
         assert(caption != nullptr);
         assert(caption->text() == "Hello Text");
         assert(caption->font_size() == 18.0f);
+        assert(caption->get_transform().translate_x == 2.0f);
+        assert(caption->get_transform().scale_x == 1.1f);
         assert(row->children()[1]->name() == "tile_a");
         assert(row->children()[1]->layout_rules().preferred_size.width == 80.0f);
         assert(std::fabs(row->children()[1]->get_border().width - 2.0f) < 0.01f);

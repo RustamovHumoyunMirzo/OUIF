@@ -31,6 +31,60 @@ struct PosColorVertex {
 
 bgfx::VertexLayout PosColorVertex::layout;
 
+struct Mat3 {
+    float a = 1.0f;
+    float b = 0.0f;
+    float c = 0.0f;
+    float d = 1.0f;
+    float tx = 0.0f;
+    float ty = 0.0f;
+};
+
+Point apply_matrix(Mat3 matrix, Point point) noexcept
+{
+    return {
+        matrix.a * point.x + matrix.c * point.y + matrix.tx,
+        matrix.b * point.x + matrix.d * point.y + matrix.ty,
+    };
+}
+
+Mat3 multiply(Mat3 left, Mat3 right) noexcept
+{
+    return {
+        left.a * right.a + left.c * right.b,
+        left.b * right.a + left.d * right.b,
+        left.a * right.c + left.c * right.d,
+        left.b * right.c + left.d * right.d,
+        left.a * right.tx + left.c * right.ty + left.tx,
+        left.b * right.tx + left.d * right.ty + left.ty,
+    };
+}
+
+Mat3 matrix_from_transform(Rect bounds, Transform transform) noexcept
+{
+    constexpr float pi = 3.14159265358979323846f;
+    const float radians = transform.rotation_degrees * pi / 180.0f;
+    const float cosine = std::cos(radians);
+    const float sine = std::sin(radians);
+    const Point origin {
+        bounds.x + bounds.width * transform.origin_x,
+        bounds.y + bounds.height * transform.origin_y,
+    };
+
+    const Mat3 to_origin { 1.0f, 0.0f, 0.0f, 1.0f, -origin.x, -origin.y };
+    const Mat3 scaled { transform.scale_x, 0.0f, 0.0f, transform.scale_y, 0.0f, 0.0f };
+    const Mat3 rotated { cosine, sine, -sine, cosine, 0.0f, 0.0f };
+    const Mat3 back {
+        1.0f,
+        0.0f,
+        0.0f,
+        1.0f,
+        origin.x + transform.translate_x,
+        origin.y + transform.translate_y,
+    };
+    return multiply(back, multiply(rotated, multiply(scaled, to_origin)));
+}
+
 std::uint32_t pack_abgr(Color color)
 {
     const auto clamp_channel = [](float value) {
@@ -358,16 +412,32 @@ struct Renderer::Impl {
     RendererQualityConfig quality {};
     std::uint32_t reset_flags = 0;
     std::vector<Rect> clip_stack;
+    std::vector<Mat3> transform_stack;
 #if OUIF_WITH_BGFX
     bgfx::ProgramHandle rect_program = BGFX_INVALID_HANDLE;
 #endif
 };
+
+template <typename Impl>
+Mat3 current_transform(const Impl& impl) noexcept
+{
+    return impl.transform_stack.empty() ? Mat3 {} : impl.transform_stack.back();
+}
+
+template <typename Impl>
+PosColorVertex transformed_vertex_from_point(const Impl& impl, Point point, std::uint32_t abgr)
+{
+    return vertex_from_point(apply_matrix(current_transform(impl), point), impl.width, impl.height, abgr);
+}
 
 #if OUIF_WITH_BGFX
 template <typename Impl>
 void apply_scissor(const Impl& impl)
 {
     if (impl.clip_stack.empty()) {
+#if OUIF_WITH_BGFX
+        bgfx::setScissor();
+#endif
         return;
     }
 
@@ -561,10 +631,14 @@ void Renderer::fill_rect(Rect rect, Color color)
     const auto abgr = pack_abgr(color);
 
     auto* vertex_data = reinterpret_cast<PosColorVertex*>(vertices.data);
-    vertex_data[0] = { left, top, 0.0f, abgr };
-    vertex_data[1] = { right, top, 0.0f, abgr };
-    vertex_data[2] = { right, bottom, 0.0f, abgr };
-    vertex_data[3] = { left, bottom, 0.0f, abgr };
+    (void)left;
+    (void)right;
+    (void)top;
+    (void)bottom;
+    vertex_data[0] = transformed_vertex_from_point(*impl_, { rect.x, rect.y }, abgr);
+    vertex_data[1] = transformed_vertex_from_point(*impl_, { rect.x + rect.width, rect.y }, abgr);
+    vertex_data[2] = transformed_vertex_from_point(*impl_, { rect.x + rect.width, rect.y + rect.height }, abgr);
+    vertex_data[3] = transformed_vertex_from_point(*impl_, { rect.x, rect.y + rect.height }, abgr);
 
     auto* index_data = reinterpret_cast<std::uint16_t*>(indices.data);
     const std::array<std::uint16_t, 6> quad_indices { 0, 1, 2, 0, 2, 3 };
@@ -614,9 +688,9 @@ void Renderer::fill_rounded_rect(Rect rect, CornerRadius radius, Color color)
 
     const auto abgr = pack_abgr(color);
     auto* vertex_data = reinterpret_cast<PosColorVertex*>(vertices.data);
-    vertex_data[0] = vertex_from_point({ rect.x + rect.width * 0.5f, rect.y + rect.height * 0.5f }, impl_->width, impl_->height, abgr);
+    vertex_data[0] = transformed_vertex_from_point(*impl_, { rect.x + rect.width * 0.5f, rect.y + rect.height * 0.5f }, abgr);
     for (std::size_t index = 0; index < points.size(); ++index) {
-        vertex_data[index + 1] = vertex_from_point(points[index], impl_->width, impl_->height, abgr);
+        vertex_data[index + 1] = transformed_vertex_from_point(*impl_, points[index], abgr);
     }
 
     auto* index_data = reinterpret_cast<std::uint16_t*>(indices.data);
@@ -788,8 +862,8 @@ void Renderer::stroke_rounded_rect(Rect rect, CornerRadius radius, BorderEdges b
     auto* vertex_data = reinterpret_cast<PosColorVertex*>(vertices.data);
     for (std::size_t index = 0; index < points.size(); ++index) {
         const auto abgr = pack_abgr(points[index].color);
-        vertex_data[index] = vertex_from_point(points[index].outer, impl_->width, impl_->height, abgr);
-        vertex_data[index + points.size()] = vertex_from_point(points[index].inner, impl_->width, impl_->height, abgr);
+        vertex_data[index] = transformed_vertex_from_point(*impl_, points[index].outer, abgr);
+        vertex_data[index + points.size()] = transformed_vertex_from_point(*impl_, points[index].inner, abgr);
     }
 
     auto* index_data = reinterpret_cast<std::uint16_t*>(indices.data);
@@ -930,6 +1004,27 @@ void Renderer::draw_text(std::string_view text, Rect rect, const TextStyle& styl
     }
 
     pop_clip();
+}
+
+void Renderer::push_transform(Rect bounds, Transform transform)
+{
+#if OUIF_WITH_BGFX
+    const Mat3 local = matrix_from_transform(bounds, transform);
+    const Mat3 parent = current_transform(*impl_);
+    impl_->transform_stack.push_back(multiply(parent, local));
+#else
+    (void)bounds;
+    (void)transform;
+#endif
+}
+
+void Renderer::pop_transform()
+{
+#if OUIF_WITH_BGFX
+    if (!impl_->transform_stack.empty()) {
+        impl_->transform_stack.pop_back();
+    }
+#endif
 }
 
 void Renderer::end_frame()

@@ -148,6 +148,14 @@ public:
     [[nodiscard]] Insets get_padding() const noexcept;
     void set_flex(float flex) noexcept;
     [[nodiscard]] float get_flex() const noexcept;
+    void set_transform(Transform transform) noexcept;
+    [[nodiscard]] const Transform& transform() const noexcept;
+    [[nodiscard]] const Transform& get_transform() const noexcept;
+    void set_translation(float x, float y) noexcept;
+    void set_scale(float scale) noexcept;
+    void set_scale(float x, float y) noexcept;
+    void set_rotation(float degrees) noexcept;
+    void set_transform_origin(float x, float y) noexcept;
 
     void set_visible(bool visible) noexcept;
     [[nodiscard]] bool visible() const noexcept;
@@ -262,6 +270,7 @@ private:
     StyleTransition transition_;
     std::optional<StyleAnimation> animation_;
     Layout layout_;
+    Transform transform_;
     std::string stylesheet_;
     std::string name_;
     std::string type_name_ = "Widget";
