@@ -85,6 +85,17 @@ Mat3 matrix_from_transform(Rect bounds, Transform transform) noexcept
     return multiply(back, multiply(rotated, multiply(scaled, to_origin)));
 }
 
+bool matrix_is_identity(Mat3 matrix) noexcept
+{
+    constexpr float epsilon = 0.00001f;
+    return std::abs(matrix.a - 1.0f) <= epsilon
+        && std::abs(matrix.b) <= epsilon
+        && std::abs(matrix.c) <= epsilon
+        && std::abs(matrix.d - 1.0f) <= epsilon
+        && std::abs(matrix.tx) <= epsilon
+        && std::abs(matrix.ty) <= epsilon;
+}
+
 std::uint32_t pack_abgr(Color color)
 {
     const auto clamp_channel = [](float value) {
@@ -563,6 +574,7 @@ void Renderer::resize(std::uint32_t width, std::uint32_t height)
 void Renderer::begin_frame(Color clear_color)
 {
     impl_->clip_stack.clear();
+    impl_->transform_stack.clear();
 #if OUIF_WITH_BGFX
     const auto r = static_cast<std::uint32_t>(clear_color.r * 255.0f) & 0xffU;
     const auto g = static_cast<std::uint32_t>(clear_color.g * 255.0f) & 0xffU;
@@ -631,14 +643,17 @@ void Renderer::fill_rect(Rect rect, Color color)
     const auto abgr = pack_abgr(color);
 
     auto* vertex_data = reinterpret_cast<PosColorVertex*>(vertices.data);
-    (void)left;
-    (void)right;
-    (void)top;
-    (void)bottom;
-    vertex_data[0] = transformed_vertex_from_point(*impl_, { rect.x, rect.y }, abgr);
-    vertex_data[1] = transformed_vertex_from_point(*impl_, { rect.x + rect.width, rect.y }, abgr);
-    vertex_data[2] = transformed_vertex_from_point(*impl_, { rect.x + rect.width, rect.y + rect.height }, abgr);
-    vertex_data[3] = transformed_vertex_from_point(*impl_, { rect.x, rect.y + rect.height }, abgr);
+    if (matrix_is_identity(current_transform(*impl_))) {
+        vertex_data[0] = { left, top, 0.0f, abgr };
+        vertex_data[1] = { right, top, 0.0f, abgr };
+        vertex_data[2] = { right, bottom, 0.0f, abgr };
+        vertex_data[3] = { left, bottom, 0.0f, abgr };
+    } else {
+        vertex_data[0] = transformed_vertex_from_point(*impl_, { rect.x, rect.y }, abgr);
+        vertex_data[1] = transformed_vertex_from_point(*impl_, { rect.x + rect.width, rect.y }, abgr);
+        vertex_data[2] = transformed_vertex_from_point(*impl_, { rect.x + rect.width, rect.y + rect.height }, abgr);
+        vertex_data[3] = transformed_vertex_from_point(*impl_, { rect.x, rect.y + rect.height }, abgr);
+    }
 
     auto* index_data = reinterpret_cast<std::uint16_t*>(indices.data);
     const std::array<std::uint16_t, 6> quad_indices { 0, 1, 2, 0, 2, 3 };
@@ -753,6 +768,22 @@ void Renderer::stroke_rounded_rect(Rect rect, CornerRadius radius, BorderEdges b
         }
         return color;
     };
+
+    if (top_left == 0.0f && top_right == 0.0f && bottom_right == 0.0f && bottom_left == 0.0f) {
+        if (borders.top.width > 0.0f) {
+            fill_rect({ rect.x, rect.y, rect.width, borders.top.width }, borders.top.color);
+        }
+        if (borders.right.width > 0.0f) {
+            fill_rect({ rect.x + rect.width - borders.right.width, rect.y, borders.right.width, rect.height }, borders.right.color);
+        }
+        if (borders.bottom.width > 0.0f) {
+            fill_rect({ rect.x, rect.y + rect.height - borders.bottom.width, rect.width, borders.bottom.width }, borders.bottom.color);
+        }
+        if (borders.left.width > 0.0f) {
+            fill_rect({ rect.x, rect.y, borders.left.width, rect.height }, borders.left.color);
+        }
+        return;
+    }
 
     constexpr float pi = 3.14159265358979323846f;
     std::vector<BorderRingPoint> points;
