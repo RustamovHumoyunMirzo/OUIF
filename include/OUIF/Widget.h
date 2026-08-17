@@ -184,6 +184,7 @@ public:
     bool focus_next(bool reverse = false) noexcept;
 
     Widget& add_child(Widget& child);
+    Widget& add_child(Widget* child);
     Widget& add_child(std::unique_ptr<Widget> child);
     bool remove_child(Widget& child) noexcept;
     void clear_children() noexcept;

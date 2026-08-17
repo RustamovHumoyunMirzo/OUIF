@@ -1865,6 +1865,19 @@ Widget& Widget::add_child(Widget& child)
     return child;
 }
 
+Widget& Widget::add_child(Widget* child)
+{
+    if (child == nullptr) {
+        throw std::invalid_argument("Cannot add a null widget child");
+    }
+
+    if (child->parent_ != nullptr) {
+        throw std::invalid_argument("Cannot adopt a raw widget pointer that already has a parent");
+    }
+
+    return add_child(std::unique_ptr<Widget>(child));
+}
+
 Widget& Widget::add_child(std::unique_ptr<Widget> child)
 {
     if (!accepts_children_) {

@@ -71,6 +71,9 @@ int main()
             .with_clear_color("#101218"));
 
     DemoSurface surface;
+    ColorTile* custom = new ColorTile("#2f6c9c", "#4692c4", { 160.0f, 120.0f });
+    custom->set_rotation(4.0f);
+    surface.add_child(custom);
     app.set_root(surface);
 
     return app.run();

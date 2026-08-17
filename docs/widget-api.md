@@ -25,12 +25,19 @@ Every widget has:
 
 ## Memory And Ownership
 
-OUIF supports two safe child patterns.
+OUIF supports three child patterns.
 
 Let OUIF construct and own the child:
 
 ```cpp
 auto& tile = add_child<ColorTile>("#2f6c9c", "#4692c4", ouif::Size { 160.0f, 120.0f });
+```
+
+Or raw pointer adoption:
+
+```cpp
+auto* tile = new ColorTile("#2f6c9c", "#4692c4", ouif::Size { 160.0f, 120.0f });
+add_child(tile);
 ```
 
 Or keep widgets as normal variables or members and register them with the parent:
@@ -54,6 +61,7 @@ The framework tracks parent pointers internally:
 
 - external/member children automatically detach from their parent when destroyed
 - owned children are destroyed by their parent exactly once
+- raw pointer children passed to `add_child(pointer)` become owned children
 - duplicate `add_child(child)` calls do not register the same child twice
 - external/member children can move from one parent to another
 - internally owned children cannot be reparented by reference, because the original parent owns their memory

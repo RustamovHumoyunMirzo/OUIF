@@ -92,6 +92,30 @@ int main()
     }
 
     {
+        ouif::Widget parent;
+        auto* child = new ouif::Widget();
+        auto& adopted = parent.add_child(child);
+        assert(&adopted == child);
+        assert(parent.children().size() == 1);
+        assert(child->parent() == &parent);
+        parent.clear_children();
+        assert(parent.children().empty());
+    }
+
+    {
+        ouif::Widget parent;
+        ouif::Widget child;
+        parent.add_child(child);
+        bool threw = false;
+        try {
+            parent.add_child(&child);
+        } catch (const std::invalid_argument&) {
+            threw = true;
+        }
+        assert(threw);
+    }
+
+    {
         ouif::Widget first_parent;
         ouif::Widget second_parent;
         auto& owned = first_parent.add_child<ouif::Widget>();

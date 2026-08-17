@@ -41,6 +41,13 @@ Let OUIF own a child:
 auto& tile = parent.add_child<Tile>();
 ```
 
+Or adopt a raw pointer allocated with `new`:
+
+```cpp
+auto* tile = new Tile();
+parent.add_child(tile);
+```
+
 Or keep a child as a normal C++ member:
 
 ```cpp
@@ -56,7 +63,7 @@ private:
 };
 ```
 
-Owned children are destroyed by the parent. Member/external children auto-detach when destroyed.
+Owned children are destroyed by the parent. Member/external children auto-detach when destroyed. Raw pointer adoption is owning, so pass only heap-allocated widgets that do not already have a parent.
 
 ## Leaf Widgets
 
