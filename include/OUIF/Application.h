@@ -8,6 +8,7 @@
 #include <OUIF/Xml.h>
 
 #include <functional>
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -141,6 +142,10 @@ public:
     Widget& load_xml_string(std::string_view xml, std::string_view base_path = {});
     void load_stylesheet_file(std::string_view path);
     void join_stylesheet_file(std::string_view path);
+    bool load_font(std::string family, std::filesystem::path path);
+    bool load_default_system_font();
+    void set_default_font_family(std::string family);
+    [[nodiscard]] std::string_view default_font_family() const noexcept;
 
     int run();
     void frame();

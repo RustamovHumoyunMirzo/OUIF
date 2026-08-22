@@ -29,6 +29,28 @@ title.set_text_style(ouif::TextStyle()
 
 If no explicit text color is set, `Label` uses the widget style foreground color. That means CSS, state changes, and animations can drive label color through the normal style pipeline.
 
+## Fonts
+
+OUIF loads a platform native default font automatically as `OUIF Sans` when rendering starts. Applications can also load TTF files and use them from any `Label` or custom `draw()` method:
+
+```cpp
+ouif::Application app;
+app.load_font("Brand", "assets/brand.ttf");
+
+ouif::Label title("Hello");
+title.set_font_family("Brand");
+```
+
+Custom widgets use the same font system:
+
+```cpp
+renderer.draw_text("READY", bounds(), ouif::TextStyle()
+    .with_font_family("Brand")
+    .with_font_size(18.0f));
+```
+
+Use `app.set_default_font_family("Brand")` when you want labels that still say `OUIF Sans` to resolve to your loaded face.
+
 ## CSS
 
 ```css
@@ -71,4 +93,4 @@ void Badge::draw(ouif::Renderer& renderer)
 }
 ```
 
-The first renderer backend uses OUIF's built-in fallback glyphs. The public API is designed so a future font atlas or TTF backend can be added without changing user widget code.
+The bgfx renderer uses TTF font atlases and falls back to OUIF's built-in glyphs if a font or text shader is unavailable.

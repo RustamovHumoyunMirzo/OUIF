@@ -160,6 +160,7 @@ target_compile_definitions(ouif PRIVATE OUIF_BUILDING_LIBRARY)
 
 if(TARGET bgfx)
     target_link_libraries(ouif PRIVATE bgfx bx bimg)
+    target_include_directories(ouif PRIVATE "${bgfx_SOURCE_DIR}/bgfx/3rdparty/stb")
     target_compile_definitions(ouif PRIVATE OUIF_WITH_BGFX=1)
     target_compile_definitions(ouif PRIVATE OUIF_SHADER_DIR="$<TARGET_FILE_DIR:ouif>/ouif-shaders")
 else()
@@ -206,7 +207,10 @@ if(TARGET bgfx AND TARGET shaderc)
                 --profile ${profile}
                 -i "${PROJECT_SOURCE_DIR}/src/shaders"
                 -i "${bgfx_SOURCE_DIR}/bgfx/src"
-            DEPENDS "${PROJECT_SOURCE_DIR}/src/shaders/${name}.sc" shaderc
+            DEPENDS
+                "${PROJECT_SOURCE_DIR}/src/shaders/${name}.sc"
+                "${PROJECT_SOURCE_DIR}/src/shaders/varying.def.sc"
+                shaderc
             VERBATIM
         )
     endfunction()
@@ -214,23 +218,35 @@ if(TARGET bgfx AND TARGET shaderc)
     if(WIN32)
         ouif_compile_shader(vs_ouif_rect vertex windows s_5_0 dx11)
         ouif_compile_shader(fs_ouif_rect fragment windows s_5_0 dx11)
+        ouif_compile_shader(vs_ouif_text vertex windows s_5_0 dx11)
+        ouif_compile_shader(fs_ouif_text fragment windows s_5_0 dx11)
         set(OUIF_SHADER_BINARIES
             "${OUIF_SHADER_OUTPUT_DIR}/dx11/vs_ouif_rect.bin"
             "${OUIF_SHADER_OUTPUT_DIR}/dx11/fs_ouif_rect.bin"
+            "${OUIF_SHADER_OUTPUT_DIR}/dx11/vs_ouif_text.bin"
+            "${OUIF_SHADER_OUTPUT_DIR}/dx11/fs_ouif_text.bin"
         )
     elseif(APPLE)
         ouif_compile_shader(vs_ouif_rect vertex osx metal metal)
         ouif_compile_shader(fs_ouif_rect fragment osx metal metal)
+        ouif_compile_shader(vs_ouif_text vertex osx metal metal)
+        ouif_compile_shader(fs_ouif_text fragment osx metal metal)
         set(OUIF_SHADER_BINARIES
             "${OUIF_SHADER_OUTPUT_DIR}/metal/vs_ouif_rect.bin"
             "${OUIF_SHADER_OUTPUT_DIR}/metal/fs_ouif_rect.bin"
+            "${OUIF_SHADER_OUTPUT_DIR}/metal/vs_ouif_text.bin"
+            "${OUIF_SHADER_OUTPUT_DIR}/metal/fs_ouif_text.bin"
         )
     else()
         ouif_compile_shader(vs_ouif_rect vertex linux 140 glsl)
         ouif_compile_shader(fs_ouif_rect fragment linux 140 glsl)
+        ouif_compile_shader(vs_ouif_text vertex linux 140 glsl)
+        ouif_compile_shader(fs_ouif_text fragment linux 140 glsl)
         set(OUIF_SHADER_BINARIES
             "${OUIF_SHADER_OUTPUT_DIR}/glsl/vs_ouif_rect.bin"
             "${OUIF_SHADER_OUTPUT_DIR}/glsl/fs_ouif_rect.bin"
+            "${OUIF_SHADER_OUTPUT_DIR}/glsl/vs_ouif_text.bin"
+            "${OUIF_SHADER_OUTPUT_DIR}/glsl/fs_ouif_text.bin"
         )
     endif()
 
@@ -249,6 +265,7 @@ if(OUIF_BUILD_EXAMPLES)
     add_subdirectory(examples/complex_layout)
     add_subdirectory(examples/css_style)
     add_subdirectory(examples/animations)
+    add_subdirectory(examples/fonts)
     add_subdirectory(examples/xml_ui)
     add_subdirectory(examples/clipping_scroll)
 endif()

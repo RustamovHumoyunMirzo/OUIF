@@ -262,6 +262,19 @@ int main()
         assert(container.children().empty());
     }
 
+    {
+        ouif::Renderer renderer;
+        assert(renderer.default_font_family() == "OUIF Sans");
+        renderer.set_default_font_family("Example Narrow");
+        assert(renderer.default_font_family() == "Example Narrow");
+        assert(renderer.load_font("Example Narrow", OUIF_TEST_FONT_PATH));
+        auto measured = renderer.measure_text("Font Test", ouif::TextStyle()
+                .with_font_family("Example Narrow")
+                .with_font_size(24.0f));
+        assert(measured.width > 0.0f);
+        assert(measured.height > 0.0f);
+    }
+
     ouif::RowLayout weighted_row;
     weighted_row.set_bounds({ 0.0f, 0.0f, 320.0f, 100.0f });
     weighted_row.set_gap(20.0f);

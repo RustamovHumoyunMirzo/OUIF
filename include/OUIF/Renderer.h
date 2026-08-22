@@ -6,6 +6,7 @@
 #include <OUIF/Style.h>
 
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -120,6 +121,10 @@ public:
     void stroke_rect(Rect rect, Color color, float width);
     void stroke_rounded_rect(Rect rect, CornerRadius radius, Color color, float width);
     void stroke_rounded_rect(Rect rect, CornerRadius radius, BorderEdges borders);
+    bool load_font(std::string family, std::filesystem::path path);
+    bool load_default_system_font();
+    void set_default_font_family(std::string family);
+    [[nodiscard]] std::string_view default_font_family() const noexcept;
     [[nodiscard]] Size measure_text(std::string_view text, const TextStyle& style) const noexcept;
     void draw_text(std::string_view text, Rect rect, const TextStyle& style);
     void push_transform(Rect bounds, Transform transform);

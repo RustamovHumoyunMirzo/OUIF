@@ -4,15 +4,22 @@
 #include <array>
 #include <cctype>
 #include <cmath>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
+#include <limits>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #if OUIF_WITH_BGFX
 #include <bgfx/bgfx.h>
+
+#define STB_TRUETYPE_IMPLEMENTATION
+#include <stb_truetype.h>
 #endif
 
 namespace ouif {
@@ -30,6 +37,39 @@ struct PosColorVertex {
 };
 
 bgfx::VertexLayout PosColorVertex::layout;
+
+struct PosColorTexVertex {
+    float x;
+    float y;
+    float z;
+    std::uint32_t abgr;
+    float u;
+    float v;
+
+    static bgfx::VertexLayout layout;
+};
+
+bgfx::VertexLayout PosColorTexVertex::layout;
+
+struct FontAtlas {
+    int pixel_height = 0;
+    int width = 512;
+    int height = 512;
+    float scale = 1.0f;
+    float ascent = 0.0f;
+    float descent = 0.0f;
+    float line_gap = 0.0f;
+    bgfx::TextureHandle texture = BGFX_INVALID_HANDLE;
+    std::array<stbtt_packedchar, 95> chars {};
+};
+
+struct FontFace {
+    std::string family;
+    std::vector<unsigned char> data;
+    stbtt_fontinfo info {};
+    bool valid = false;
+    std::unordered_map<int, FontAtlas> atlases;
+};
 
 struct Mat3 {
     float a = 1.0f;
@@ -128,6 +168,25 @@ PosColorVertex vertex_from_point(Point point, std::uint32_t width, std::uint32_t
         1.0f - (point.y / static_cast<float>(height)) * 2.0f,
         0.0f,
         abgr,
+    };
+}
+
+PosColorTexVertex text_vertex_from_point(
+    Point point,
+    std::uint32_t width,
+    std::uint32_t height,
+    std::uint32_t abgr,
+    float u,
+    float v
+)
+{
+    return {
+        (point.x / static_cast<float>(width)) * 2.0f - 1.0f,
+        1.0f - (point.y / static_cast<float>(height)) * 2.0f,
+        0.0f,
+        abgr,
+        u,
+        v,
     };
 }
 
@@ -257,6 +316,19 @@ std::vector<char> read_file(const std::filesystem::path& path)
     return data;
 }
 
+std::vector<unsigned char> read_binary_file(const std::filesystem::path& path)
+{
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+        return {};
+    }
+
+    return {
+        std::istreambuf_iterator<char>(file),
+        std::istreambuf_iterator<char>(),
+    };
+}
+
 bgfx::ShaderHandle load_shader(const std::filesystem::path& path)
 {
     auto data = read_file(path);
@@ -266,6 +338,49 @@ bgfx::ShaderHandle load_shader(const std::filesystem::path& path)
 
     const bgfx::Memory* memory = bgfx::copy(data.data(), static_cast<std::uint32_t>(data.size()));
     return bgfx::createShader(memory);
+}
+
+std::string font_key(std::string_view family)
+{
+    std::string key;
+    key.reserve(family.size());
+    for (const char ch : family) {
+        key.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+    }
+    return key;
+}
+
+std::vector<std::filesystem::path> default_font_candidates()
+{
+    std::vector<std::filesystem::path> paths;
+#if defined(_WIN32)
+    std::filesystem::path windows_dir = "C:/Windows";
+    if (const char* env = std::getenv("WINDIR"); env != nullptr && *env != '\0') {
+        windows_dir = env;
+    }
+    paths.push_back(windows_dir / "Fonts" / "segoeui.ttf");
+    paths.push_back(windows_dir / "Fonts" / "arial.ttf");
+#elif defined(__APPLE__)
+    paths.emplace_back("/System/Library/Fonts/SFNS.ttf");
+    paths.emplace_back("/System/Library/Fonts/Supplemental/Arial.ttf");
+    paths.emplace_back("/Library/Fonts/Arial.ttf");
+#else
+    paths.emplace_back("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf");
+    paths.emplace_back("/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf");
+    paths.emplace_back("/usr/share/fonts/truetype/freefont/FreeSans.ttf");
+#endif
+    return paths;
+}
+
+void destroy_font_atlases(FontFace& face) noexcept
+{
+    for (auto& [_, atlas] : face.atlases) {
+        if (bgfx::isValid(atlas.texture)) {
+            bgfx::destroy(atlas.texture);
+            atlas.texture = BGFX_INVALID_HANDLE;
+        }
+    }
+    face.atlases.clear();
 }
 
 const char* shader_backend_directory()
@@ -426,7 +541,11 @@ struct Renderer::Impl {
     std::vector<Mat3> transform_stack;
 #if OUIF_WITH_BGFX
     bgfx::ProgramHandle rect_program = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle text_program = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle font_sampler = BGFX_INVALID_HANDLE;
+    std::unordered_map<std::string, FontFace> fonts;
 #endif
+    std::string default_font_family = "OUIF Sans";
 };
 
 template <typename Impl>
@@ -443,6 +562,12 @@ PosColorVertex transformed_vertex_from_point(const Impl& impl, Point point, std:
 
 #if OUIF_WITH_BGFX
 template <typename Impl>
+PosColorTexVertex transformed_text_vertex_from_point(const Impl& impl, Point point, std::uint32_t abgr, float u, float v)
+{
+    return text_vertex_from_point(apply_matrix(current_transform(impl), point), impl.width, impl.height, abgr, u, v);
+}
+
+template <typename Impl>
 void apply_scissor(const Impl& impl)
 {
     if (impl.clip_stack.empty()) {
@@ -458,6 +583,113 @@ void apply_scissor(const Impl& impl)
     const auto right = static_cast<std::uint16_t>(std::clamp(rect.x + rect.width, 0.0f, static_cast<float>(impl.width)));
     const auto bottom = static_cast<std::uint16_t>(std::clamp(rect.y + rect.height, 0.0f, static_cast<float>(impl.height)));
     bgfx::setScissor(x, y, static_cast<std::uint16_t>(right - x), static_cast<std::uint16_t>(bottom - y));
+}
+
+template <typename Impl>
+FontFace* find_font(Impl& impl, std::string_view family)
+{
+    auto iterator = impl.fonts.find(font_key(family));
+    if (iterator != impl.fonts.end()) {
+        return &iterator->second;
+    }
+
+    iterator = impl.fonts.find(font_key(impl.default_font_family));
+    if (iterator != impl.fonts.end()) {
+        return &iterator->second;
+    }
+
+    return nullptr;
+}
+
+template <typename Impl>
+const FontFace* find_font(const Impl& impl, std::string_view family)
+{
+    auto iterator = impl.fonts.find(font_key(family));
+    if (iterator != impl.fonts.end()) {
+        return &iterator->second;
+    }
+
+    iterator = impl.fonts.find(font_key(impl.default_font_family));
+    if (iterator != impl.fonts.end()) {
+        return &iterator->second;
+    }
+
+    return nullptr;
+}
+
+template <typename Impl>
+FontAtlas* ensure_atlas(Impl& impl, FontFace& face, float font_size)
+{
+    const int pixel_height = std::clamp(static_cast<int>(std::round(font_size)), 8, 256);
+    if (auto iterator = face.atlases.find(pixel_height); iterator != face.atlases.end()) {
+        return &iterator->second;
+    }
+
+    if (!impl.initialized) {
+        return nullptr;
+    }
+
+    FontAtlas atlas;
+    atlas.pixel_height = pixel_height;
+    atlas.width = pixel_height >= 64 ? 1024 : 512;
+    atlas.height = atlas.width;
+    atlas.scale = stbtt_ScaleForPixelHeight(&face.info, static_cast<float>(pixel_height));
+
+    int ascent = 0;
+    int descent = 0;
+    int line_gap = 0;
+    stbtt_GetFontVMetrics(&face.info, &ascent, &descent, &line_gap);
+    atlas.ascent = static_cast<float>(ascent) * atlas.scale;
+    atlas.descent = static_cast<float>(descent) * atlas.scale;
+    atlas.line_gap = static_cast<float>(line_gap) * atlas.scale;
+
+    std::vector<unsigned char> alpha(static_cast<std::size_t>(atlas.width * atlas.height), 0);
+    stbtt_pack_context context {};
+    if (!stbtt_PackBegin(&context, alpha.data(), atlas.width, atlas.height, 0, 1, nullptr)) {
+        return nullptr;
+    }
+
+    const int oversample = impl.quality.preset == RendererQuality::Ultra ? 3 : (impl.quality.smoothing ? 2 : 1);
+    stbtt_PackSetOversampling(&context, static_cast<unsigned int>(oversample), static_cast<unsigned int>(oversample));
+    const int packed = stbtt_PackFontRange(
+        &context,
+        face.data.data(),
+        0,
+        static_cast<float>(pixel_height),
+        32,
+        static_cast<int>(atlas.chars.size()),
+        atlas.chars.data()
+    );
+    stbtt_PackEnd(&context);
+    if (packed == 0) {
+        return nullptr;
+    }
+
+    std::vector<unsigned char> rgba(static_cast<std::size_t>(atlas.width * atlas.height * 4), 255);
+    for (std::size_t index = 0; index < alpha.size(); ++index) {
+        rgba[index * 4U + 3U] = alpha[index];
+    }
+
+    const std::uint64_t sampler_flags = impl.quality.smoothing
+        ? 0
+        : BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT | BGFX_SAMPLER_MIP_POINT;
+    const bgfx::Memory* memory = bgfx::copy(rgba.data(), static_cast<std::uint32_t>(rgba.size()));
+    atlas.texture = bgfx::createTexture2D(
+        static_cast<std::uint16_t>(atlas.width),
+        static_cast<std::uint16_t>(atlas.height),
+        false,
+        1,
+        bgfx::TextureFormat::RGBA8,
+        sampler_flags,
+        memory
+    );
+    if (!bgfx::isValid(atlas.texture)) {
+        return nullptr;
+    }
+
+    auto [iterator, inserted] = face.atlases.emplace(pixel_height, std::move(atlas));
+    (void)inserted;
+    return &iterator->second;
 }
 #endif
 
@@ -488,6 +720,12 @@ void Renderer::initialize(const RendererConfig& config)
         .begin()
         .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
         .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
+        .end();
+    PosColorTexVertex::layout
+        .begin()
+        .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+        .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
+        .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
         .end();
 
     bgfx::Init init;
@@ -531,12 +769,29 @@ void Renderer::initialize(const RendererConfig& config)
                 bgfx::destroy(fragment);
             }
         }
+
+        const auto text_vertex = load_shader(shader_root / backend / "vs_ouif_text.bin");
+        const auto text_fragment = load_shader(shader_root / backend / "fs_ouif_text.bin");
+        if (bgfx::isValid(text_vertex) && bgfx::isValid(text_fragment)) {
+            impl_->text_program = bgfx::createProgram(text_vertex, text_fragment, true);
+            impl_->font_sampler = bgfx::createUniform("s_font", bgfx::UniformType::Sampler);
+        } else {
+            if (bgfx::isValid(text_vertex)) {
+                bgfx::destroy(text_vertex);
+            }
+            if (bgfx::isValid(text_fragment)) {
+                bgfx::destroy(text_fragment);
+            }
+        }
     }
 #endif
 
     impl_->initialized = true;
     impl_->width = width;
     impl_->height = height;
+    if (impl_->default_font_family == "OUIF Sans") {
+        load_default_system_font();
+    }
 }
 
 void Renderer::shutdown() noexcept
@@ -546,6 +801,17 @@ void Renderer::shutdown() noexcept
     }
 
 #if OUIF_WITH_BGFX
+    for (auto& [_, face] : impl_->fonts) {
+        destroy_font_atlases(face);
+    }
+    if (bgfx::isValid(impl_->font_sampler)) {
+        bgfx::destroy(impl_->font_sampler);
+        impl_->font_sampler = BGFX_INVALID_HANDLE;
+    }
+    if (bgfx::isValid(impl_->text_program)) {
+        bgfx::destroy(impl_->text_program);
+        impl_->text_program = BGFX_INVALID_HANDLE;
+    }
     if (bgfx::isValid(impl_->rect_program)) {
         bgfx::destroy(impl_->rect_program);
         impl_->rect_program = BGFX_INVALID_HANDLE;
@@ -923,8 +1189,98 @@ void Renderer::stroke_rounded_rect(Rect rect, CornerRadius radius, BorderEdges b
 #endif
 }
 
+bool Renderer::load_font(std::string family, std::filesystem::path path)
+{
+    if (family.empty()) {
+        return false;
+    }
+
+#if OUIF_WITH_BGFX
+    auto data = read_binary_file(path);
+    if (data.empty()) {
+        return false;
+    }
+
+    FontFace face;
+    face.family = std::move(family);
+    face.data = std::move(data);
+    const int offset = stbtt_GetFontOffsetForIndex(face.data.data(), 0);
+    if (offset < 0 || stbtt_InitFont(&face.info, face.data.data(), offset) == 0) {
+        return false;
+    }
+    face.valid = true;
+
+    const auto key = font_key(face.family);
+    if (auto existing = impl_->fonts.find(key); existing != impl_->fonts.end()) {
+        destroy_font_atlases(existing->second);
+    }
+    impl_->fonts[key] = std::move(face);
+    return true;
+#else
+    (void)path;
+    impl_->default_font_family = std::move(family);
+    return false;
+#endif
+}
+
+bool Renderer::load_default_system_font()
+{
+#if OUIF_WITH_BGFX
+    for (const auto& path : default_font_candidates()) {
+        if (std::filesystem::exists(path) && load_font("OUIF Sans", path)) {
+            impl_->default_font_family = "OUIF Sans";
+            return true;
+        }
+    }
+#endif
+    return false;
+}
+
+void Renderer::set_default_font_family(std::string family)
+{
+    if (!family.empty()) {
+        impl_->default_font_family = std::move(family);
+    }
+}
+
+std::string_view Renderer::default_font_family() const noexcept
+{
+    return impl_->default_font_family;
+}
+
 Size Renderer::measure_text(std::string_view text, const TextStyle& style) const noexcept
 {
+#if OUIF_WITH_BGFX
+    if (const auto* face = find_font(*impl_, style.font_family); face != nullptr && face->valid) {
+        const float scale = stbtt_ScaleForPixelHeight(&face->info, std::max(1.0f, style.font_size));
+        float line_width = 0.0f;
+        float max_width = 0.0f;
+        std::uint32_t line_count = 1;
+        for (const unsigned char ch : text) {
+            if (ch == '\n') {
+                max_width = std::max(max_width, line_width);
+                line_width = 0.0f;
+                ++line_count;
+                continue;
+            }
+            if (ch < 32 || ch > 126) {
+                line_width += glyph_advance(style);
+                continue;
+            }
+            int advance_width = 0;
+            int left_side_bearing = 0;
+            stbtt_GetCodepointHMetrics(&face->info, ch, &advance_width, &left_side_bearing);
+            line_width += static_cast<float>(advance_width) * scale + style.letter_spacing;
+        }
+
+        max_width = std::max(max_width, line_width);
+        return {
+            max_width,
+            line_height_px(style) * static_cast<float>(line_count),
+        };
+    }
+#endif
+
     float line_width = 0.0f;
     float max_width = 0.0f;
     std::uint32_t line_count = 1;
@@ -984,6 +1340,112 @@ void Renderer::draw_text(std::string_view text, Rect rect, const TextStyle& styl
             start = index + 1;
         }
     }
+
+#if OUIF_WITH_BGFX
+    if (bgfx::isValid(impl_->text_program) && bgfx::isValid(impl_->font_sampler)) {
+        if (auto* face = find_font(*impl_, style.font_family); face != nullptr && face->valid) {
+            if (auto* atlas = ensure_atlas(*impl_, *face, style.font_size); atlas != nullptr && bgfx::isValid(atlas->texture)) {
+                float y = rect.y;
+                const auto abgr = pack_abgr(style.color);
+
+                for (const auto& line : lines) {
+                    if (y > rect.y + rect.height) {
+                        break;
+                    }
+
+                    const float line_width = measure_text(line, style).width;
+                    float x = rect.x;
+                    if (style.align == TextAlign::Center) {
+                        x += std::max(0.0f, (rect.width - line_width) * 0.5f);
+                    } else if (style.align == TextAlign::End) {
+                        x += std::max(0.0f, rect.width - line_width);
+                    }
+
+                    const float baseline = y + atlas->ascent;
+                    std::vector<PosColorTexVertex> vertex_data;
+                    std::vector<std::uint16_t> index_data;
+                    vertex_data.reserve(line.size() * 4U);
+                    index_data.reserve(line.size() * 6U);
+
+                    float pen_x = x;
+                    float pen_y = baseline;
+                    for (const unsigned char ch : line) {
+                        if (pen_x > rect.x + rect.width) {
+                            break;
+                        }
+                        if (ch < 32 || ch > 126) {
+                            pen_x += glyph_advance(style);
+                            continue;
+                        }
+
+                        const float before = pen_x;
+                        stbtt_aligned_quad quad {};
+                        stbtt_GetPackedQuad(
+                            atlas->chars.data(),
+                            atlas->width,
+                            atlas->height,
+                            static_cast<int>(ch) - 32,
+                            &pen_x,
+                            &pen_y,
+                            &quad,
+                            1
+                        );
+                        pen_x += style.letter_spacing;
+
+                        if (ch == ' ' || quad.x1 <= rect.x || quad.y1 <= rect.y || quad.x0 >= rect.x + rect.width || quad.y0 >= rect.y + rect.height) {
+                            continue;
+                        }
+
+                        if (vertex_data.size() + 4U > std::numeric_limits<std::uint16_t>::max()) {
+                            break;
+                        }
+
+                        const auto base = static_cast<std::uint16_t>(vertex_data.size());
+                        vertex_data.push_back(transformed_text_vertex_from_point(*impl_, { quad.x0, quad.y0 }, abgr, quad.s0, quad.t0));
+                        vertex_data.push_back(transformed_text_vertex_from_point(*impl_, { quad.x1, quad.y0 }, abgr, quad.s1, quad.t0));
+                        vertex_data.push_back(transformed_text_vertex_from_point(*impl_, { quad.x1, quad.y1 }, abgr, quad.s1, quad.t1));
+                        vertex_data.push_back(transformed_text_vertex_from_point(*impl_, { quad.x0, quad.y1 }, abgr, quad.s0, quad.t1));
+                        index_data.insert(index_data.end(), {
+                            base,
+                            static_cast<std::uint16_t>(base + 1U),
+                            static_cast<std::uint16_t>(base + 2U),
+                            base,
+                            static_cast<std::uint16_t>(base + 2U),
+                            static_cast<std::uint16_t>(base + 3U),
+                        });
+
+                        if (pen_x <= before) {
+                            pen_x = before + glyph_advance(style);
+                        }
+                    }
+
+                    if (!vertex_data.empty()
+                        && vertex_data.size() <= bgfx::getAvailTransientVertexBuffer(static_cast<std::uint32_t>(vertex_data.size()), PosColorTexVertex::layout)
+                        && index_data.size() <= bgfx::getAvailTransientIndexBuffer(static_cast<std::uint32_t>(index_data.size()))) {
+                        bgfx::TransientVertexBuffer vertices;
+                        bgfx::TransientIndexBuffer indices;
+                        bgfx::allocTransientVertexBuffer(&vertices, static_cast<std::uint32_t>(vertex_data.size()), PosColorTexVertex::layout);
+                        bgfx::allocTransientIndexBuffer(&indices, static_cast<std::uint32_t>(index_data.size()));
+                        std::copy(vertex_data.begin(), vertex_data.end(), reinterpret_cast<PosColorTexVertex*>(vertices.data));
+                        std::copy(index_data.begin(), index_data.end(), reinterpret_cast<std::uint16_t*>(indices.data));
+
+                        bgfx::setVertexBuffer(0, &vertices);
+                        bgfx::setIndexBuffer(&indices);
+                        bgfx::setTexture(0, impl_->font_sampler, atlas->texture);
+                        bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
+                        apply_scissor(*impl_);
+                        bgfx::submit(0, impl_->text_program);
+                    }
+
+                    y += line_height;
+                }
+
+                pop_clip();
+                return;
+            }
+        }
+    }
+#endif
 
     float y = rect.y;
     for (const auto& line : lines) {

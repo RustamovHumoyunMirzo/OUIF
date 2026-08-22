@@ -614,6 +614,26 @@ Window& Application::show_dialog(const DialogBuilder& builder, std::unique_ptr<W
     return show_dialog(builder.config(), std::move(root));
 }
 
+bool Application::load_font(std::string family, std::filesystem::path path)
+{
+    return renderer_.load_font(std::move(family), std::move(path));
+}
+
+bool Application::load_default_system_font()
+{
+    return renderer_.load_default_system_font();
+}
+
+void Application::set_default_font_family(std::string family)
+{
+    renderer_.set_default_font_family(std::move(family));
+}
+
+std::string_view Application::default_font_family() const noexcept
+{
+    return renderer_.default_font_family();
+}
+
 int Application::run()
 {
     if (config_.native_window == nullptr && config_.create_window && !primary_window_.valid()) {
