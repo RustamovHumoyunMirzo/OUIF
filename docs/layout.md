@@ -55,6 +55,47 @@ right.set_flex(2.0f);
 
 The second widget gets twice the remaining main-axis space.
 
+## Child Gravity
+
+Plain `Widget` containers can align children inside their padded content area:
+
+```cpp
+panel.set_child_gravity(ouif::Gravity::BottomRight());
+panel.set_child_gravity(ouif::HorizontalGravity::Right, ouif::VerticalGravity::Center);
+```
+
+Built-in linear layouts support the same idea through `set_gravity(...)`. In a `RowLayout`, horizontal gravity maps to main-axis alignment and vertical gravity maps to cross-axis alignment. In a `ColLayout`, vertical gravity maps to main-axis alignment and horizontal gravity maps to cross-axis alignment.
+
+```cpp
+row.set_gravity(ouif::Gravity::Center());
+column.set_gravity(ouif::Gravity::TopRight());
+```
+
+Available preset helpers:
+
+- `Gravity::TopLeft()`
+- `Gravity::TopCenter()`
+- `Gravity::TopRight()`
+- `Gravity::CenterLeft()`
+- `Gravity::Center()`
+- `Gravity::CenterRight()`
+- `Gravity::BottomLeft()`
+- `Gravity::BottomCenter()`
+- `Gravity::BottomRight()`
+
+CSS and XML can use the same property:
+
+```css
+.panel {
+    gravity: right bottom;
+}
+```
+
+```xml
+<RowLayout gravity="center" />
+<Widget child-gravity="right bottom" />
+```
+
 ## Built-In Containers
 
 - `RowLayout`: left-to-right.

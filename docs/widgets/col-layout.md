@@ -12,6 +12,7 @@ public:
         set_gap(10.0f);
         set_alignment(ouif::Align::Start);
         set_cross_alignment(ouif::Align::Center);
+        set_gravity(ouif::Gravity::TopCenter());
         set_padding(ouif::Insets(16.0f));
 
         add_child<Tile>();
@@ -27,6 +28,14 @@ The main axis is vertical. `set_alignment` controls placement when fixed-size ch
 ## Cross Axis
 
 The cross axis is horizontal. `set_cross_alignment` controls child horizontal placement when a child does not fill width.
+
+`set_gravity(...)` is a shorthand over both axes:
+
+```cpp
+set_gravity(ouif::Gravity::BottomRight());
+```
+
+For `ColLayout`, top/center/bottom controls vertical placement and left/center/right controls horizontal placement.
 
 ## Fill And Flex
 

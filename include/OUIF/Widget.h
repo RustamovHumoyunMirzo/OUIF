@@ -148,6 +148,10 @@ public:
     [[nodiscard]] Insets get_padding() const noexcept;
     void set_flex(float flex) noexcept;
     [[nodiscard]] float get_flex() const noexcept;
+    void set_child_gravity(Gravity gravity) noexcept;
+    void set_child_gravity(HorizontalGravity horizontal, VerticalGravity vertical) noexcept;
+    [[nodiscard]] Gravity child_gravity() const noexcept;
+    [[nodiscard]] Gravity get_child_gravity() const noexcept;
     void set_transform(Transform transform) noexcept;
     [[nodiscard]] const Transform& transform() const noexcept;
     [[nodiscard]] const Transform& get_transform() const noexcept;
@@ -271,6 +275,7 @@ private:
     StyleTransition transition_;
     std::optional<StyleAnimation> animation_;
     Layout layout_;
+    Gravity child_gravity_ = Gravity::TopLeft();
     Transform transform_;
     std::string stylesheet_;
     std::string name_;

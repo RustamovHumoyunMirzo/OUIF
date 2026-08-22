@@ -18,6 +18,7 @@ OUIF is early and intentionally raw. The current API exposes the foundation deve
 - style properties
 - layout constraints and padding
 - margin, padding, flex/weight, and alignment helpers
+- child gravity for left/right/top/bottom/center and mixed alignment
 - row/column scroll containers with clipping control
 - spacer and divider widgets for common layout structure
 - focus state, focus styles, keyboard navigation, and keyboard activation
@@ -77,6 +78,7 @@ The clipping and scroll example is written to:
 
 - [Getting Started](docs/getting-started.md)
 - [Raw Widget API](docs/widget-api.md)
+- [API Reference](docs/api-reference.md)
 - [Widgets](docs/widgets/index.md)
 - [Layout](docs/layout.md)
 - [Styling](docs/styling.md)

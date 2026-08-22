@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdint>
 
 namespace ouif {
 
@@ -12,6 +13,33 @@ struct Point {
 struct Size {
     float width = 0.0f;
     float height = 0.0f;
+};
+
+enum class HorizontalGravity : std::uint8_t {
+    Left,
+    Center,
+    Right,
+};
+
+enum class VerticalGravity : std::uint8_t {
+    Top,
+    Center,
+    Bottom,
+};
+
+struct Gravity {
+    HorizontalGravity horizontal = HorizontalGravity::Left;
+    VerticalGravity vertical = VerticalGravity::Top;
+
+    static constexpr Gravity TopLeft() noexcept { return { HorizontalGravity::Left, VerticalGravity::Top }; }
+    static constexpr Gravity TopCenter() noexcept { return { HorizontalGravity::Center, VerticalGravity::Top }; }
+    static constexpr Gravity TopRight() noexcept { return { HorizontalGravity::Right, VerticalGravity::Top }; }
+    static constexpr Gravity CenterLeft() noexcept { return { HorizontalGravity::Left, VerticalGravity::Center }; }
+    static constexpr Gravity Center() noexcept { return { HorizontalGravity::Center, VerticalGravity::Center }; }
+    static constexpr Gravity CenterRight() noexcept { return { HorizontalGravity::Right, VerticalGravity::Center }; }
+    static constexpr Gravity BottomLeft() noexcept { return { HorizontalGravity::Left, VerticalGravity::Bottom }; }
+    static constexpr Gravity BottomCenter() noexcept { return { HorizontalGravity::Center, VerticalGravity::Bottom }; }
+    static constexpr Gravity BottomRight() noexcept { return { HorizontalGravity::Right, VerticalGravity::Bottom }; }
 };
 
 enum class LengthUnit {

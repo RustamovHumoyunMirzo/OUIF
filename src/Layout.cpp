@@ -36,6 +36,40 @@ float cross_size_for(const Widget& child, Size available, bool row)
     return row ? fixed_height_for(child, available) : fixed_width_for(child, available);
 }
 
+float aligned_offset(float start, float available, float size, float before, float after, Align alignment) noexcept
+{
+    const float space = std::max(0.0f, available - before - after);
+    if (alignment == Align::Center) {
+        return start + before + std::max(0.0f, space - size) * 0.5f;
+    }
+    if (alignment == Align::End) {
+        return start + available - after - size;
+    }
+    return start + before;
+}
+
+Align horizontal_to_align(HorizontalGravity gravity) noexcept
+{
+    if (gravity == HorizontalGravity::Center) {
+        return Align::Center;
+    }
+    if (gravity == HorizontalGravity::Right) {
+        return Align::End;
+    }
+    return Align::Start;
+}
+
+Align vertical_to_align(VerticalGravity gravity) noexcept
+{
+    if (gravity == VerticalGravity::Center) {
+        return Align::Center;
+    }
+    if (gravity == VerticalGravity::Bottom) {
+        return Align::End;
+    }
+    return Align::Start;
+}
+
 } // namespace
 
 void LinearLayout::set_alignment(Align alignment) noexcept
@@ -66,6 +100,28 @@ void LinearLayout::set_gap(float gap) noexcept
 float LinearLayout::gap() const noexcept
 {
     return gap_;
+}
+
+void LinearLayout::set_gravity(Gravity gravity) noexcept
+{
+    set_child_gravity(gravity);
+    set_alignment(direction_ == Direction::Row ? horizontal_to_align(gravity.horizontal) : vertical_to_align(gravity.vertical));
+    set_cross_alignment(direction_ == Direction::Row ? vertical_to_align(gravity.vertical) : horizontal_to_align(gravity.horizontal));
+}
+
+void LinearLayout::set_gravity(HorizontalGravity horizontal, VerticalGravity vertical) noexcept
+{
+    set_gravity({ horizontal, vertical });
+}
+
+Gravity LinearLayout::gravity() const noexcept
+{
+    const auto horizontal = direction_ == Direction::Row ? alignment_ : cross_alignment_;
+    const auto vertical = direction_ == Direction::Row ? cross_alignment_ : alignment_;
+    return {
+        horizontal == Align::End ? HorizontalGravity::Right : (horizontal == Align::Center ? HorizontalGravity::Center : HorizontalGravity::Left),
+        vertical == Align::End ? VerticalGravity::Bottom : (vertical == Align::Center ? VerticalGravity::Center : VerticalGravity::Top),
+    };
 }
 
 LinearLayout::LinearLayout(Direction direction)
@@ -133,10 +189,15 @@ void LinearLayout::on_layout(Rect content)
             ? (fills_cross ? cross_space : preferred_height)
             : (fills_main ? weighted_main : preferred_height);
         float cross_start = row ? content.y + margin_cross_before : content.x + margin_cross_before;
-        if (!fills_cross && cross_alignment_ == Align::Center) {
-            cross_start = (row ? content.y : content.x) + margin_cross_before + (cross_space - (row ? height : width)) * 0.5f;
-        } else if (!fills_cross && cross_alignment_ == Align::End) {
-            cross_start = (row ? content.y : content.x) + available_cross - margin_cross_after - (row ? height : width);
+        if (!fills_cross) {
+            cross_start = aligned_offset(
+                row ? content.y : content.x,
+                available_cross,
+                row ? height : width,
+                margin_cross_before,
+                margin_cross_after,
+                cross_alignment_
+            );
         }
 
         cursor += margin_before;
@@ -303,10 +364,15 @@ void ScrollLayout::on_layout(Rect content)
         const float cross_space = std::max(0.0f, available_cross - margin_cross_before - margin_cross_after);
         const float cross = fills_cross ? cross_space : preferred_cross;
         float cross_start = row ? content.y + margin_cross_before : content.x + margin_cross_before;
-        if (!fills_cross && cross_alignment() == Align::Center) {
-            cross_start = (row ? content.y : content.x) + margin_cross_before + (cross_space - cross) * 0.5f;
-        } else if (!fills_cross && cross_alignment() == Align::End) {
-            cross_start = (row ? content.y : content.x) + available_cross - margin_cross_after - cross;
+        if (!fills_cross) {
+            cross_start = aligned_offset(
+                row ? content.y : content.x,
+                available_cross,
+                cross,
+                margin_cross_before,
+                margin_cross_after,
+                cross_alignment()
+            );
         }
 
         cursor += margin_before;

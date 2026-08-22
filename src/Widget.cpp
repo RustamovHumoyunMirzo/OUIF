@@ -1,5 +1,6 @@
 #include <OUIF/Widget.h>
 
+#include <OUIF/Layout.h>
 #include <OUIF/Renderer.h>
 #include <OUIF/Widgets.h>
 
@@ -142,6 +143,39 @@ std::optional<std::string> ident_from_value(const KatanaValue& value)
         }
     }
     return std::nullopt;
+}
+
+void apply_gravity_word(Gravity& gravity, std::string_view word)
+{
+    const auto lower = lower_copy(word);
+    if (lower == "left" || lower == "start") {
+        gravity.horizontal = HorizontalGravity::Left;
+    } else if (lower == "right" || lower == "end") {
+        gravity.horizontal = HorizontalGravity::Right;
+    } else if (lower == "top") {
+        gravity.vertical = VerticalGravity::Top;
+    } else if (lower == "bottom") {
+        gravity.vertical = VerticalGravity::Bottom;
+    } else if (lower == "center" || lower == "middle") {
+        gravity.horizontal = HorizontalGravity::Center;
+        gravity.vertical = VerticalGravity::Center;
+    } else if (lower == "top-left") {
+        gravity = Gravity::TopLeft();
+    } else if (lower == "top-center") {
+        gravity = Gravity::TopCenter();
+    } else if (lower == "top-right") {
+        gravity = Gravity::TopRight();
+    } else if (lower == "center-left" || lower == "left-center") {
+        gravity = Gravity::CenterLeft();
+    } else if (lower == "center-right" || lower == "right-center") {
+        gravity = Gravity::CenterRight();
+    } else if (lower == "bottom-left") {
+        gravity = Gravity::BottomLeft();
+    } else if (lower == "bottom-center") {
+        gravity = Gravity::BottomCenter();
+    } else if (lower == "bottom-right") {
+        gravity = Gravity::BottomRight();
+    }
 }
 
 Length length_from_value(const KatanaValue& value)
@@ -851,6 +885,20 @@ void apply_declaration(
         return;
     }
 
+    if (property == "gravity" || property == "child-gravity" || property == "child_gravity") {
+        Gravity gravity = widget.child_gravity();
+        for (auto* value : flattened_values(declaration.values)) {
+            if (auto ident = ident_from_value(*value)) {
+                apply_gravity_word(gravity, *ident);
+            }
+        }
+        widget.set_child_gravity(gravity);
+        if (auto* layout = dynamic_cast<LinearLayout*>(&widget)) {
+            layout->set_gravity(gravity);
+        }
+        return;
+    }
+
     if (property == "clip-content" || property == "clip_content") {
         const auto value = (first->unit == KATANA_VALUE_IDENT || first->unit == KATANA_VALUE_STRING || first->unit == KATANA_VALUE_PARSER_IDENTIFIER)
             ? lower_copy(text_or_empty(first->string))
@@ -1089,6 +1137,83 @@ bool apply_stylesheet_rule(Widget& widget, KatanaStyleRule& rule, Style& css_sty
 float resolve_length(Length length, Size available, bool horizontal)
 {
     return length.automatic() ? 0.0f : length.resolve(available, horizontal);
+}
+
+float preferred_width_for(const Widget& child, Size available)
+{
+    const auto rules = child.layout_rules();
+    if (!rules.width_value.automatic()) {
+        return rules.width_value.resolve(available, true);
+    }
+    const auto bounds = child.bounds();
+    if (bounds.width > 0.0f && rules.width != SizePolicy::Fill) {
+        return bounds.width;
+    }
+    if (rules.width == SizePolicy::Fixed || rules.width == SizePolicy::Content) {
+        return rules.preferred_size.width;
+    }
+    return available.width;
+}
+
+float preferred_height_for(const Widget& child, Size available)
+{
+    const auto rules = child.layout_rules();
+    if (!rules.height_value.automatic()) {
+        return rules.height_value.resolve(available, false);
+    }
+    const auto bounds = child.bounds();
+    if (bounds.height > 0.0f && rules.height != SizePolicy::Fill) {
+        return bounds.height;
+    }
+    if (rules.height == SizePolicy::Fixed || rules.height == SizePolicy::Content) {
+        return rules.preferred_size.height;
+    }
+    return available.height;
+}
+
+float gravity_x(Rect content, float width, Insets margin, HorizontalGravity gravity) noexcept
+{
+    const float space = std::max(0.0f, content.width - margin.left - margin.right);
+    if (gravity == HorizontalGravity::Center) {
+        return content.x + margin.left + std::max(0.0f, space - width) * 0.5f;
+    }
+    if (gravity == HorizontalGravity::Right) {
+        return content.x + content.width - margin.right - width;
+    }
+    return content.x + margin.left;
+}
+
+float gravity_y(Rect content, float height, Insets margin, VerticalGravity gravity) noexcept
+{
+    const float space = std::max(0.0f, content.height - margin.top - margin.bottom);
+    if (gravity == VerticalGravity::Center) {
+        return content.y + margin.top + std::max(0.0f, space - height) * 0.5f;
+    }
+    if (gravity == VerticalGravity::Bottom) {
+        return content.y + content.height - margin.bottom - height;
+    }
+    return content.y + margin.top;
+}
+
+Rect child_bounds_for_gravity(const Widget& child, Rect content, Gravity gravity)
+{
+    const auto rules = child.layout_rules();
+    const Size available { content.width, content.height };
+    const bool fills_width = rules.width == SizePolicy::Fill && rules.flex <= 0.0f && rules.width_value.automatic();
+    const bool fills_height = rules.height == SizePolicy::Fill && rules.flex <= 0.0f && rules.height_value.automatic();
+    const float width = fills_width
+        ? std::max(0.0f, content.width - rules.margin.left - rules.margin.right)
+        : preferred_width_for(child, available);
+    const float height = fills_height
+        ? std::max(0.0f, content.height - rules.margin.top - rules.margin.bottom)
+        : preferred_height_for(child, available);
+
+    return {
+        gravity_x(content, width, rules.margin, gravity.horizontal),
+        gravity_y(content, height, rules.margin, gravity.vertical),
+        width,
+        height,
+    };
 }
 
 float normalized_animation_progress(const StyleAnimation& animation, float elapsed) noexcept
@@ -1656,6 +1781,26 @@ float Widget::get_flex() const noexcept
     return layout_.flex;
 }
 
+void Widget::set_child_gravity(Gravity gravity) noexcept
+{
+    child_gravity_ = gravity;
+}
+
+void Widget::set_child_gravity(HorizontalGravity horizontal, VerticalGravity vertical) noexcept
+{
+    set_child_gravity({ horizontal, vertical });
+}
+
+Gravity Widget::child_gravity() const noexcept
+{
+    return child_gravity_;
+}
+
+Gravity Widget::get_child_gravity() const noexcept
+{
+    return child_gravity();
+}
+
 void Widget::set_transform(Transform transform) noexcept
 {
     transform_ = transform;
@@ -2062,7 +2207,7 @@ void Widget::layout(Size available)
     on_layout(content);
     for (auto* child : children_) {
         if (child->bounds().width == 0.0f && child->bounds().height == 0.0f) {
-            child->set_bounds(content);
+            child->set_bounds(child_bounds_for_gravity(*child, content, child_gravity_));
         }
         const auto child_bounds = child->bounds();
         child->layout({ child_bounds.width, child_bounds.height });
@@ -2193,7 +2338,9 @@ void Widget::draw(Renderer& renderer)
 
 void Widget::on_layout(Rect content)
 {
-    (void)content;
+    for (auto* child : children_) {
+        child->set_bounds(child_bounds_for_gravity(*child, content, child_gravity_));
+    }
 }
 
 bool Widget::on_event(const Event& event)

@@ -178,6 +178,52 @@ Align parse_align(std::string_view value)
     return Align::Start;
 }
 
+void apply_gravity_word(Gravity& gravity, std::string_view value)
+{
+    const auto lower = lower_copy(trim_copy(value));
+    if (lower == "left" || lower == "start") {
+        gravity.horizontal = HorizontalGravity::Left;
+    } else if (lower == "right" || lower == "end") {
+        gravity.horizontal = HorizontalGravity::Right;
+    } else if (lower == "top") {
+        gravity.vertical = VerticalGravity::Top;
+    } else if (lower == "bottom") {
+        gravity.vertical = VerticalGravity::Bottom;
+    } else if (lower == "center" || lower == "middle") {
+        gravity.horizontal = HorizontalGravity::Center;
+        gravity.vertical = VerticalGravity::Center;
+    } else if (lower == "top-left") {
+        gravity = Gravity::TopLeft();
+    } else if (lower == "top-center") {
+        gravity = Gravity::TopCenter();
+    } else if (lower == "top-right") {
+        gravity = Gravity::TopRight();
+    } else if (lower == "center-left" || lower == "left-center") {
+        gravity = Gravity::CenterLeft();
+    } else if (lower == "center-right" || lower == "right-center") {
+        gravity = Gravity::CenterRight();
+    } else if (lower == "bottom-left") {
+        gravity = Gravity::BottomLeft();
+    } else if (lower == "bottom-center") {
+        gravity = Gravity::BottomCenter();
+    } else if (lower == "bottom-right") {
+        gravity = Gravity::BottomRight();
+    }
+}
+
+Gravity parse_gravity(std::string_view value)
+{
+    Gravity gravity = Gravity::TopLeft();
+    for (auto part : split_words(value)) {
+        apply_gravity_word(gravity, part);
+    }
+    for (auto part : split_list(value)) {
+        apply_gravity_word(gravity, part);
+    }
+    apply_gravity_word(gravity, value);
+    return gravity;
+}
+
 AccessibilityRole parse_role(std::string_view value)
 {
     const auto lower = lower_copy(trim_copy(value));
@@ -358,6 +404,13 @@ void apply_common_attributes(Widget& widget, const XmlElement& element, std::str
             parse_policy(parts.size() > 1 ? parts[1] : (parts.empty() ? "fill" : parts[0]))
         );
     }
+    if (element.has_attribute("gravity")) {
+        widget.set_child_gravity(parse_gravity(element.attribute("gravity")));
+    } else if (element.has_attribute("child-gravity")) {
+        widget.set_child_gravity(parse_gravity(element.attribute("child-gravity")));
+    } else if (element.has_attribute("child_gravity")) {
+        widget.set_child_gravity(parse_gravity(element.attribute("child_gravity")));
+    }
 
     if (auto* layout = dynamic_cast<LinearLayout*>(&widget)) {
         if (element.has_attribute("alignment")) {
@@ -369,6 +422,9 @@ void apply_common_attributes(Widget& widget, const XmlElement& element, std::str
             layout->set_cross_alignment(parse_align(element.attribute("cross_alignment")));
         } else if (element.has_attribute("cross-alignment")) {
             layout->set_cross_alignment(parse_align(element.attribute("cross-alignment")));
+        }
+        if (element.has_attribute("gravity")) {
+            layout->set_gravity(parse_gravity(element.attribute("gravity")));
         }
         if (auto gap = element.attribute_float("gap")) {
             layout->set_gap(*gap);

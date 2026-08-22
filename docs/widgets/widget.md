@@ -93,8 +93,16 @@ Important methods:
 - `set_margin(Insets)`
 - `set_padding(Insets)`
 - `set_flex(float)`
+- `set_child_gravity(Gravity)`
 
 Override `on_layout(Rect content)` to position children manually.
+
+When you do not override `on_layout`, a plain `Widget` places children inside its padded content rect using `child_gravity`:
+
+```cpp
+set_child_gravity(ouif::Gravity::BottomRight());
+set_child_gravity(ouif::HorizontalGravity::Right, ouif::VerticalGravity::Center);
+```
 
 ## Rendering
 

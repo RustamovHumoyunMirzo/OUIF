@@ -168,6 +168,34 @@ int main()
     row.children()[0]->toggle_state(ouif::WidgetState::Selected);
     assert(row.children()[0]->has_state(ouif::WidgetState::Selected));
 
+    {
+        ouif::Widget container;
+        container.set_bounds({ 0.0f, 0.0f, 300.0f, 200.0f });
+        container.set_padding(10.0f);
+        container.set_child_gravity(ouif::Gravity::BottomRight());
+        auto& child = container.add_child<ouif::Widget>();
+        child.set_size({ 80.0f, 40.0f });
+        child.set_margin({ 4.0f, 6.0f, 8.0f, 10.0f });
+        container.layout({ 300.0f, 200.0f });
+        assert(std::fabs(child.bounds().x - 202.0f) < 0.01f);
+        assert(std::fabs(child.bounds().y - 140.0f) < 0.01f);
+        assert(container.child_gravity().horizontal == ouif::HorizontalGravity::Right);
+        assert(container.child_gravity().vertical == ouif::VerticalGravity::Bottom);
+    }
+
+    {
+        ouif::RowLayout gravity_row;
+        gravity_row.set_bounds({ 0.0f, 0.0f, 300.0f, 100.0f });
+        gravity_row.set_gravity(ouif::Gravity::BottomRight());
+        auto& child = gravity_row.add_child<ouif::Widget>();
+        child.set_size({ 60.0f, 30.0f });
+        gravity_row.layout({ 300.0f, 100.0f });
+        assert(std::fabs(child.bounds().x - 240.0f) < 0.01f);
+        assert(std::fabs(child.bounds().y - 70.0f) < 0.01f);
+        assert(gravity_row.gravity().horizontal == ouif::HorizontalGravity::Right);
+        assert(gravity_row.gravity().vertical == ouif::VerticalGravity::Bottom);
+    }
+
     ouif::RowLayout fill_row;
     fill_row.set_bounds({ 0.0f, 0.0f, 300.0f, 100.0f });
     fill_row.set_gap(20.0f);
@@ -360,6 +388,14 @@ int main()
         assert(std::fabs(tile.get_style().border.width - 2.0f) < 0.01f);
         assert(std::fabs(tile.get_style().border_selected.width - 4.0f) < 0.01f);
         assert(!root.get_stylesheet().empty());
+    }
+
+    {
+        ouif::Widget root;
+        root.add_class("shell");
+        root.set_stylesheet(".shell { gravity: right bottom; }");
+        assert(root.child_gravity().horizontal == ouif::HorizontalGravity::Right);
+        assert(root.child_gravity().vertical == ouif::VerticalGravity::Bottom);
     }
 
     {
@@ -586,7 +622,7 @@ int main()
                     @keyframes xmlPulse { from { opacity: 0.5; } to { opacity: 1.0; } }
                     .tile { background-hovered: #4692c4; }
                 </Style>
-                <RowLayout id="surface" class="surface" gap="12" alignment="center" policy="fill,fill" transition="200ms ease-out">
+                <RowLayout id="surface" class="surface" gap="12" gravity="right bottom" policy="fill,fill" transition="200ms ease-out">
                     <Label id="caption" text="Hello Text" font-size="18" text-color="#e8edf3" transform="translate(2px, 3px) scale(1.1)" />
                     <XmlTile id="tile_a" class="tile" size="80,40" animation="xmlPulse 1s linear infinite" style="background: #2f6c9c; border: 2px solid #e8edf3;" />
                     <Spacer flex="1" />
@@ -599,6 +635,8 @@ int main()
         assert(row != nullptr);
         assert(row->name() == "surface");
         assert(row->gap() == 12.0f);
+        assert(row->gravity().horizontal == ouif::HorizontalGravity::Right);
+        assert(row->gravity().vertical == ouif::VerticalGravity::Bottom);
         assert(row->children().size() == 4);
         auto* caption = dynamic_cast<ouif::Label*>(row->children()[0]);
         assert(caption != nullptr);

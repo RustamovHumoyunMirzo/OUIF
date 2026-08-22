@@ -12,6 +12,7 @@ public:
         set_gap(12.0f);
         set_alignment(ouif::Align::Center);
         set_cross_alignment(ouif::Align::Center);
+        set_gravity(ouif::Gravity::Center());
         set_padding(ouif::Insets(16.0f));
 
         add_child<Tile>();
@@ -32,6 +33,14 @@ The main axis is horizontal. `set_alignment` controls how fixed-size children ar
 ## Cross Axis
 
 The cross axis is vertical. `set_cross_alignment` controls child vertical placement when a child does not fill height.
+
+`set_gravity(...)` is a shorthand over both axes:
+
+```cpp
+set_gravity(ouif::Gravity::BottomRight());
+```
+
+For `RowLayout`, left/center/right controls horizontal placement and top/center/bottom controls vertical placement.
 
 ## Gap, Margin, And Padding
 

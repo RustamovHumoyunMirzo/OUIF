@@ -21,6 +21,10 @@ public:
     void set_gap(float gap) noexcept;
     [[nodiscard]] float gap() const noexcept;
 
+    void set_gravity(Gravity gravity) noexcept;
+    void set_gravity(HorizontalGravity horizontal, VerticalGravity vertical) noexcept;
+    [[nodiscard]] Gravity gravity() const noexcept;
+
 protected:
     enum class Direction : std::uint8_t {
         Row,
