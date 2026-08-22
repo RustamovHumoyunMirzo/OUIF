@@ -58,17 +58,23 @@ public:
     [[nodiscard]] std::string_view get_text() const noexcept;
 
     void set_text_style(TextStyle style) noexcept;
+    void set_text_style(InheritTag) noexcept;
     [[nodiscard]] const TextStyle& text_style() const noexcept;
     [[nodiscard]] const TextStyle& get_text_style() const noexcept;
     void set_font_family(std::string family);
+    void set_font_family(InheritTag);
     [[nodiscard]] std::string_view font_family() const noexcept;
     void set_font_size(float size) noexcept;
+    void set_font_size(InheritTag) noexcept;
     [[nodiscard]] float font_size() const noexcept;
     void set_text_color(Color color) noexcept;
+    void set_text_color(InheritTag) noexcept;
     [[nodiscard]] Color text_color() const noexcept;
     void set_text_align(TextAlign align) noexcept;
+    void set_text_align(InheritTag) noexcept;
     [[nodiscard]] TextAlign text_align() const noexcept;
     void set_text_overflow(TextOverflow overflow) noexcept;
+    void set_text_overflow(InheritTag) noexcept;
     [[nodiscard]] TextOverflow text_overflow() const noexcept;
 
     bool event(const Event& event) override;

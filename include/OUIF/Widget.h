@@ -6,6 +6,7 @@
 #include <OUIF/Geometry.h>
 #include <OUIF/Style.h>
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <cstdint>
@@ -18,6 +19,7 @@
 namespace ouif {
 
 class Renderer;
+class Widget;
 
 enum class SizePolicy : std::uint8_t {
     Fixed,
@@ -61,6 +63,27 @@ struct Layout {
     SizePolicy height = SizePolicy::Fill;
 };
 
+struct CssValue {
+    std::string text;
+    std::optional<float> number;
+    std::optional<Color> color;
+    Length length {};
+    bool inherit = false;
+};
+
+struct CssDeclaration {
+    std::string property;
+    std::vector<CssValue> values;
+    std::string raw;
+
+    [[nodiscard]] bool inherited() const noexcept
+    {
+        return !values.empty() && values.front().inherit;
+    }
+};
+
+using CssPropertyHandler = std::function<bool(Widget&, const CssDeclaration&)>;
+
 class OUIF_API Widget {
 public:
     Widget() = default;
@@ -74,43 +97,62 @@ public:
     void set_bounds(Rect bounds) noexcept;
     [[nodiscard]] Rect bounds() const noexcept;
     void set_size(Size size) noexcept;
+    void set_size(InheritTag) noexcept;
     void set_width(Length width) noexcept;
+    void set_width(InheritTag) noexcept;
     void set_height(Length height) noexcept;
+    void set_height(InheritTag) noexcept;
     void set_size(Length width, Length height) noexcept;
 
     void set_style(Style style) noexcept;
+    void set_style(InheritTag) noexcept;
     [[nodiscard]] const Style& style() const noexcept;
     [[nodiscard]] const Style& get_style() const noexcept;
     void set_background(Color color) noexcept;
+    void set_background(InheritTag) noexcept;
     [[nodiscard]] Color get_background() const noexcept;
     void set_background_hovered(Color color) noexcept;
+    void set_background_hovered(InheritTag) noexcept;
     [[nodiscard]] Color get_background_hovered() const noexcept;
     void set_background_pressed(Color color) noexcept;
+    void set_background_pressed(InheritTag) noexcept;
     [[nodiscard]] Color get_background_pressed() const noexcept;
     void set_background_selected(Color color) noexcept;
+    void set_background_selected(InheritTag) noexcept;
     [[nodiscard]] Color get_background_selected() const noexcept;
     void set_background_focused(Color color) noexcept;
+    void set_background_focused(InheritTag) noexcept;
     [[nodiscard]] Color get_background_focused() const noexcept;
     void set_foreground(Color color) noexcept;
+    void set_foreground(InheritTag) noexcept;
     [[nodiscard]] Color get_foreground() const noexcept;
     void set_border(Color color, float width) noexcept;
+    void set_border(InheritTag) noexcept;
     [[nodiscard]] Border get_border() const noexcept;
     void set_border_left(Color color, float width) noexcept;
+    void set_border_left(InheritTag) noexcept;
     [[nodiscard]] Border get_border_left() const noexcept;
     void set_border_top(Color color, float width) noexcept;
+    void set_border_top(InheritTag) noexcept;
     [[nodiscard]] Border get_border_top() const noexcept;
     void set_border_right(Color color, float width) noexcept;
+    void set_border_right(InheritTag) noexcept;
     [[nodiscard]] Border get_border_right() const noexcept;
     void set_border_bottom(Color color, float width) noexcept;
+    void set_border_bottom(InheritTag) noexcept;
     [[nodiscard]] Border get_border_bottom() const noexcept;
     void set_border_selected(Color color, float width) noexcept;
+    void set_border_selected(InheritTag) noexcept;
     [[nodiscard]] Border get_border_selected() const noexcept;
     void set_border_focused(Color color, float width) noexcept;
+    void set_border_focused(InheritTag) noexcept;
     [[nodiscard]] Border get_border_focused() const noexcept;
     void set_radius(float radius) noexcept;
     void set_radius(CornerRadius radius) noexcept;
+    void set_radius(InheritTag) noexcept;
     [[nodiscard]] CornerRadius get_radius() const noexcept;
     void set_opacity(float opacity) noexcept;
+    void set_opacity(InheritTag) noexcept;
     [[nodiscard]] float get_opacity() const noexcept;
 
     void set_transition(StyleTransition transition) noexcept;
@@ -140,16 +182,22 @@ public:
     [[nodiscard]] const std::vector<std::string>& classes() const noexcept;
 
     void set_layout(Layout layout) noexcept;
+    void set_layout(InheritTag) noexcept;
     [[nodiscard]] const Layout& layout_rules() const noexcept;
     void set_layout_policy(SizePolicy width, SizePolicy height) noexcept;
+    void set_layout_policy(InheritTag) noexcept;
     void set_margin(Insets margin) noexcept;
+    void set_margin(InheritTag) noexcept;
     [[nodiscard]] Insets get_margin() const noexcept;
     void set_padding(Insets padding) noexcept;
+    void set_padding(InheritTag) noexcept;
     [[nodiscard]] Insets get_padding() const noexcept;
     void set_flex(float flex) noexcept;
+    void set_flex(InheritTag) noexcept;
     [[nodiscard]] float get_flex() const noexcept;
     void set_child_gravity(Gravity gravity) noexcept;
     void set_child_gravity(HorizontalGravity horizontal, VerticalGravity vertical) noexcept;
+    void set_child_gravity(InheritTag) noexcept;
     [[nodiscard]] Gravity child_gravity() const noexcept;
     [[nodiscard]] Gravity get_child_gravity() const noexcept;
     void set_transform(Transform transform) noexcept;
@@ -168,6 +216,7 @@ public:
     [[nodiscard]] bool enabled() const noexcept;
 
     void set_clip_content(bool clip) noexcept;
+    void set_clip_content(InheritTag) noexcept;
     [[nodiscard]] bool clip_content() const noexcept;
 
     void set_focusable(bool focusable) noexcept;
@@ -229,6 +278,10 @@ public:
     virtual void layout(Size available);
     virtual void render(Renderer& renderer);
     virtual bool event(const Event& event);
+
+    static void register_css_property(std::string property, CssPropertyHandler handler);
+    static bool unregister_css_property(std::string_view property);
+    static void clear_css_properties();
 
 protected:
     [[nodiscard]] std::vector<Widget*>& mutable_children() noexcept;

@@ -40,6 +40,16 @@ auto border = tile.get_border();
 auto radius = tile.get_radius();
 ```
 
+Most style and layout setters also accept `ouif::inherit`, which copies the current value from the nearest parent:
+
+```cpp
+child.set_background(ouif::inherit);
+child.set_padding(ouif::inherit);
+child.set_child_gravity(ouif::inherit);
+```
+
+Inheritance always uses the widget's direct parent at the time the setter or stylesheet is applied. OUIF widgets form a tree, so there is no ambiguous multiple-parent lookup.
+
 ## CSS
 
 ```cpp
@@ -91,6 +101,49 @@ Selectors currently support type names, classes, names, and state pseudo classes
 - transforms: `transform`, `translate`, `translate-x`, `translate-y`, `scale`, `scale-x`, `scale-y`, `rotate`, `transform-origin`
 
 `width` and `height` support `px`, `%`, `vw`, and `vh`. Spacing and radius values currently resolve as pixels.
+
+Any supported property can use `inherit`:
+
+```css
+.tile {
+    background: inherit;
+    color: inherit;
+    padding: inherit;
+    gravity: inherit;
+}
+```
+
+CSS inheritance is resolved while stylesheets walk the tree from parent to child, so children see the parent's latest effective stylesheet result.
+
+## Custom CSS Properties
+
+Framework extensions and custom widgets can register new CSS properties:
+
+```cpp
+ouif::Widget::register_css_property("debug-number",
+    [](ouif::Widget& widget, const ouif::CssDeclaration& declaration) {
+        auto* custom = dynamic_cast<MyWidget*>(&widget);
+        if (custom == nullptr || declaration.values.empty()) {
+            return false;
+        }
+
+        if (declaration.inherited()) {
+            custom->set_debug_from_parent();
+            return true;
+        }
+
+        if (declaration.values.front().number) {
+            custom->set_debug_value(*declaration.values.front().number);
+            return true;
+        }
+
+        return false;
+    });
+```
+
+`CssDeclaration` exposes the normalized property name, raw declaration text, and parsed values. Each `CssValue` can expose text, number, color, length, and whether the value is `inherit`.
+
+Use `unregister_css_property(...)` or `clear_css_properties()` when a test, plugin, or module should stop handling a custom property.
 
 ## Directional Borders
 

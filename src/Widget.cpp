@@ -26,6 +26,21 @@ Widget* Widget::focused_widget_ = nullptr;
 
 namespace {
 
+std::string lower_copy(std::string_view value)
+{
+    std::string copy(value);
+    std::transform(copy.begin(), copy.end(), copy.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return copy;
+}
+
+std::unordered_map<std::string, CssPropertyHandler>& css_property_handlers()
+{
+    static std::unordered_map<std::string, CssPropertyHandler> handlers;
+    return handlers;
+}
+
 #if OUIF_WITH_KATANA
 struct KatanaOutputDeleter {
     void operator()(KatanaOutput* output) const noexcept
@@ -61,15 +76,6 @@ using ParsedKeyframes = std::unordered_map<std::string, std::vector<StyleKeyfram
 std::string_view text_or_empty(const char* text) noexcept
 {
     return text != nullptr ? std::string_view(text) : std::string_view();
-}
-
-std::string lower_copy(std::string_view value)
-{
-    std::string copy(value);
-    std::transform(copy.begin(), copy.end(), copy.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
-    });
-    return copy;
 }
 
 bool equals_ignore_case(std::string_view left, std::string_view right)
@@ -231,6 +237,40 @@ std::vector<KatanaValue*> flattened_values(KatanaArray* source)
         }
     }
     return values;
+}
+
+CssValue css_value_from(const KatanaValue& value)
+{
+    CssValue result;
+    if (auto ident = ident_from_value(value)) {
+        result.text = std::move(*ident);
+        result.inherit = equals_ignore_case(result.text, "inherit");
+    } else if (value.unit == KATANA_VALUE_PARSER_HEXCOLOR || value.unit == KATANA_VALUE_RGBCOLOR) {
+        result.text = std::string(text_or_empty(value.string));
+    } else if (auto number = pixels_from_value(value)) {
+        result.text = std::to_string(*number);
+    }
+
+    result.number = pixels_from_value(value);
+    result.color = color_from_value(value);
+    result.length = length_from_value(value);
+    return result;
+}
+
+CssDeclaration css_declaration_from(KatanaDeclaration& declaration)
+{
+    CssDeclaration result;
+    result.property = lower_copy(text_or_empty(declaration.property));
+    result.raw = std::string(text_or_empty(declaration.raw));
+    if (result.raw.empty()) {
+        result.raw = std::string(text_or_empty(declaration.string));
+    }
+    for (auto* value : flattened_values(declaration.values)) {
+        if (value != nullptr) {
+            result.values.push_back(css_value_from(*value));
+        }
+    }
+    return result;
 }
 
 std::vector<KatanaValue*> function_args(const KatanaValue& value)
@@ -426,11 +466,200 @@ void apply_border_side(Style& style, CssState state, std::string_view side, Colo
     }
 }
 
+void apply_background_from_parent(Style& style, CssState state, const Style& parent_style)
+{
+    switch (state) {
+    case CssState::Hover:
+        style.with_background_hovered(parent_style.hovered);
+        break;
+    case CssState::Pressed:
+        style.with_background_pressed(parent_style.pressed);
+        break;
+    case CssState::Selected:
+        style.with_background_selected(parent_style.selected);
+        break;
+    case CssState::Focus:
+        style.with_background_focused(parent_style.focused);
+        break;
+    case CssState::Base:
+        style.with_background(parent_style.background);
+        break;
+    }
+}
+
 void mark_property(StyleProperties* properties, StyleProperty property) noexcept
 {
     if (properties != nullptr) {
         *properties |= style_property_mask(property);
     }
+}
+
+bool is_inherit_value(const KatanaValue& value)
+{
+    const auto ident = ident_from_value(value);
+    return ident.has_value() && equals_ignore_case(*ident, "inherit");
+}
+
+bool apply_inherited_css_property(
+    Widget& widget,
+    Style& style,
+    std::string_view property,
+    CssState state,
+    bool& touched_style,
+    StyleProperties* touched_properties
+)
+{
+    const auto* parent = widget.parent();
+    if (parent == nullptr) {
+        return false;
+    }
+
+    const auto& parent_style = parent->get_style();
+    if (property == "background" || property == "background-color" || property == "with-background") {
+        apply_background_from_parent(style, state, parent_style);
+        mark_property(touched_properties, state == CssState::Base ? StyleProperty::Background : StyleProperty::StatefulBackgrounds);
+        touched_style = true;
+        return true;
+    }
+    if (property == "background-hovered" || property == "hover-background" || property == "with-background-hovered") {
+        style.with_background_hovered(parent_style.hovered);
+        mark_property(touched_properties, StyleProperty::StatefulBackgrounds);
+        touched_style = true;
+        return true;
+    }
+    if (property == "background-pressed" || property == "pressed-background" || property == "with-background-pressed") {
+        style.with_background_pressed(parent_style.pressed);
+        mark_property(touched_properties, StyleProperty::StatefulBackgrounds);
+        touched_style = true;
+        return true;
+    }
+    if (property == "background-selected" || property == "selected-background" || property == "with-background-selected") {
+        style.with_background_selected(parent_style.selected);
+        mark_property(touched_properties, StyleProperty::StatefulBackgrounds);
+        touched_style = true;
+        return true;
+    }
+    if (property == "background-focused" || property == "focused-background" || property == "with-background-focused") {
+        style.with_background_focused(parent_style.focused);
+        mark_property(touched_properties, StyleProperty::StatefulBackgrounds);
+        touched_style = true;
+        return true;
+    }
+    if (property == "foreground" || property == "color" || property == "with-foreground") {
+        style.with_foreground(parent_style.foreground);
+        mark_property(touched_properties, StyleProperty::Foreground);
+        touched_style = true;
+        return true;
+    }
+    if (property == "border" || property == "border-selected" || property == "border-focused") {
+        const CssState target = property == "border-selected" ? CssState::Selected : (property == "border-focused" ? CssState::Focus : state);
+        if (target == CssState::Selected) {
+            style.border_selected = parent_style.border_selected;
+            style.borders_selected = parent_style.borders_selected;
+        } else if (target == CssState::Focus) {
+            style.border_focused = parent_style.border_focused;
+            style.borders_focused = parent_style.borders_focused;
+        } else {
+            style.border = parent_style.border;
+            style.borders = parent_style.borders;
+            style.border_width = parent_style.border_width;
+        }
+        mark_property(touched_properties, target == CssState::Base ? StyleProperty::Border : StyleProperty::StatefulBorders);
+        mark_property(touched_properties, target == CssState::Base ? StyleProperty::BorderEdges : StyleProperty::StatefulBorderEdges);
+        touched_style = true;
+        return true;
+    }
+    if (property == "border-left" || property == "border-top" || property == "border-right" || property == "border-bottom") {
+        const auto side = std::string_view(property).substr(7);
+        const auto edges = state == CssState::Selected
+            ? parent_style.borders_selected
+            : (state == CssState::Focus ? parent_style.borders_focused : parent_style.borders);
+        const Border inherited = side == "left" ? edges.left : (side == "top" ? edges.top : (side == "right" ? edges.right : edges.bottom));
+        apply_border_side(style, state, side, inherited.color, inherited.width);
+        mark_property(touched_properties, state == CssState::Base ? StyleProperty::BorderEdges : StyleProperty::StatefulBorderEdges);
+        touched_style = true;
+        return true;
+    }
+    if (property == "border-width") {
+        style.border.width = parent_style.border.width;
+        style.border_width = parent_style.border_width;
+        style.borders.left.width = parent_style.borders.left.width;
+        style.borders.top.width = parent_style.borders.top.width;
+        style.borders.right.width = parent_style.borders.right.width;
+        style.borders.bottom.width = parent_style.borders.bottom.width;
+        mark_property(touched_properties, StyleProperty::Border);
+        mark_property(touched_properties, StyleProperty::BorderEdges);
+        touched_style = true;
+        return true;
+    }
+    if (property == "radius" || property == "border-radius" || property == "with-radius"
+        || property == "radius-top-left" || property == "border-top-left-radius"
+        || property == "radius-top-right" || property == "border-top-right-radius"
+        || property == "radius-bottom-right" || property == "border-bottom-right-radius"
+        || property == "radius-bottom-left" || property == "border-bottom-left-radius") {
+        style.radius = parent_style.radius;
+        mark_property(touched_properties, StyleProperty::Radius);
+        touched_style = true;
+        return true;
+    }
+    if (property == "opacity") {
+        style.opacity = parent_style.opacity;
+        mark_property(touched_properties, StyleProperty::Opacity);
+        touched_style = true;
+        return true;
+    }
+    if (property == "transform") {
+        widget.set_transform(parent->get_transform());
+        return true;
+    }
+    if (property == "width" || property == "height" || property == "flex" || property == "margin" || property == "padding"
+        || property == "gravity" || property == "child-gravity" || property == "child_gravity" || property == "clip-content"
+        || property == "clip_content") {
+        if (property == "width") {
+            widget.set_width(inherit);
+        } else if (property == "height") {
+            widget.set_height(inherit);
+        } else if (property == "flex") {
+            widget.set_flex(inherit);
+        } else if (property == "margin") {
+            widget.set_margin(inherit);
+        } else if (property == "padding") {
+            widget.set_padding(inherit);
+        } else if (property == "gravity" || property == "child-gravity" || property == "child_gravity") {
+            widget.set_child_gravity(inherit);
+            if (auto* layout = dynamic_cast<LinearLayout*>(&widget)) {
+                layout->set_gravity(widget.child_gravity());
+            }
+        } else {
+            widget.set_clip_content(inherit);
+        }
+        return true;
+    }
+
+    if (auto* label = dynamic_cast<Label*>(&widget)) {
+        if (property == "font-size") {
+            label->set_font_size(inherit);
+            return true;
+        }
+        if (property == "font-family") {
+            label->set_font_family(inherit);
+            return true;
+        }
+        if (property == "text-color") {
+            label->set_text_color(inherit);
+            return true;
+        }
+        if (property == "text-align") {
+            label->set_text_align(inherit);
+            return true;
+        }
+        if (property == "text-overflow") {
+            label->set_text_overflow(inherit);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void apply_declaration(
@@ -447,6 +676,10 @@ void apply_declaration(
     const auto property = lower_copy(text_or_empty(declaration.property));
     auto* first = value_at(declaration.values, 0);
     if (first == nullptr) {
+        return;
+    }
+
+    if (is_inherit_value(*first) && apply_inherited_css_property(widget, style, property, state, touched_style, touched_properties)) {
         return;
     }
 
@@ -938,6 +1171,10 @@ void apply_declaration(
         }
         return;
     }
+
+    if (auto handler = css_property_handlers().find(property); handler != css_property_handlers().end()) {
+        (void)handler->second(widget, css_declaration_from(declaration));
+    }
 }
 
 bool selector_matches(Widget& widget, KatanaSelector* selector, CssState& state)
@@ -1337,6 +1574,12 @@ void Widget::set_size(Size size) noexcept
     layout_.preferred_size = size;
 }
 
+void Widget::set_size(InheritTag) noexcept
+{
+    set_width(inherit);
+    set_height(inherit);
+}
+
 void Widget::set_width(Length width) noexcept
 {
     layout_.width_value = width;
@@ -1348,6 +1591,21 @@ void Widget::set_width(Length width) noexcept
         bounds_.width = width.value;
         layout_.preferred_size.width = width.value;
     }
+}
+
+void Widget::set_width(InheritTag) noexcept
+{
+    if (parent_ == nullptr) {
+        return;
+    }
+
+    const auto& source = parent_->layout_rules();
+    layout_.width_value = source.width_value;
+    layout_.width = source.width;
+    layout_.preferred_size.width = source.preferred_size.width;
+    layout_.min_size.width = source.min_size.width;
+    layout_.max_size.width = source.max_size.width;
+    bounds_.width = parent_->bounds().width;
 }
 
 void Widget::set_height(Length height) noexcept
@@ -1363,6 +1621,21 @@ void Widget::set_height(Length height) noexcept
     }
 }
 
+void Widget::set_height(InheritTag) noexcept
+{
+    if (parent_ == nullptr) {
+        return;
+    }
+
+    const auto& source = parent_->layout_rules();
+    layout_.height_value = source.height_value;
+    layout_.height = source.height;
+    layout_.preferred_size.height = source.preferred_size.height;
+    layout_.min_size.height = source.min_size.height;
+    layout_.max_size.height = source.max_size.height;
+    bounds_.height = parent_->bounds().height;
+}
+
 void Widget::set_size(Length width, Length height) noexcept
 {
     set_width(width);
@@ -1374,6 +1647,13 @@ void Widget::set_style(Style style) noexcept
     inline_style_ = style;
     has_inline_style_ = true;
     recompute_style();
+}
+
+void Widget::set_style(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        set_style(parent_->get_style());
+    }
 }
 
 const Style& Widget::style() const noexcept
@@ -1393,6 +1673,13 @@ void Widget::set_background(Color color) noexcept
     set_style(next);
 }
 
+void Widget::set_background(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        set_background(parent_->get_background());
+    }
+}
+
 Color Widget::get_background() const noexcept
 {
     return style_.background;
@@ -1403,6 +1690,13 @@ void Widget::set_background_hovered(Color color) noexcept
     auto next = style_;
     next.with_background_hovered(color);
     set_style(next);
+}
+
+void Widget::set_background_hovered(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        set_background_hovered(parent_->get_background_hovered());
+    }
 }
 
 Color Widget::get_background_hovered() const noexcept
@@ -1417,6 +1711,13 @@ void Widget::set_background_pressed(Color color) noexcept
     set_style(next);
 }
 
+void Widget::set_background_pressed(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        set_background_pressed(parent_->get_background_pressed());
+    }
+}
+
 Color Widget::get_background_pressed() const noexcept
 {
     return style_.pressed;
@@ -1427,6 +1728,13 @@ void Widget::set_background_selected(Color color) noexcept
     auto next = style_;
     next.with_background_selected(color);
     set_style(next);
+}
+
+void Widget::set_background_selected(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        set_background_selected(parent_->get_background_selected());
+    }
 }
 
 Color Widget::get_background_selected() const noexcept
@@ -1441,6 +1749,13 @@ void Widget::set_background_focused(Color color) noexcept
     set_style(next);
 }
 
+void Widget::set_background_focused(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        set_background_focused(parent_->get_background_focused());
+    }
+}
+
 Color Widget::get_background_focused() const noexcept
 {
     return style_.focused;
@@ -1451,6 +1766,13 @@ void Widget::set_foreground(Color color) noexcept
     auto next = style_;
     next.with_foreground(color);
     set_style(next);
+}
+
+void Widget::set_foreground(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        set_foreground(parent_->get_foreground());
+    }
 }
 
 Color Widget::get_foreground() const noexcept
@@ -1465,6 +1787,14 @@ void Widget::set_border(Color color, float width) noexcept
     set_style(next);
 }
 
+void Widget::set_border(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        const auto border = parent_->get_border();
+        set_border(border.color, border.width);
+    }
+}
+
 Border Widget::get_border() const noexcept
 {
     return style_.border;
@@ -1475,6 +1805,14 @@ void Widget::set_border_left(Color color, float width) noexcept
     auto next = style_;
     next.with_border_left(color, width);
     set_style(next);
+}
+
+void Widget::set_border_left(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        const auto border = parent_->get_border_left();
+        set_border_left(border.color, border.width);
+    }
 }
 
 Border Widget::get_border_left() const noexcept
@@ -1489,6 +1827,14 @@ void Widget::set_border_top(Color color, float width) noexcept
     set_style(next);
 }
 
+void Widget::set_border_top(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        const auto border = parent_->get_border_top();
+        set_border_top(border.color, border.width);
+    }
+}
+
 Border Widget::get_border_top() const noexcept
 {
     return active_border_edges(style_, selected_, focused_).top;
@@ -1499,6 +1845,14 @@ void Widget::set_border_right(Color color, float width) noexcept
     auto next = style_;
     next.with_border_right(color, width);
     set_style(next);
+}
+
+void Widget::set_border_right(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        const auto border = parent_->get_border_right();
+        set_border_right(border.color, border.width);
+    }
 }
 
 Border Widget::get_border_right() const noexcept
@@ -1513,6 +1867,14 @@ void Widget::set_border_bottom(Color color, float width) noexcept
     set_style(next);
 }
 
+void Widget::set_border_bottom(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        const auto border = parent_->get_border_bottom();
+        set_border_bottom(border.color, border.width);
+    }
+}
+
 Border Widget::get_border_bottom() const noexcept
 {
     return active_border_edges(style_, selected_, focused_).bottom;
@@ -1525,6 +1887,14 @@ void Widget::set_border_selected(Color color, float width) noexcept
     set_style(next);
 }
 
+void Widget::set_border_selected(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        const auto border = parent_->get_border_selected();
+        set_border_selected(border.color, border.width);
+    }
+}
+
 Border Widget::get_border_selected() const noexcept
 {
     return style_.border_selected;
@@ -1535,6 +1905,14 @@ void Widget::set_border_focused(Color color, float width) noexcept
     auto next = style_;
     next.with_border_focused(color, width);
     set_style(next);
+}
+
+void Widget::set_border_focused(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        const auto border = parent_->get_border_focused();
+        set_border_focused(border.color, border.width);
+    }
 }
 
 Border Widget::get_border_focused() const noexcept
@@ -1556,6 +1934,13 @@ void Widget::set_radius(CornerRadius radius) noexcept
     set_style(next);
 }
 
+void Widget::set_radius(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        set_radius(parent_->get_radius());
+    }
+}
+
 CornerRadius Widget::get_radius() const noexcept
 {
     return style_.radius;
@@ -1566,6 +1951,13 @@ void Widget::set_opacity(float opacity) noexcept
     auto next = style_;
     next.with_opacity(std::clamp(opacity, 0.0f, 1.0f));
     set_style(next);
+}
+
+void Widget::set_opacity(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        set_opacity(parent_->get_opacity());
+    }
 }
 
 float Widget::get_opacity() const noexcept
@@ -1655,6 +2047,24 @@ std::string_view Widget::get_stylesheet() const noexcept
     return stylesheet_;
 }
 
+void Widget::register_css_property(std::string property, CssPropertyHandler handler)
+{
+    if (property.empty() || !handler) {
+        return;
+    }
+    css_property_handlers()[lower_copy(property)] = std::move(handler);
+}
+
+bool Widget::unregister_css_property(std::string_view property)
+{
+    return css_property_handlers().erase(lower_copy(property)) != 0U;
+}
+
+void Widget::clear_css_properties()
+{
+    css_property_handlers().clear();
+}
+
 void Widget::set_name(std::string name)
 {
     name_ = std::move(name);
@@ -1740,6 +2150,13 @@ void Widget::set_layout(Layout layout) noexcept
     layout_ = layout;
 }
 
+void Widget::set_layout(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        set_layout(parent_->layout_rules());
+    }
+}
+
 const Layout& Widget::layout_rules() const noexcept
 {
     return layout_;
@@ -1751,9 +2168,24 @@ void Widget::set_layout_policy(SizePolicy width, SizePolicy height) noexcept
     layout_.height = height;
 }
 
+void Widget::set_layout_policy(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        const auto& source = parent_->layout_rules();
+        set_layout_policy(source.width, source.height);
+    }
+}
+
 void Widget::set_margin(Insets margin) noexcept
 {
     layout_.margin = margin;
+}
+
+void Widget::set_margin(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        set_margin(parent_->get_margin());
+    }
 }
 
 Insets Widget::get_margin() const noexcept
@@ -1766,6 +2198,13 @@ void Widget::set_padding(Insets padding) noexcept
     layout_.padding = padding;
 }
 
+void Widget::set_padding(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        set_padding(parent_->get_padding());
+    }
+}
+
 Insets Widget::get_padding() const noexcept
 {
     return layout_.padding;
@@ -1774,6 +2213,13 @@ Insets Widget::get_padding() const noexcept
 void Widget::set_flex(float flex) noexcept
 {
     layout_.flex = std::max(0.0f, flex);
+}
+
+void Widget::set_flex(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        set_flex(parent_->get_flex());
+    }
 }
 
 float Widget::get_flex() const noexcept
@@ -1789,6 +2235,13 @@ void Widget::set_child_gravity(Gravity gravity) noexcept
 void Widget::set_child_gravity(HorizontalGravity horizontal, VerticalGravity vertical) noexcept
 {
     set_child_gravity({ horizontal, vertical });
+}
+
+void Widget::set_child_gravity(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        set_child_gravity(parent_->child_gravity());
+    }
 }
 
 Gravity Widget::child_gravity() const noexcept
@@ -1873,6 +2326,13 @@ bool Widget::enabled() const noexcept
 void Widget::set_clip_content(bool clip) noexcept
 {
     clip_content_ = clip;
+}
+
+void Widget::set_clip_content(InheritTag) noexcept
+{
+    if (parent_ != nullptr) {
+        set_clip_content(parent_->clip_content());
+    }
 }
 
 bool Widget::clip_content() const noexcept

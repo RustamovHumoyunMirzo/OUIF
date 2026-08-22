@@ -130,6 +130,16 @@ void Label::set_text_style(TextStyle style) noexcept
     has_text_color_ = true;
 }
 
+void Label::set_text_style(InheritTag) noexcept
+{
+    if (auto* parent_label = dynamic_cast<const Label*>(parent())) {
+        set_text_style(parent_label->get_text_style());
+    } else if (parent() != nullptr) {
+        text_style_.color = parent()->get_foreground();
+        has_text_color_ = true;
+    }
+}
+
 const TextStyle& Label::text_style() const noexcept
 {
     return text_style_;
@@ -145,6 +155,13 @@ void Label::set_font_family(std::string family)
     text_style_.font_family = std::move(family);
 }
 
+void Label::set_font_family(InheritTag)
+{
+    if (auto* parent_label = dynamic_cast<const Label*>(parent())) {
+        set_font_family(std::string(parent_label->font_family()));
+    }
+}
+
 std::string_view Label::font_family() const noexcept
 {
     return text_style_.font_family;
@@ -153,6 +170,13 @@ std::string_view Label::font_family() const noexcept
 void Label::set_font_size(float size) noexcept
 {
     text_style_.font_size = std::max(1.0f, size);
+}
+
+void Label::set_font_size(InheritTag) noexcept
+{
+    if (auto* parent_label = dynamic_cast<const Label*>(parent())) {
+        set_font_size(parent_label->font_size());
+    }
 }
 
 float Label::font_size() const noexcept
@@ -166,6 +190,15 @@ void Label::set_text_color(Color color) noexcept
     has_text_color_ = true;
 }
 
+void Label::set_text_color(InheritTag) noexcept
+{
+    if (auto* parent_label = dynamic_cast<const Label*>(parent())) {
+        set_text_color(parent_label->text_color());
+    } else if (parent() != nullptr) {
+        set_text_color(parent()->get_foreground());
+    }
+}
+
 Color Label::text_color() const noexcept
 {
     return has_text_color_ ? text_style_.color : get_style().foreground;
@@ -176,6 +209,13 @@ void Label::set_text_align(TextAlign align) noexcept
     text_style_.align = align;
 }
 
+void Label::set_text_align(InheritTag) noexcept
+{
+    if (auto* parent_label = dynamic_cast<const Label*>(parent())) {
+        set_text_align(parent_label->text_align());
+    }
+}
+
 TextAlign Label::text_align() const noexcept
 {
     return text_style_.align;
@@ -184,6 +224,13 @@ TextAlign Label::text_align() const noexcept
 void Label::set_text_overflow(TextOverflow overflow) noexcept
 {
     text_style_.overflow = overflow;
+}
+
+void Label::set_text_overflow(InheritTag) noexcept
+{
+    if (auto* parent_label = dynamic_cast<const Label*>(parent())) {
+        set_text_overflow(parent_label->text_overflow());
+    }
 }
 
 TextOverflow Label::text_overflow() const noexcept

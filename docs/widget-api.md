@@ -209,6 +209,48 @@ auto radius = tile.get_radius();
 
 These convenience setters are C++ runtime style changes, so they also override stylesheet values for that widget.
 
+Use `ouif::inherit` when a child should copy a value from its direct parent:
+
+```cpp
+child.set_background(ouif::inherit);
+child.set_padding(ouif::inherit);
+child.set_child_gravity(ouif::inherit);
+```
+
+The same value works in CSS and XML inline style:
+
+```css
+.child {
+    background: inherit;
+    color: inherit;
+    padding: inherit;
+    gravity: inherit;
+}
+```
+
+OUIF resolves inheritance against the nearest parent only. Because a widget can have one parent at a time, inherited values stay deterministic across reparenting and stylesheet reapplies.
+
+Custom widgets can add their own stylesheet features without forking the parser:
+
+```cpp
+ouif::Widget::register_css_property("meter-value",
+    [](ouif::Widget& widget, const ouif::CssDeclaration& declaration) {
+        auto* meter = dynamic_cast<Meter*>(&widget);
+        if (meter == nullptr || declaration.values.empty()) {
+            return false;
+        }
+
+        if (declaration.values.front().number) {
+            meter->set_value(*declaration.values.front().number);
+            return true;
+        }
+
+        return false;
+    });
+```
+
+Handlers receive normalized property names plus parsed text, number, color, length, and `inherit` markers. Call `unregister_css_property(...)` or `clear_css_properties()` when a module or test is done with an extension.
+
 Directional borders follow web-style naming and can be mixed:
 
 ```cpp

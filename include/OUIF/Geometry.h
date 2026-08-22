@@ -15,6 +15,11 @@ struct Size {
     float height = 0.0f;
 };
 
+struct InheritTag {
+};
+
+inline constexpr InheritTag inherit {};
+
 enum class HorizontalGravity : std::uint8_t {
     Left,
     Center,

@@ -93,6 +93,10 @@ Static presets:
 - `BottomCenter() noexcept -> Gravity`
 - `BottomRight() noexcept -> Gravity`
 
+### `ouif::inherit`
+
+`ouif::inherit` is an `InheritTag` value accepted by style, text, layout, spacing, clipping, and gravity setters. It copies the corresponding value from the widget's direct parent.
+
 ## Color
 
 ### `ouif::Color`
@@ -200,6 +204,27 @@ Fields:
 - `SizePolicy width`
 - `SizePolicy height`
 
+### CSS Extension Types
+
+`ouif::CssValue` fields:
+
+- `std::string text`
+- `std::optional<float> number`
+- `std::optional<Color> color`
+- `Length length`
+- `bool inherit`
+
+`ouif::CssDeclaration` fields and methods:
+
+- `std::string property`
+- `std::vector<CssValue> values`
+- `std::string raw`
+- `inherited() const noexcept -> bool`
+
+`ouif::CssPropertyHandler`:
+
+- `std::function<bool(Widget&, const CssDeclaration&)>`
+
 ### `ouif::Widget`
 
 Construction:
@@ -213,45 +238,64 @@ Bounds and size:
 - `set_bounds(Rect bounds) noexcept -> void`
 - `bounds() const noexcept -> Rect`
 - `set_size(Size size) noexcept -> void`
+- `set_size(InheritTag) noexcept -> void`
 - `set_width(Length width) noexcept -> void`
+- `set_width(InheritTag) noexcept -> void`
 - `set_height(Length height) noexcept -> void`
+- `set_height(InheritTag) noexcept -> void`
 - `set_size(Length width, Length height) noexcept -> void`
 
 Style:
 
 - `set_style(Style style) noexcept -> void`
+- `set_style(InheritTag) noexcept -> void`
 - `style() const noexcept -> const Style&`
 - `get_style() const noexcept -> const Style&`
 - `set_background(Color color) noexcept -> void`
+- `set_background(InheritTag) noexcept -> void`
 - `get_background() const noexcept -> Color`
 - `set_background_hovered(Color color) noexcept -> void`
+- `set_background_hovered(InheritTag) noexcept -> void`
 - `get_background_hovered() const noexcept -> Color`
 - `set_background_pressed(Color color) noexcept -> void`
+- `set_background_pressed(InheritTag) noexcept -> void`
 - `get_background_pressed() const noexcept -> Color`
 - `set_background_selected(Color color) noexcept -> void`
+- `set_background_selected(InheritTag) noexcept -> void`
 - `get_background_selected() const noexcept -> Color`
 - `set_background_focused(Color color) noexcept -> void`
+- `set_background_focused(InheritTag) noexcept -> void`
 - `get_background_focused() const noexcept -> Color`
 - `set_foreground(Color color) noexcept -> void`
+- `set_foreground(InheritTag) noexcept -> void`
 - `get_foreground() const noexcept -> Color`
 - `set_border(Color color, float width) noexcept -> void`
+- `set_border(InheritTag) noexcept -> void`
 - `get_border() const noexcept -> Border`
 - `set_border_left(Color color, float width) noexcept -> void`
+- `set_border_left(InheritTag) noexcept -> void`
 - `get_border_left() const noexcept -> Border`
 - `set_border_top(Color color, float width) noexcept -> void`
+- `set_border_top(InheritTag) noexcept -> void`
 - `get_border_top() const noexcept -> Border`
 - `set_border_right(Color color, float width) noexcept -> void`
+- `set_border_right(InheritTag) noexcept -> void`
 - `get_border_right() const noexcept -> Border`
 - `set_border_bottom(Color color, float width) noexcept -> void`
+- `set_border_bottom(InheritTag) noexcept -> void`
 - `get_border_bottom() const noexcept -> Border`
 - `set_border_selected(Color color, float width) noexcept -> void`
+- `set_border_selected(InheritTag) noexcept -> void`
 - `get_border_selected() const noexcept -> Border`
 - `set_border_focused(Color color, float width) noexcept -> void`
+- `set_border_focused(InheritTag) noexcept -> void`
 - `get_border_focused() const noexcept -> Border`
 - `set_radius(float radius) noexcept -> void`
 - `set_radius(CornerRadius radius) noexcept -> void`
+- `set_radius(InheritTag) noexcept -> void`
 - `get_radius() const noexcept -> CornerRadius`
 - `set_opacity(float opacity) noexcept -> void`
+- `set_opacity(InheritTag) noexcept -> void`
 - `get_opacity() const noexcept -> float`
 
 Motion:
@@ -272,6 +316,9 @@ Stylesheets and identity:
 - `set_stylesheet(std::string stylesheet) -> void`
 - `join_stylesheet(std::string_view stylesheet) -> void`
 - `get_stylesheet() const noexcept -> std::string_view`
+- `static register_css_property(std::string property, CssPropertyHandler handler) -> void`
+- `static unregister_css_property(std::string_view property) -> bool`
+- `static clear_css_properties() -> void`
 - `set_name(std::string name) -> void`
 - `name() const noexcept -> std::string_view`
 - `get_name() const noexcept -> std::string_view`
@@ -285,16 +332,22 @@ Stylesheets and identity:
 Layout:
 
 - `set_layout(Layout layout) noexcept -> void`
+- `set_layout(InheritTag) noexcept -> void`
 - `layout_rules() const noexcept -> const Layout&`
 - `set_layout_policy(SizePolicy width, SizePolicy height) noexcept -> void`
+- `set_layout_policy(InheritTag) noexcept -> void`
 - `set_margin(Insets margin) noexcept -> void`
+- `set_margin(InheritTag) noexcept -> void`
 - `get_margin() const noexcept -> Insets`
 - `set_padding(Insets padding) noexcept -> void`
+- `set_padding(InheritTag) noexcept -> void`
 - `get_padding() const noexcept -> Insets`
 - `set_flex(float flex) noexcept -> void`
+- `set_flex(InheritTag) noexcept -> void`
 - `get_flex() const noexcept -> float`
 - `set_child_gravity(Gravity gravity) noexcept -> void`
 - `set_child_gravity(HorizontalGravity horizontal, VerticalGravity vertical) noexcept -> void`
+- `set_child_gravity(InheritTag) noexcept -> void`
 - `child_gravity() const noexcept -> Gravity`
 - `get_child_gravity() const noexcept -> Gravity`
 
@@ -316,6 +369,7 @@ Visibility, input, focus, accessibility:
 - `set_enabled(bool enabled) noexcept -> void`
 - `enabled() const noexcept -> bool`
 - `set_clip_content(bool clip) noexcept -> void`
+- `set_clip_content(InheritTag) noexcept -> void`
 - `clip_content() const noexcept -> bool`
 - `set_focusable(bool focusable) noexcept -> void`
 - `focusable() const noexcept -> bool`
@@ -451,17 +505,23 @@ Protected extension points:
 - `text() const noexcept -> std::string_view`
 - `get_text() const noexcept -> std::string_view`
 - `set_text_style(TextStyle style) noexcept -> void`
+- `set_text_style(InheritTag) noexcept -> void`
 - `text_style() const noexcept -> const TextStyle&`
 - `get_text_style() const noexcept -> const TextStyle&`
 - `set_font_family(std::string family) -> void`
+- `set_font_family(InheritTag) -> void`
 - `font_family() const noexcept -> std::string_view`
 - `set_font_size(float size) noexcept -> void`
+- `set_font_size(InheritTag) noexcept -> void`
 - `font_size() const noexcept -> float`
 - `set_text_color(Color color) noexcept -> void`
+- `set_text_color(InheritTag) noexcept -> void`
 - `text_color() const noexcept -> Color`
 - `set_text_align(TextAlign align) noexcept -> void`
+- `set_text_align(InheritTag) noexcept -> void`
 - `text_align() const noexcept -> TextAlign`
 - `set_text_overflow(TextOverflow overflow) noexcept -> void`
+- `set_text_overflow(InheritTag) noexcept -> void`
 - `text_overflow() const noexcept -> TextOverflow`
 - `event(const Event& event) -> bool`
 

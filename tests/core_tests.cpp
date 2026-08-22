@@ -35,6 +35,11 @@ public:
     XmlTile() = default;
 };
 
+class CustomCssWidget : public ouif::Widget {
+public:
+    int custom_value = 0;
+};
+
 } // namespace
 
 int main()
@@ -562,6 +567,105 @@ int main()
         assert(label.get_transform().rotation_degrees == 15.0f);
         assert(label.get_transform().scale_x == 1.25f);
         assert(label.get_transform().scale_y == 0.75f);
+    }
+
+    {
+        ouif::Widget parent;
+        ouif::Widget child;
+        parent.set_background("#203040");
+        parent.set_foreground("#e8edf3");
+        parent.set_border_left("#ff3355", 6.0f);
+        parent.set_radius(12.0f);
+        parent.set_padding(ouif::Insets(10.0f));
+        parent.set_child_gravity(ouif::Gravity::BottomRight());
+        parent.set_clip_content(false);
+        parent.add_child(child);
+
+        child.set_background(ouif::inherit);
+        child.set_foreground(ouif::inherit);
+        child.set_border_left(ouif::inherit);
+        child.set_radius(ouif::inherit);
+        child.set_padding(ouif::inherit);
+        child.set_child_gravity(ouif::inherit);
+        child.set_clip_content(ouif::inherit);
+
+        assert(child.get_background().b > 0.2f);
+        assert(child.get_foreground().r > 0.8f);
+        assert(std::fabs(child.get_border_left().width - 6.0f) < 0.01f);
+        assert(std::fabs(child.get_radius().top_left - 12.0f) < 0.01f);
+        assert(std::fabs(child.get_padding().left - 10.0f) < 0.01f);
+        assert(child.child_gravity().horizontal == ouif::HorizontalGravity::Right);
+        assert(!child.clip_content());
+    }
+
+    {
+        ouif::Widget root;
+        root.add_class("parent");
+        root.set_child_gravity(ouif::Gravity::BottomRight());
+        auto& child = root.add_child<ouif::Widget>();
+        child.add_class("child");
+        root.set_stylesheet(R"css(
+            .parent {
+                background: #203040;
+                color: #e8edf3;
+                padding: 12px;
+            }
+
+            .child {
+                background: inherit;
+                color: inherit;
+                padding: inherit;
+                gravity: inherit;
+            }
+        )css");
+
+        assert(child.get_background().b > 0.2f);
+        assert(child.get_foreground().r > 0.8f);
+        assert(std::fabs(child.get_padding().left - 12.0f) < 0.01f);
+        assert(child.child_gravity().horizontal == ouif::HorizontalGravity::Right);
+        assert(child.child_gravity().vertical == ouif::VerticalGravity::Bottom);
+    }
+
+    {
+        ouif::Label parent("Parent");
+        ouif::Label child("Child");
+        parent.set_accepts_children(true);
+        parent.set_font_family("Example Narrow");
+        parent.set_font_size(21.0f);
+        parent.set_text_color("#e8edf3");
+        parent.set_text_align(ouif::TextAlign::Center);
+        parent.set_text_overflow(ouif::TextOverflow::Wrap);
+        parent.add_child(child);
+
+        child.set_font_family(ouif::inherit);
+        child.set_font_size(ouif::inherit);
+        child.set_text_color(ouif::inherit);
+        child.set_text_align(ouif::inherit);
+        child.set_text_overflow(ouif::inherit);
+
+        assert(child.font_family() == "Example Narrow");
+        assert(child.font_size() == 21.0f);
+        assert(child.text_color().r > 0.8f);
+        assert(child.text_align() == ouif::TextAlign::Center);
+        assert(child.text_overflow() == ouif::TextOverflow::Wrap);
+    }
+
+    {
+        CustomCssWidget widget;
+        widget.add_class("custom");
+        ouif::Widget::register_css_property("debug-number", [](ouif::Widget& target, const ouif::CssDeclaration& declaration) {
+            auto* custom = dynamic_cast<CustomCssWidget*>(&target);
+            if (custom == nullptr || declaration.values.empty() || !declaration.values.front().number) {
+                return false;
+            }
+            custom->custom_value = static_cast<int>(*declaration.values.front().number);
+            return true;
+        });
+
+        widget.set_stylesheet(".custom { debug-number: 42; }");
+        assert(widget.custom_value == 42);
+        assert(ouif::Widget::unregister_css_property("debug-number"));
+        ouif::Widget::clear_css_properties();
     }
 
     {
