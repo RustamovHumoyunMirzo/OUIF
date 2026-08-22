@@ -225,6 +225,45 @@ Fields:
 
 - `std::function<bool(Widget&, const CssDeclaration&)>`
 
+### Effect Types
+
+`ouif::EffectLayer` values:
+
+- `Layer`
+- `Backdrop`
+
+`ouif::EffectParameters` fields:
+
+- `std::string name`
+- `std::vector<float> numbers`
+- `std::vector<std::string> args`
+
+`ouif::EffectContext` fields:
+
+- `Renderer& renderer`
+- `Widget& widget`
+- `Rect bounds`
+- `EffectLayer layer`
+- `const EffectParameters& parameters`
+
+`ouif::Effect` methods:
+
+- `virtual ~Effect()`
+- `expand_bounds(const EffectContext& context) const -> Rect`
+- `pre_draw(const EffectContext& context) -> void`
+- `post_draw(const EffectContext& context) -> void`
+
+`ouif::EffectFactory`:
+
+- `std::function<std::shared_ptr<Effect>(const EffectParameters&)>`
+
+`ouif::BlurEffect`:
+
+- `BlurEffect(float radius = 8.0f) noexcept`
+- `set_radius(float radius) noexcept -> void`
+- `radius() const noexcept -> float`
+- overrides `expand_bounds(...)`, `pre_draw(...)`, and `post_draw(...)`
+
 ### `ouif::Widget`
 
 Construction:
@@ -316,9 +355,27 @@ Stylesheets and identity:
 - `set_stylesheet(std::string stylesheet) -> void`
 - `join_stylesheet(std::string_view stylesheet) -> void`
 - `get_stylesheet() const noexcept -> std::string_view`
+- `add_layer_effect(std::shared_ptr<Effect> effect, EffectParameters parameters = {}) -> void`
+- `add_layer_effect(std::string name, std::vector<float> numbers = {}) -> void`
+- `clear_layer_effects() noexcept -> void`
+- `layer_effects() const noexcept -> const std::vector<std::shared_ptr<Effect>>&`
+- `add_backdrop_effect(std::shared_ptr<Effect> effect, EffectParameters parameters = {}) -> void`
+- `add_backdrop_effect(std::string name, std::vector<float> numbers = {}) -> void`
+- `clear_backdrop_effects() noexcept -> void`
+- `backdrop_effects() const noexcept -> const std::vector<std::shared_ptr<Effect>>&`
+- `add_stylesheet_layer_effect(std::shared_ptr<Effect> effect, EffectParameters parameters = {}) -> void`
+- `add_stylesheet_layer_effect(std::string name, std::vector<float> numbers = {}) -> void`
+- `add_stylesheet_backdrop_effect(std::shared_ptr<Effect> effect, EffectParameters parameters = {}) -> void`
+- `add_stylesheet_backdrop_effect(std::string name, std::vector<float> numbers = {}) -> void`
+- `clear_stylesheet_effects() noexcept -> void`
+- `stylesheet_layer_effects() const noexcept -> const std::vector<std::shared_ptr<Effect>>&`
+- `stylesheet_backdrop_effects() const noexcept -> const std::vector<std::shared_ptr<Effect>>&`
 - `static register_css_property(std::string property, CssPropertyHandler handler) -> void`
 - `static unregister_css_property(std::string_view property) -> bool`
 - `static clear_css_properties() -> void`
+- `static register_effect(std::string name, EffectFactory factory) -> void`
+- `static unregister_effect(std::string_view name) -> bool`
+- `static clear_effects() -> void`
 - `set_name(std::string name) -> void`
 - `name() const noexcept -> std::string_view`
 - `get_name() const noexcept -> std::string_view`
@@ -542,6 +599,9 @@ Protected extension points:
 - `stroke_rounded_rect(Rect rect, CornerRadius radius, Color color, float width) -> void`
 - `stroke_rounded_rect(Rect rect, CornerRadius radius, BorderEdges borders) -> void`
 - `load_font(std::string family, std::filesystem::path path) -> bool`
+- `load_shader_program(std::filesystem::path vertex_shader, std::filesystem::path fragment_shader) -> ShaderProgram`
+- `destroy_shader_program(ShaderProgram program) noexcept -> void`
+- `fill_rect_with_program(Rect rect, Color color, ShaderProgram program) -> void`
 - `load_default_system_font() -> bool`
 - `set_default_font_family(std::string family) -> void`
 - `default_font_family() const noexcept -> std::string_view`

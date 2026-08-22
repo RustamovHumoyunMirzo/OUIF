@@ -1223,6 +1223,89 @@ bool Renderer::load_font(std::string family, std::filesystem::path path)
 #endif
 }
 
+ShaderProgram Renderer::load_shader_program(std::filesystem::path vertex_shader, std::filesystem::path fragment_shader)
+{
+#if OUIF_WITH_BGFX
+    const auto vertex = load_shader(vertex_shader);
+    const auto fragment = load_shader(fragment_shader);
+    if (!bgfx::isValid(vertex) || !bgfx::isValid(fragment)) {
+        if (bgfx::isValid(vertex)) {
+            bgfx::destroy(vertex);
+        }
+        if (bgfx::isValid(fragment)) {
+            bgfx::destroy(fragment);
+        }
+        return {};
+    }
+
+    const auto program = bgfx::createProgram(vertex, fragment, true);
+    return bgfx::isValid(program) ? ShaderProgram { program.idx } : ShaderProgram {};
+#else
+    (void)vertex_shader;
+    (void)fragment_shader;
+    return {};
+#endif
+}
+
+void Renderer::destroy_shader_program(ShaderProgram program) noexcept
+{
+#if OUIF_WITH_BGFX
+    if (!program.valid()) {
+        return;
+    }
+    bgfx::ProgramHandle handle { program.id };
+    if (bgfx::isValid(handle)) {
+        bgfx::destroy(handle);
+    }
+#else
+    (void)program;
+#endif
+}
+
+void Renderer::fill_rect_with_program(Rect rect, Color color, ShaderProgram program)
+{
+#if OUIF_WITH_BGFX
+    if (!program.valid() || rect.width <= 0.0f || rect.height <= 0.0f) {
+        return;
+    }
+
+    bgfx::ProgramHandle handle { program.id };
+    if (!bgfx::isValid(handle)) {
+        return;
+    }
+
+    if (bgfx::getAvailTransientVertexBuffer(4, PosColorVertex::layout) < 4 || bgfx::getAvailTransientIndexBuffer(6) < 6) {
+        return;
+    }
+
+    bgfx::TransientVertexBuffer vertices;
+    bgfx::TransientIndexBuffer indices;
+    bgfx::allocTransientVertexBuffer(&vertices, 4, PosColorVertex::layout);
+    bgfx::allocTransientIndexBuffer(&indices, 6);
+
+    const auto abgr = pack_abgr(color);
+    auto* vertex_data = reinterpret_cast<PosColorVertex*>(vertices.data);
+    vertex_data[0] = transformed_vertex_from_point(*impl_, { rect.x, rect.y }, abgr);
+    vertex_data[1] = transformed_vertex_from_point(*impl_, { rect.x + rect.width, rect.y }, abgr);
+    vertex_data[2] = transformed_vertex_from_point(*impl_, { rect.x + rect.width, rect.y + rect.height }, abgr);
+    vertex_data[3] = transformed_vertex_from_point(*impl_, { rect.x, rect.y + rect.height }, abgr);
+
+    auto* index_data = reinterpret_cast<std::uint16_t*>(indices.data);
+    const std::array<std::uint16_t, 6> quad_indices { 0, 1, 2, 0, 2, 3 };
+    std::copy(quad_indices.begin(), quad_indices.end(), index_data);
+
+    bgfx::setVertexBuffer(0, &vertices);
+    bgfx::setIndexBuffer(&indices);
+    bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
+    apply_scissor(*impl_);
+    bgfx::submit(0, handle);
+#else
+    (void)rect;
+    (void)color;
+    (void)program;
+#endif
+}
+
 bool Renderer::load_default_system_font()
 {
 #if OUIF_WITH_BGFX

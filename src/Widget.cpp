@@ -41,6 +41,59 @@ std::unordered_map<std::string, CssPropertyHandler>& css_property_handlers()
     return handlers;
 }
 
+std::unordered_map<std::string, EffectFactory>& effect_factories()
+{
+    static std::unordered_map<std::string, EffectFactory> factories {
+        { "blur", [](const EffectParameters& parameters) {
+             const float radius = parameters.numbers.empty() ? 8.0f : parameters.numbers.front();
+             return std::make_shared<BlurEffect>(radius);
+         } },
+    };
+    return factories;
+}
+
+std::shared_ptr<Effect> create_effect(std::string_view name, const std::vector<float>& numbers)
+{
+    auto parameters = EffectParameters { std::string(name), numbers, {} };
+    const auto found = effect_factories().find(lower_copy(name));
+    if (found == effect_factories().end()) {
+        return nullptr;
+    }
+    return found->second(parameters);
+}
+
+std::string normalize_effect_css(std::string_view css)
+{
+    std::string result(css);
+    const auto normalize_property = [&](std::string_view property) {
+        std::size_t cursor = 0;
+        while ((cursor = lower_copy(result).find(property, cursor)) != std::string::npos) {
+            const auto colon = result.find(':', cursor + property.size());
+            if (colon == std::string::npos) {
+                break;
+            }
+            const auto semicolon = result.find(';', colon + 1U);
+            const auto declaration_end = semicolon == std::string::npos ? result.size() : semicolon;
+            const auto open = result.find('(', colon + 1U);
+            const auto close = open == std::string::npos ? std::string::npos : result.find(')', open + 1U);
+            if (open != std::string::npos && close != std::string::npos && close < declaration_end) {
+                result[open] = ' ';
+                result[close] = ' ';
+                for (std::size_t index = open + 1U; index < close; ++index) {
+                    if (result[index] == ',') {
+                        result[index] = ' ';
+                    }
+                }
+            }
+            cursor = declaration_end;
+        }
+    };
+
+    normalize_property("layer-effect");
+    normalize_property("backdrop-effect");
+    return result;
+}
+
 #if OUIF_WITH_KATANA
 struct KatanaOutputDeleter {
     void operator()(KatanaOutput* output) const noexcept
@@ -271,6 +324,95 @@ CssDeclaration css_declaration_from(KatanaDeclaration& declaration)
         }
     }
     return result;
+}
+
+EffectParameters effect_parameters_from(KatanaDeclaration& declaration)
+{
+    EffectParameters parameters;
+    const auto parse_raw = [&]() {
+        std::string raw = std::string(text_or_empty(declaration.raw));
+        if (raw.empty()) {
+            raw = std::string(text_or_empty(declaration.string));
+        }
+        if (const auto colon = raw.find(':'); colon != std::string::npos) {
+            raw.erase(0, colon + 1U);
+        }
+        const auto open = raw.find('(');
+        if (open == std::string::npos) {
+            parameters.name = lower_copy(raw);
+        } else {
+            parameters.name = lower_copy(std::string_view(raw).substr(0, open));
+        }
+        while (!parameters.name.empty() && std::isspace(static_cast<unsigned char>(parameters.name.front())) != 0) {
+            parameters.name.erase(parameters.name.begin());
+        }
+        while (!parameters.name.empty() && (std::isspace(static_cast<unsigned char>(parameters.name.back())) != 0 || parameters.name.back() == ':')) {
+            parameters.name.pop_back();
+        }
+        const char* cursor = raw.c_str();
+        while (*cursor != '\0') {
+            char* end = nullptr;
+            const float number = std::strtof(cursor, &end);
+            if (end != cursor) {
+                parameters.numbers.push_back(number);
+                cursor = end;
+            } else {
+                ++cursor;
+            }
+        }
+    };
+
+    auto* first = value_at(declaration.values, 0);
+    if (first == nullptr) {
+        parse_raw();
+        return parameters;
+    }
+
+    if (first->unit == KATANA_VALUE_PARSER_FUNCTION && first->function != nullptr) {
+        parameters.name = lower_copy(text_or_empty(first->function->name));
+        for (auto* value : flattened_values(first->function->args)) {
+            if (value == nullptr) {
+                continue;
+            }
+            if (auto number = pixels_from_value(*value)) {
+                parameters.numbers.push_back(*number);
+            }
+            if (auto text = ident_from_value(*value)) {
+                parameters.args.push_back(std::move(*text));
+            }
+        }
+        return parameters;
+    }
+
+    if (auto name = ident_from_value(*first)) {
+        parameters.name = lower_copy(*name);
+        for (auto* value : flattened_values(declaration.values)) {
+            if (value != nullptr) {
+                if (auto number = pixels_from_value(*value)) {
+                    parameters.numbers.push_back(*number);
+                }
+            }
+        }
+    }
+
+    if (parameters.name.empty()) {
+        parse_raw();
+    }
+    return parameters;
+}
+
+void apply_effect_declaration(Widget& widget, KatanaDeclaration& declaration, EffectLayer layer)
+{
+    auto parameters = effect_parameters_from(declaration);
+    if (parameters.name.empty()) {
+        return;
+    }
+
+    if (layer == EffectLayer::Layer) {
+        widget.add_stylesheet_layer_effect(parameters.name, parameters.numbers);
+    } else {
+        widget.add_stylesheet_backdrop_effect(parameters.name, parameters.numbers);
+    }
 }
 
 std::vector<KatanaValue*> function_args(const KatanaValue& value)
@@ -673,7 +815,32 @@ void apply_declaration(
     CssMotionDeclaration* motion = nullptr
 )
 {
-    const auto property = lower_copy(text_or_empty(declaration.property));
+    auto property = lower_copy(text_or_empty(declaration.property));
+    if (property.empty()) {
+        std::string raw = std::string(text_or_empty(declaration.raw));
+        if (raw.empty()) {
+            raw = std::string(text_or_empty(declaration.string));
+        }
+        if (const auto colon = raw.find(':'); colon != std::string::npos) {
+            property = lower_copy(std::string_view(raw).substr(0, colon));
+            while (!property.empty() && std::isspace(static_cast<unsigned char>(property.front())) != 0) {
+                property.erase(property.begin());
+            }
+            while (!property.empty() && std::isspace(static_cast<unsigned char>(property.back())) != 0) {
+                property.pop_back();
+            }
+        }
+    }
+    if (allow_widget_properties && (property == "layer-effect" || property == "layer_effect")) {
+        apply_effect_declaration(widget, declaration, EffectLayer::Layer);
+        return;
+    }
+
+    if (allow_widget_properties && (property == "backdrop-effect" || property == "backdrop_effect")) {
+        apply_effect_declaration(widget, declaration, EffectLayer::Backdrop);
+        return;
+    }
+
     auto* first = value_at(declaration.values, 0);
     if (first == nullptr) {
         return;
@@ -2047,6 +2214,122 @@ std::string_view Widget::get_stylesheet() const noexcept
     return stylesheet_;
 }
 
+void Widget::add_layer_effect(std::shared_ptr<Effect> effect, EffectParameters parameters)
+{
+    if (effect == nullptr) {
+        return;
+    }
+    if (parameters.name.empty()) {
+        parameters.name = "custom";
+    }
+    layer_effects_.push_back(std::move(effect));
+    layer_effect_parameters_.push_back(std::move(parameters));
+}
+
+void Widget::add_layer_effect(std::string name, std::vector<float> numbers)
+{
+    EffectParameters parameters { lower_copy(name), std::move(numbers), {} };
+    auto effect = create_effect(parameters.name, parameters.numbers);
+    add_layer_effect(std::move(effect), std::move(parameters));
+}
+
+void Widget::clear_layer_effects() noexcept
+{
+    layer_effects_.clear();
+    layer_effect_parameters_.clear();
+}
+
+const std::vector<std::shared_ptr<Effect>>& Widget::layer_effects() const noexcept
+{
+    return layer_effects_;
+}
+
+void Widget::add_backdrop_effect(std::shared_ptr<Effect> effect, EffectParameters parameters)
+{
+    if (effect == nullptr) {
+        return;
+    }
+    if (parameters.name.empty()) {
+        parameters.name = "custom";
+    }
+    backdrop_effects_.push_back(std::move(effect));
+    backdrop_effect_parameters_.push_back(std::move(parameters));
+}
+
+void Widget::add_backdrop_effect(std::string name, std::vector<float> numbers)
+{
+    EffectParameters parameters { lower_copy(name), std::move(numbers), {} };
+    auto effect = create_effect(parameters.name, parameters.numbers);
+    add_backdrop_effect(std::move(effect), std::move(parameters));
+}
+
+void Widget::clear_backdrop_effects() noexcept
+{
+    backdrop_effects_.clear();
+    backdrop_effect_parameters_.clear();
+}
+
+const std::vector<std::shared_ptr<Effect>>& Widget::backdrop_effects() const noexcept
+{
+    return backdrop_effects_;
+}
+
+void Widget::add_stylesheet_layer_effect(std::shared_ptr<Effect> effect, EffectParameters parameters)
+{
+    if (effect == nullptr) {
+        return;
+    }
+    if (parameters.name.empty()) {
+        parameters.name = "custom";
+    }
+    stylesheet_layer_effects_.push_back(std::move(effect));
+    stylesheet_layer_effect_parameters_.push_back(std::move(parameters));
+}
+
+void Widget::add_stylesheet_layer_effect(std::string name, std::vector<float> numbers)
+{
+    EffectParameters parameters { lower_copy(name), std::move(numbers), {} };
+    auto effect = create_effect(parameters.name, parameters.numbers);
+    add_stylesheet_layer_effect(std::move(effect), std::move(parameters));
+}
+
+void Widget::add_stylesheet_backdrop_effect(std::shared_ptr<Effect> effect, EffectParameters parameters)
+{
+    if (effect == nullptr) {
+        return;
+    }
+    if (parameters.name.empty()) {
+        parameters.name = "custom";
+    }
+    stylesheet_backdrop_effects_.push_back(std::move(effect));
+    stylesheet_backdrop_effect_parameters_.push_back(std::move(parameters));
+}
+
+void Widget::add_stylesheet_backdrop_effect(std::string name, std::vector<float> numbers)
+{
+    EffectParameters parameters { lower_copy(name), std::move(numbers), {} };
+    auto effect = create_effect(parameters.name, parameters.numbers);
+    add_stylesheet_backdrop_effect(std::move(effect), std::move(parameters));
+}
+
+void Widget::clear_stylesheet_effects() noexcept
+{
+    stylesheet_layer_effects_.clear();
+    stylesheet_layer_effect_parameters_.clear();
+    stylesheet_backdrop_effects_.clear();
+    stylesheet_backdrop_effect_parameters_.clear();
+}
+
+const std::vector<std::shared_ptr<Effect>>& Widget::stylesheet_layer_effects() const noexcept
+{
+    return stylesheet_layer_effects_;
+}
+
+const std::vector<std::shared_ptr<Effect>>& Widget::stylesheet_backdrop_effects() const noexcept
+{
+    return stylesheet_backdrop_effects_;
+}
+
 void Widget::register_css_property(std::string property, CssPropertyHandler handler)
 {
     if (property.empty() || !handler) {
@@ -2063,6 +2346,24 @@ bool Widget::unregister_css_property(std::string_view property)
 void Widget::clear_css_properties()
 {
     css_property_handlers().clear();
+}
+
+void Widget::register_effect(std::string name, EffectFactory factory)
+{
+    if (name.empty() || !factory) {
+        return;
+    }
+    effect_factories()[lower_copy(name)] = std::move(factory);
+}
+
+bool Widget::unregister_effect(std::string_view name)
+{
+    return effect_factories().erase(lower_copy(name)) != 0U;
+}
+
+void Widget::clear_effects()
+{
+    effect_factories().clear();
 }
 
 void Widget::set_name(std::string name)
@@ -2681,6 +2982,22 @@ void Widget::render(Renderer& renderer)
     }
 
     renderer.push_transform(bounds_, transform_);
+    for (std::size_t index = 0; index < backdrop_effects_.size(); ++index) {
+        EffectContext context { renderer, *this, bounds_, EffectLayer::Backdrop, backdrop_effect_parameters_[index] };
+        backdrop_effects_[index]->pre_draw(context);
+    }
+    for (std::size_t index = 0; index < stylesheet_backdrop_effects_.size(); ++index) {
+        EffectContext context { renderer, *this, bounds_, EffectLayer::Backdrop, stylesheet_backdrop_effect_parameters_[index] };
+        stylesheet_backdrop_effects_[index]->pre_draw(context);
+    }
+    for (std::size_t index = 0; index < layer_effects_.size(); ++index) {
+        EffectContext context { renderer, *this, bounds_, EffectLayer::Layer, layer_effect_parameters_[index] };
+        layer_effects_[index]->pre_draw(context);
+    }
+    for (std::size_t index = 0; index < stylesheet_layer_effects_.size(); ++index) {
+        EffectContext context { renderer, *this, bounds_, EffectLayer::Layer, stylesheet_layer_effect_parameters_[index] };
+        stylesheet_layer_effects_[index]->pre_draw(context);
+    }
     draw(renderer);
 
     if (clip_content_) {
@@ -2691,6 +3008,22 @@ void Widget::render(Renderer& renderer)
     }
     if (clip_content_) {
         renderer.pop_clip();
+    }
+    for (std::size_t index = 0; index < stylesheet_layer_effects_.size(); ++index) {
+        EffectContext context { renderer, *this, bounds_, EffectLayer::Layer, stylesheet_layer_effect_parameters_[index] };
+        stylesheet_layer_effects_[index]->post_draw(context);
+    }
+    for (std::size_t index = 0; index < layer_effects_.size(); ++index) {
+        EffectContext context { renderer, *this, bounds_, EffectLayer::Layer, layer_effect_parameters_[index] };
+        layer_effects_[index]->post_draw(context);
+    }
+    for (std::size_t index = 0; index < stylesheet_backdrop_effects_.size(); ++index) {
+        EffectContext context { renderer, *this, bounds_, EffectLayer::Backdrop, stylesheet_backdrop_effect_parameters_[index] };
+        stylesheet_backdrop_effects_[index]->post_draw(context);
+    }
+    for (std::size_t index = 0; index < backdrop_effects_.size(); ++index) {
+        EffectContext context { renderer, *this, bounds_, EffectLayer::Backdrop, backdrop_effect_parameters_[index] };
+        backdrop_effects_[index]->post_draw(context);
     }
     renderer.pop_transform();
 }
@@ -3016,6 +3349,7 @@ void Widget::apply_stylesheet_to_tree()
     if (stylesheet_.empty()) {
         has_stylesheet_style_ = false;
         stylesheet_style_ = Style {};
+        clear_stylesheet_effects();
         recompute_style();
         for (auto* child : children_) {
             child->apply_stylesheet_to_tree();
@@ -3023,7 +3357,8 @@ void Widget::apply_stylesheet_to_tree()
         return;
     }
 
-    KatanaOutputPtr output(katana_parse(stylesheet_.c_str(), stylesheet_.size(), KatanaParserModeStylesheet));
+    const auto normalized_stylesheet = normalize_effect_css(stylesheet_);
+    KatanaOutputPtr output(katana_parse(normalized_stylesheet.c_str(), normalized_stylesheet.size(), KatanaParserModeStylesheet));
     if (!output || output->errors.length > 0 || output->stylesheet == nullptr) {
         return;
     }
@@ -3033,6 +3368,7 @@ void Widget::apply_stylesheet_to_tree()
     const auto apply_to = [&](Widget& widget) {
         Style css_style {};
         bool touched = false;
+        widget.clear_stylesheet_effects();
         for (unsigned int rule_index = 0; rule_index < output->stylesheet->rules.length; ++rule_index) {
             auto* base_rule = static_cast<KatanaRule*>(output->stylesheet->rules.data[rule_index]);
             if (base_rule == nullptr || base_rule->type != KatanaRuleStyle) {

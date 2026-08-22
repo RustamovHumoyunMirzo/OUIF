@@ -1,6 +1,7 @@
 #pragma once
 
 #include <OUIF/Animation.h>
+#include <OUIF/Effect.h>
 #include <OUIF/Event.h>
 #include <OUIF/Export.h>
 #include <OUIF/Geometry.h>
@@ -171,6 +172,22 @@ public:
     void join_stylesheet(std::string_view stylesheet);
     [[nodiscard]] std::string_view get_stylesheet() const noexcept;
 
+    void add_layer_effect(std::shared_ptr<Effect> effect, EffectParameters parameters = {});
+    void add_layer_effect(std::string name, std::vector<float> numbers = {});
+    void clear_layer_effects() noexcept;
+    [[nodiscard]] const std::vector<std::shared_ptr<Effect>>& layer_effects() const noexcept;
+    void add_backdrop_effect(std::shared_ptr<Effect> effect, EffectParameters parameters = {});
+    void add_backdrop_effect(std::string name, std::vector<float> numbers = {});
+    void clear_backdrop_effects() noexcept;
+    [[nodiscard]] const std::vector<std::shared_ptr<Effect>>& backdrop_effects() const noexcept;
+    void add_stylesheet_layer_effect(std::shared_ptr<Effect> effect, EffectParameters parameters = {});
+    void add_stylesheet_layer_effect(std::string name, std::vector<float> numbers = {});
+    void add_stylesheet_backdrop_effect(std::shared_ptr<Effect> effect, EffectParameters parameters = {});
+    void add_stylesheet_backdrop_effect(std::string name, std::vector<float> numbers = {});
+    void clear_stylesheet_effects() noexcept;
+    [[nodiscard]] const std::vector<std::shared_ptr<Effect>>& stylesheet_layer_effects() const noexcept;
+    [[nodiscard]] const std::vector<std::shared_ptr<Effect>>& stylesheet_backdrop_effects() const noexcept;
+
     void set_name(std::string name);
     [[nodiscard]] std::string_view name() const noexcept;
     [[nodiscard]] std::string_view get_name() const noexcept;
@@ -282,6 +299,9 @@ public:
     static void register_css_property(std::string property, CssPropertyHandler handler);
     static bool unregister_css_property(std::string_view property);
     static void clear_css_properties();
+    static void register_effect(std::string name, EffectFactory factory);
+    static bool unregister_effect(std::string_view name);
+    static void clear_effects();
 
 protected:
     [[nodiscard]] std::vector<Widget*>& mutable_children() noexcept;
@@ -331,6 +351,14 @@ private:
     Gravity child_gravity_ = Gravity::TopLeft();
     Transform transform_;
     std::string stylesheet_;
+    std::vector<std::shared_ptr<Effect>> layer_effects_;
+    std::vector<EffectParameters> layer_effect_parameters_;
+    std::vector<std::shared_ptr<Effect>> backdrop_effects_;
+    std::vector<EffectParameters> backdrop_effect_parameters_;
+    std::vector<std::shared_ptr<Effect>> stylesheet_layer_effects_;
+    std::vector<EffectParameters> stylesheet_layer_effect_parameters_;
+    std::vector<std::shared_ptr<Effect>> stylesheet_backdrop_effects_;
+    std::vector<EffectParameters> stylesheet_backdrop_effect_parameters_;
     std::string name_;
     std::string type_name_ = "Widget";
     std::vector<std::string> classes_;

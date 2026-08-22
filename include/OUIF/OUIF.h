@@ -3,6 +3,7 @@
 #include <OUIF/Animation.h>
 #include <OUIF/Application.h>
 #include <OUIF/Color.h>
+#include <OUIF/Effect.h>
 #include <OUIF/Event.h>
 #include <OUIF/Export.h>
 #include <OUIF/Geometry.h>

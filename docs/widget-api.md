@@ -251,6 +251,46 @@ ouif::Widget::register_css_property("meter-value",
 
 Handlers receive normalized property names plus parsed text, number, color, length, and `inherit` markers. Call `unregister_css_property(...)` or `clear_css_properties()` when a module or test is done with an extension.
 
+## Effects
+
+Effects make low-level drawing explicit and extensible. A widget can have backdrop effects, which run before the widget draws, and layer effects, which run around the widget layer and after its children.
+
+```cpp
+class GlowEffect : public ouif::Effect {
+public:
+    void post_draw(const ouif::EffectContext& context) override
+    {
+        context.renderer.stroke_rounded_rect(
+            context.bounds,
+            context.widget.get_radius(),
+            "#9fd7ff",
+            4.0f);
+    }
+};
+
+tile.add_layer_effect(std::make_shared<GlowEffect>());
+tile.add_backdrop_effect("blur", { 12.0f });
+```
+
+CSS and XML inline style use the same registry:
+
+```css
+.tile {
+    backdrop-effect: blur(12px);
+}
+```
+
+Register custom effects by name:
+
+```cpp
+ouif::Widget::register_effect("glow",
+    [](const ouif::EffectParameters& parameters) {
+        return std::make_shared<GlowEffect>(parameters);
+    });
+```
+
+`Renderer` exposes primitives for rectangles, rounded borders, text, clipping, transforms, and custom shader programs. Effects can call `load_shader_program(...)`, `fill_rect_with_program(...)`, and `destroy_shader_program(...)` when they need shader-backed drawing.
+
 Directional borders follow web-style naming and can be mixed:
 
 ```cpp

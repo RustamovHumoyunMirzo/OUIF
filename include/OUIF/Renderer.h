@@ -39,6 +39,12 @@ struct RendererConfig {
     RendererQualityConfig quality {};
 };
 
+struct ShaderProgram {
+    std::uint16_t id = 0xffffU;
+
+    [[nodiscard]] constexpr bool valid() const noexcept { return id != 0xffffU; }
+};
+
 enum class TextAlign : std::uint8_t {
     Start,
     Center,
@@ -122,6 +128,9 @@ public:
     void stroke_rounded_rect(Rect rect, CornerRadius radius, Color color, float width);
     void stroke_rounded_rect(Rect rect, CornerRadius radius, BorderEdges borders);
     bool load_font(std::string family, std::filesystem::path path);
+    [[nodiscard]] ShaderProgram load_shader_program(std::filesystem::path vertex_shader, std::filesystem::path fragment_shader);
+    void destroy_shader_program(ShaderProgram program) noexcept;
+    void fill_rect_with_program(Rect rect, Color color, ShaderProgram program);
     bool load_default_system_font();
     void set_default_font_family(std::string family);
     [[nodiscard]] std::string_view default_font_family() const noexcept;

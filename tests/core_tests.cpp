@@ -40,6 +40,16 @@ public:
     int custom_value = 0;
 };
 
+class CountingEffect : public ouif::Effect {
+public:
+    explicit CountingEffect(float value)
+        : value_(value)
+    {
+    }
+
+    float value_ = 0.0f;
+};
+
 } // namespace
 
 int main()
@@ -666,6 +676,32 @@ int main()
         assert(widget.custom_value == 42);
         assert(ouif::Widget::unregister_css_property("debug-number"));
         ouif::Widget::clear_css_properties();
+    }
+
+    {
+        ouif::Widget widget;
+        widget.add_layer_effect("blur", { 6.0f });
+        assert(widget.layer_effects().size() == 1);
+        widget.clear_layer_effects();
+        assert(widget.layer_effects().empty());
+
+        ouif::Widget::register_effect("counting", [](const ouif::EffectParameters& parameters) {
+            const float value = parameters.numbers.empty() ? 0.0f : parameters.numbers.front();
+            return std::make_shared<CountingEffect>(value);
+        });
+
+        widget.add_class("effected");
+        widget.set_stylesheet(R"css(
+            .effected {
+                layer-effect: counting(7px);
+                backdrop-effect: blur(4px);
+            }
+        )css");
+        assert(widget.layer_effects().empty());
+        assert(widget.backdrop_effects().empty());
+        assert(widget.stylesheet_layer_effects().size() == 1);
+        assert(widget.stylesheet_backdrop_effects().size() == 1);
+        assert(ouif::Widget::unregister_effect("counting"));
     }
 
     {

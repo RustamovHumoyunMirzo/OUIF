@@ -121,6 +121,7 @@ target_sources(
     PRIVATE
         src/Animation.cpp
         src/Application.cpp
+        src/Effect.cpp
         src/Layout.cpp
         src/Renderer.cpp
         src/Widget.cpp
@@ -134,6 +135,7 @@ target_sources(
             include/OUIF/Animation.h
             include/OUIF/Application.h
             include/OUIF/Color.h
+            include/OUIF/Effect.h
             include/OUIF/Event.h
             include/OUIF/Export.h
             include/OUIF/Geometry.h
@@ -265,6 +267,7 @@ if(OUIF_BUILD_EXAMPLES)
     add_subdirectory(examples/complex_layout)
     add_subdirectory(examples/css_style)
     add_subdirectory(examples/animations)
+    add_subdirectory(examples/blur_effect)
     add_subdirectory(examples/fonts)
     add_subdirectory(examples/xml_ui)
     add_subdirectory(examples/clipping_scroll)

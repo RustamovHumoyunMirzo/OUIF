@@ -95,6 +95,8 @@ Selectors currently support type names, classes, names, and state pseudo classes
 - `margin`
 - `padding`
 - `clip-content`
+- `layer-effect`
+- `backdrop-effect`
 - `transition`, `transition-duration`, `transition-timing-function`
 - `animation`, `animation-name`, `animation-duration`, `animation-timing-function`, `animation-iteration-count`
 - label text: `font-size`, `font-family`, `text-color`, `text-align`, `text-overflow`
@@ -144,6 +146,30 @@ ouif::Widget::register_css_property("debug-number",
 `CssDeclaration` exposes the normalized property name, raw declaration text, and parsed values. Each `CssValue` can expose text, number, color, length, and whether the value is `inherit`.
 
 Use `unregister_css_property(...)` or `clear_css_properties()` when a test, plugin, or module should stop handling a custom property.
+
+## Effects
+
+Effects are open C++ objects with render hooks. CSS just names and configures them:
+
+```css
+.panel {
+    backdrop-effect: blur(12px);
+    layer-effect: glow(8px, soft);
+}
+```
+
+Built-in `blur(...)` is registered through the same effect registry developers use:
+
+```cpp
+panel.add_backdrop_effect("blur", { 12.0f });
+
+ouif::Widget::register_effect("glow",
+    [](const ouif::EffectParameters& parameters) {
+        return std::make_shared<MyGlowEffect>(parameters);
+    });
+```
+
+Custom effects inherit `ouif::Effect` and can override `expand_bounds(...)`, `pre_draw(...)`, and `post_draw(...)`. Use `Renderer` primitives or load shader binaries with `Renderer::load_shader_program(...)` when an effect needs low-level drawing.
 
 ## Directional Borders
 
