@@ -15,6 +15,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 
 #if OUIF_WITH_KATANA
 #include <katana.h>
@@ -1322,17 +1323,25 @@ void apply_declaration(
         return;
     }
 
-    if (property == "enabled" || property == "visible" || property == "visibility" || property == "ghost" || property == "overlay") {
+    if (property == "enabled" || property == "visible" || property == "visibility" || property == "ghost" || property == "overlay"
+        || property == "draggable" || property == "accepts-drop" || property == "accepts_drop") {
         const auto text = (first->unit == KATANA_VALUE_IDENT || first->unit == KATANA_VALUE_STRING || first->unit == KATANA_VALUE_PARSER_IDENTIFIER)
             ? lower_copy(text_or_empty(first->string))
             : std::string {};
-        const bool value = !(text == "false" || text == "0" || text == "no" || text == "off" || text == "hidden" || text == "none");
+        const auto numeric = pixels_from_value(*first);
+        const bool value = numeric.has_value()
+            ? *numeric != 0.0f
+            : !(text == "false" || text == "0" || text == "no" || text == "off" || text == "hidden" || text == "none");
         if (property == "enabled") {
             widget.set_enabled(value);
         } else if (property == "visible" || property == "visibility") {
             widget.set_visible(value);
         } else if (property == "ghost") {
             widget.set_ghost(value);
+        } else if (property == "draggable") {
+            widget.set_draggable(value);
+        } else if (property == "accepts-drop" || property == "accepts_drop") {
+            widget.set_accepts_drop(value);
         } else {
             widget.set_overlay(value);
         }
@@ -1723,16 +1732,26 @@ bool rounded_rect_contains(Rect rect, CornerRadius radius, Point point) noexcept
 
 std::vector<Widget*> children_by_z(const std::vector<Widget*>& children, bool front_to_back)
 {
-    std::vector<Widget*> sorted;
-    sorted.reserve(children.size());
-    for (auto* child : children) {
+    std::vector<std::pair<Widget*, std::size_t>> indexed;
+    indexed.reserve(children.size());
+    for (std::size_t index = 0; index < children.size(); ++index) {
+        auto* child = children[index];
         if (child != nullptr && child->visible()) {
-            sorted.push_back(child);
+            indexed.emplace_back(child, index);
         }
     }
-    std::stable_sort(sorted.begin(), sorted.end(), [front_to_back](const Widget* left, const Widget* right) {
-        return front_to_back ? left->z_index() > right->z_index() : left->z_index() < right->z_index();
+    std::stable_sort(indexed.begin(), indexed.end(), [front_to_back](const auto& left, const auto& right) {
+        if (left.first->z_index() == right.first->z_index()) {
+            return front_to_back ? left.second > right.second : left.second < right.second;
+        }
+        return front_to_back ? left.first->z_index() > right.first->z_index() : left.first->z_index() < right.first->z_index();
     });
+
+    std::vector<Widget*> sorted;
+    sorted.reserve(children.size());
+    for (const auto& [child, _] : indexed) {
+        sorted.push_back(child);
+    }
     return sorted;
 }
 

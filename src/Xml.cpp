@@ -348,6 +348,9 @@ std::unique_ptr<Widget> make_builtin_widget(std::string_view tag)
     if (tag_is(tag, "Label") || tag_is(tag, "Text")) {
         return std::make_unique<Label>();
     }
+    if (tag_is(tag, "Overlay")) {
+        return std::make_unique<Overlay>();
+    }
     return nullptr;
 }
 
@@ -493,6 +496,25 @@ void apply_common_attributes(Widget& widget, const XmlElement& element, std::str
     if (auto enabled = element.attribute_bool("enabled")) {
         widget.set_enabled(*enabled);
     }
+    if (auto ghost = element.attribute_bool("ghost")) {
+        widget.set_ghost(*ghost);
+    }
+    if (auto overlay = element.attribute_bool("overlay")) {
+        widget.set_overlay(*overlay);
+    }
+    if (auto draggable = element.attribute_bool("draggable")) {
+        widget.set_draggable(*draggable);
+    }
+    if (auto accepts_drop = element.attribute_bool("accepts-drop")) {
+        widget.set_accepts_drop(*accepts_drop);
+    } else if (auto accepts_drop = element.attribute_bool("accepts_drop")) {
+        widget.set_accepts_drop(*accepts_drop);
+    }
+    if (auto z_index = element.attribute_float("z-index")) {
+        widget.set_z_index(static_cast<int>(*z_index));
+    } else if (auto z_index = element.attribute_float("z_index")) {
+        widget.set_z_index(static_cast<int>(*z_index));
+    }
     if (auto clip = element.attribute_bool("clip_content")) {
         widget.set_clip_content(*clip);
     } else if (auto clip = element.attribute_bool("clip-content")) {
@@ -541,6 +563,24 @@ void apply_common_attributes(Widget& widget, const XmlElement& element, std::str
     if (element.has_attribute("transform")) {
         inline_declarations += " transform: ";
         inline_declarations += element.attribute("transform");
+        inline_declarations += ";";
+    }
+    if (element.has_attribute("layer-effect")) {
+        inline_declarations += " layer-effect: ";
+        inline_declarations += element.attribute("layer-effect");
+        inline_declarations += ";";
+    } else if (element.has_attribute("layer_effect")) {
+        inline_declarations += " layer-effect: ";
+        inline_declarations += element.attribute("layer_effect");
+        inline_declarations += ";";
+    }
+    if (element.has_attribute("backdrop-effect")) {
+        inline_declarations += " backdrop-effect: ";
+        inline_declarations += element.attribute("backdrop-effect");
+        inline_declarations += ";";
+    } else if (element.has_attribute("backdrop_effect")) {
+        inline_declarations += " backdrop-effect: ";
+        inline_declarations += element.attribute("backdrop_effect");
         inline_declarations += ";";
     }
 

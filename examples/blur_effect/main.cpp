@@ -61,7 +61,9 @@ public:
         green_.set_rotation(-5.0f);
 
         css_panel_.set_bounds({ 170.0f, 250.0f, 360.0f, 210.0f });
+        css_panel_.set_z_index(10);
         cpp_panel_.set_bounds({ 570.0f, 210.0f, 360.0f, 210.0f });
+        cpp_panel_.set_z_index(10);
         cpp_panel_.add_layer_effect("blur", { 12.0f });
 
         children(blue_, violet_, green_, css_panel_, cpp_panel_);

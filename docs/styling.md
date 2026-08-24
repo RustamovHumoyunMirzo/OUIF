@@ -95,6 +95,13 @@ Selectors currently support type names, classes, names, and state pseudo classes
 - `margin`
 - `padding`
 - `clip-content`
+- `z-index`
+- `visible`, `visibility`
+- `enabled`
+- `ghost`
+- `overlay`
+- `draggable`
+- `accepts-drop`
 - `layer-effect`
 - `backdrop-effect`
 - `transition`, `transition-duration`, `transition-timing-function`

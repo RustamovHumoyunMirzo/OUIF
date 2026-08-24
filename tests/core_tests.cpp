@@ -791,6 +791,27 @@ int main()
     }
 
     {
+        ouif::Widget widget;
+        widget.add_class("layered");
+        widget.set_stylesheet(R"css(
+            .layered {
+                z-index: 24;
+                ghost: true;
+                overlay: true;
+                draggable: true;
+                accepts-drop: true;
+                visibility: false;
+            }
+        )css");
+        assert(widget.z_index() == 24);
+        assert(widget.ghost());
+        assert(widget.overlay());
+        assert(widget.draggable());
+        assert(widget.accepts_drop());
+        assert(!widget.visible());
+    }
+
+    {
         DragSource source;
         source.set_bounds({ 0.0f, 0.0f, 80.0f, 80.0f });
         source.set_draggable(true);
@@ -879,6 +900,7 @@ int main()
                 <RowLayout id="surface" class="surface" gap="12" gravity="right bottom" policy="fill,fill" transition="200ms ease-out">
                     <Label id="caption" text="Hello Text" font-size="18" text-color="#e8edf3" transform="translate(2px, 3px) scale(1.1)" />
                     <XmlTile id="tile_a" class="tile" size="80,40" animation="xmlPulse 1s linear infinite" style="background: #2f6c9c; border: 2px solid #e8edf3;" />
+                    <Overlay id="overlay" z-index="12" ghost="true" draggable="true" accepts-drop="true" layer-effect="blur(4px)" />
                     <Spacer flex="1" />
                     <Divider orientation="vertical" thickness="2" color="#e8edf3" />
                 </RowLayout>
@@ -891,7 +913,7 @@ int main()
         assert(row->gap() == 12.0f);
         assert(row->gravity().horizontal == ouif::HorizontalGravity::Right);
         assert(row->gravity().vertical == ouif::VerticalGravity::Bottom);
-        assert(row->children().size() == 4);
+        assert(row->children().size() == 5);
         auto* caption = dynamic_cast<ouif::Label*>(row->children()[0]);
         assert(caption != nullptr);
         assert(caption->text() == "Hello Text");
@@ -903,8 +925,15 @@ int main()
         assert(std::fabs(row->children()[1]->get_border().width - 2.0f) < 0.01f);
         assert(row->get_transition().enabled);
         assert(row->children()[1]->get_animation().has_value());
-        assert(dynamic_cast<ouif::Spacer*>(row->children()[2]) != nullptr);
-        auto* divider = dynamic_cast<ouif::Divider*>(row->children()[3]);
+        auto* overlay = dynamic_cast<ouif::Overlay*>(row->children()[2]);
+        assert(overlay != nullptr);
+        assert(overlay->z_index() == 12);
+        assert(overlay->ghost());
+        assert(overlay->draggable());
+        assert(overlay->accepts_drop());
+        assert(overlay->stylesheet_layer_effects().size() == 1);
+        assert(dynamic_cast<ouif::Spacer*>(row->children()[3]) != nullptr);
+        auto* divider = dynamic_cast<ouif::Divider*>(row->children()[4]);
         assert(divider != nullptr);
         assert(divider->orientation() == ouif::Orientation::Vertical);
         assert(std::fabs(divider->thickness() - 2.0f) < 0.01f);

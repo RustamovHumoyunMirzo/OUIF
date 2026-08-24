@@ -15,5 +15,6 @@ Current widget/container docs:
 - [Spacer](spacer.md)
 - [Divider](divider.md)
 - [Label](label.md)
+- [Overlay](overlay.md)
 
 Future controls such as buttons, sliders, inputs, and lists should get their own page in this directory when they are added.

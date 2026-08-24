@@ -423,6 +423,9 @@ Visibility, input, focus, accessibility:
 
 - `set_visible(bool visible) noexcept -> void`
 - `visible() const noexcept -> bool`
+- `set_visibility(bool visible) noexcept -> void`
+- `visibility() const noexcept -> bool`
+- `get_visibility() const noexcept -> bool`
 - `set_enabled(bool enabled) noexcept -> void`
 - `enabled() const noexcept -> bool`
 - `get_enabled() const noexcept -> bool`
