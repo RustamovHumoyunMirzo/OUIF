@@ -88,4 +88,12 @@ private:
     bool has_text_color_ = false;
 };
 
+class OUIF_API Overlay : public Widget {
+public:
+    Overlay() noexcept;
+
+protected:
+    void on_layout(Rect content) override;
+};
+
 } // namespace ouif

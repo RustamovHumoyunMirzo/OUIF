@@ -636,15 +636,9 @@ std::string_view Application::default_font_family() const noexcept
 
 int Application::run()
 {
-    if (config_.native_window == nullptr && config_.create_window && !primary_window_.valid()) {
-        primary_window_ = create_native_window(config_.window, this);
-    }
-
-    initialize_renderer(primary_window_.valid() ? primary_window_.native_handle() : config_.native_window);
-
-    running_ = true;
-    while (running_ && (!primary_window_.valid() || !primary_window_.should_close())) {
-        glfwPollEvents();
+    start();
+    while (!should_close()) {
+        poll_events();
         windows_.erase(std::remove_if(windows_.begin(), windows_.end(), [](const auto& slot) {
             return slot->window.should_close();
         }), windows_.end());
@@ -653,6 +647,34 @@ int Application::run()
 
     renderer_.shutdown();
     return 0;
+}
+
+void Application::start()
+{
+    if (config_.native_window == nullptr && config_.create_window && !primary_window_.valid()) {
+        primary_window_ = create_native_window(config_.window, this);
+    }
+
+    initialize_renderer(primary_window_.valid() ? primary_window_.native_handle() : config_.native_window);
+    running_ = true;
+}
+
+void Application::poll_events()
+{
+    glfwPollEvents();
+    windows_.erase(std::remove_if(windows_.begin(), windows_.end(), [](const auto& slot) {
+        return slot->window.should_close();
+    }), windows_.end());
+}
+
+bool Application::should_close() const noexcept
+{
+    return !running_ || (primary_window_.valid() && primary_window_.should_close());
+}
+
+bool Application::running() const noexcept
+{
+    return running_;
 }
 
 void Application::frame()

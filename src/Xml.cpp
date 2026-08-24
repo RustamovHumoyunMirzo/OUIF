@@ -1,6 +1,7 @@
 #include <OUIF/Application.h>
 
 #include <OUIF/Layout.h>
+#include <OUIF/Resources.h>
 #include <OUIF/Widgets.h>
 
 #include <algorithm>
@@ -765,6 +766,30 @@ void Application::join_stylesheet_file(std::string_view path)
         throw std::runtime_error("Cannot join a stylesheet file before an application root exists");
     }
     root_->join_stylesheet(read_text_file(std::filesystem::path(std::string(path))));
+}
+
+void Application::load_stylesheet_resource(int id)
+{
+    if (root_ == nullptr) {
+        throw std::runtime_error("Cannot load a stylesheet resource before an application root exists");
+    }
+    const auto resource = Resources::load(id);
+    if (!resource) {
+        throw std::runtime_error("Stylesheet resource id was not registered");
+    }
+    root_->set_stylesheet(resource->as_string());
+}
+
+void Application::join_stylesheet_resource(int id)
+{
+    if (root_ == nullptr) {
+        throw std::runtime_error("Cannot join a stylesheet resource before an application root exists");
+    }
+    const auto resource = Resources::load(id);
+    if (!resource) {
+        throw std::runtime_error("Stylesheet resource id was not registered");
+    }
+    root_->join_stylesheet(resource->as_string());
 }
 
 } // namespace ouif

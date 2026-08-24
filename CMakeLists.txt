@@ -124,6 +124,7 @@ target_sources(
         src/Effect.cpp
         src/Layout.cpp
         src/Renderer.cpp
+        src/Resources.cpp
         src/Widget.cpp
         src/Widgets.cpp
         src/Xml.cpp
@@ -141,6 +142,7 @@ target_sources(
             include/OUIF/Geometry.h
             include/OUIF/Layout.h
             include/OUIF/Renderer.h
+            include/OUIF/Resources.h
             include/OUIF/Style.h
             include/OUIF/Widget.h
             include/OUIF/Window.h
@@ -149,6 +151,35 @@ target_sources(
 )
 
 target_compile_features(ouif PUBLIC cxx_std_20)
+
+function(ouif_add_file target id file_path)
+    if(NOT TARGET ${target})
+        message(FATAL_ERROR "ouif_add_file target '${target}' does not exist")
+    endif()
+    get_filename_component(OUIF_RESOURCE_PATH "${file_path}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+    if(NOT EXISTS "${OUIF_RESOURCE_PATH}")
+        message(FATAL_ERROR "ouif_add_file resource '${OUIF_RESOURCE_PATH}' does not exist")
+    endif()
+    file(READ "${OUIF_RESOURCE_PATH}" OUIF_RESOURCE_HEX HEX)
+    string(REGEX REPLACE "([0-9a-fA-F][0-9a-fA-F])" "0x\\1, " OUIF_RESOURCE_BYTES "${OUIF_RESOURCE_HEX}")
+    set(OUIF_RESOURCE_OUT "${CMAKE_CURRENT_BINARY_DIR}/ouif_resource_${target}_${id}.cpp")
+    file(GENERATE OUTPUT "${OUIF_RESOURCE_OUT}" CONTENT
+"#include <OUIF/Resources.h>
+#include <cstdint>
+
+namespace {
+const std::uint8_t resource_${id}[] = { ${OUIF_RESOURCE_BYTES} };
+struct ResourceRegister_${id} {
+    ResourceRegister_${id}() {
+        ouif::Resources::register_bytes(${id}, resource_${id}, sizeof(resource_${id}));
+    }
+};
+ResourceRegister_${id} register_resource_${id};
+}
+")
+    target_sources(${target} PRIVATE "${OUIF_RESOURCE_OUT}")
+endfunction()
+
 if(OUIF_BUILD_SHARED)
     target_compile_definitions(ouif PUBLIC OUIF_SHARED)
 endif()

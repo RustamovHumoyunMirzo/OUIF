@@ -425,6 +425,16 @@ Visibility, input, focus, accessibility:
 - `visible() const noexcept -> bool`
 - `set_enabled(bool enabled) noexcept -> void`
 - `enabled() const noexcept -> bool`
+- `get_enabled() const noexcept -> bool`
+- `set_ghost(bool ghost) noexcept -> void`
+- `ghost() const noexcept -> bool`
+- `get_ghost() const noexcept -> bool`
+- `set_z_index(int z_index) noexcept -> void`
+- `z_index() const noexcept -> int`
+- `get_z_index() const noexcept -> int`
+- `set_overlay(bool overlay) noexcept -> void`
+- `overlay() const noexcept -> bool`
+- `get_overlay() const noexcept -> bool`
 - `set_clip_content(bool clip) noexcept -> void`
 - `set_clip_content(InheritTag) noexcept -> void`
 - `clip_content() const noexcept -> bool`
@@ -433,6 +443,11 @@ Visibility, input, focus, accessibility:
 - `can_focus() const noexcept -> bool`
 - `set_keyboard_activation_enabled(bool enabled) noexcept -> void`
 - `keyboard_activation_enabled() const noexcept -> bool`
+- `set_draggable(bool draggable) noexcept -> void`
+- `draggable() const noexcept -> bool`
+- `set_accepts_drop(bool accepts) noexcept -> void`
+- `accepts_drop() const noexcept -> bool`
+- `dragging() const noexcept -> bool`
 - `set_accessibility_role(AccessibilityRole role) noexcept -> void`
 - `accessibility_role() const noexcept -> AccessibilityRole`
 - `set_accessibility_label(std::string label) -> void`
@@ -451,6 +466,7 @@ Children:
 - `template <typename T, typename... Args> add_child(Args&&... args) -> T&`
 - `template <typename... Widgets> children(Widgets&... widgets) -> Widget&`
 - `remove_child(Widget& child) noexcept -> bool`
+- `remove_from_parent() noexcept -> bool`
 - `clear_children() noexcept -> void`
 - `set_accepts_children(bool accepts) noexcept -> void`
 - `accepts_children() const noexcept -> bool`
@@ -490,6 +506,29 @@ Protected extension points:
 - `on_key_down(const KeyEvent& event) -> bool`
 - `on_key_up(const KeyEvent& event) -> bool`
 - `on_keyboard_activate(const KeyEvent& event) -> bool`
+- `on_drag_start(const DragEvent& event) -> bool`
+- `on_drag_move(const DragEvent& event) -> bool`
+- `on_drag_end(const DragEvent& event) -> bool`
+- `on_drop(const DragEvent& event) -> bool`
+
+## Resources
+
+### `ouif::ResourceData`
+
+- `const std::uint8_t* data`
+- `std::size_t size`
+- `empty() const noexcept -> bool`
+- `as_string() const -> std::string`
+
+### `ouif::Resources`
+
+- `static register_bytes(int id, const std::uint8_t* data, std::size_t size) -> void`
+- `static load(int id) -> std::optional<ResourceData>`
+- `static contains(int id) -> bool`
+
+CMake:
+
+- `ouif_add_file(target id file_path)`
 
 ## Layout Containers
 
@@ -528,6 +567,12 @@ Protected extension points:
 - `jump_to_scroll_offset(float offset) noexcept -> void`
 - `scroll_animating() const noexcept -> bool`
 - `event(const Event& event) -> bool`
+
+### `ouif::Overlay`
+
+- `Overlay() noexcept`
+
+Overlay widgets do not consume Row/Col/Scroll layout space. Use `z-index` or `set_z_index(...)` to layer multiple overlays.
 
 ### `ouif::RowScroll` / `ouif::ColScroll`
 
@@ -655,11 +700,17 @@ Builder methods return `ApplicationConfig&`:
 - `load_xml_string(std::string_view xml, std::string_view base_path = {}) -> Widget&`
 - `load_stylesheet_file(std::string_view path) -> void`
 - `join_stylesheet_file(std::string_view path) -> void`
+- `load_stylesheet_resource(int id) -> void`
+- `join_stylesheet_resource(int id) -> void`
 - `load_font(std::string family, std::filesystem::path path) -> bool`
 - `load_default_system_font() -> bool`
 - `set_default_font_family(std::string family) -> void`
 - `default_font_family() const noexcept -> std::string_view`
 - `run() -> int`
+- `start() -> void`
+- `poll_events() -> void`
+- `should_close() const noexcept -> bool`
+- `running() const noexcept -> bool`
 - `frame() -> void`
 - `dispatch_event(const Event& event) -> bool`
 - `request_exit() noexcept -> void`

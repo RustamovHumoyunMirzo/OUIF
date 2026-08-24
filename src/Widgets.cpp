@@ -251,4 +251,23 @@ void Label::draw(Renderer& renderer)
     renderer.draw_text(text_, bounds().inset(layout_rules().padding), style);
 }
 
+Overlay::Overlay() noexcept
+{
+    set_overlay(true);
+    set_layout_policy(SizePolicy::Fill, SizePolicy::Fill);
+}
+
+void Overlay::on_layout(Rect content)
+{
+    for (auto* child : mutable_children()) {
+        if (child != nullptr && child->visible()) {
+            if (child->bounds().width == 0.0f && child->bounds().height == 0.0f) {
+                child->set_bounds(content);
+            }
+            const auto bounds = child->bounds();
+            child->layout({ bounds.width, bounds.height });
+        }
+    }
+}
+
 } // namespace ouif

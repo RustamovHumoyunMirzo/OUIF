@@ -35,6 +35,13 @@ enum class MouseEventType : std::uint8_t {
     Click,
 };
 
+enum class DragEventType : std::uint8_t {
+    Start,
+    Move,
+    Drop,
+    End,
+};
+
 struct MouseMoveEvent {
     Point position;
     Point local_position;
@@ -74,6 +81,13 @@ struct ResizeEvent {
     Size size;
 };
 
-using Event = std::variant<MouseMoveEvent, MouseButtonEvent, MouseWheelEvent, MouseEvent, KeyEvent, ResizeEvent>;
+struct DragEvent {
+    DragEventType type = DragEventType::Move;
+    Point position;
+    Point start_position;
+    Point delta;
+};
+
+using Event = std::variant<MouseMoveEvent, MouseButtonEvent, MouseWheelEvent, MouseEvent, KeyEvent, ResizeEvent, DragEvent>;
 
 } // namespace ouif

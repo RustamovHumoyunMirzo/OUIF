@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <vector>
 
 namespace ouif {
 namespace {
@@ -131,8 +132,22 @@ LinearLayout::LinearLayout(Direction direction)
 
 void LinearLayout::on_layout(Rect content)
 {
-    auto& items = mutable_children();
+    std::vector<Widget*> items;
+    for (auto* child : mutable_children()) {
+        if (child != nullptr && child->visible() && !child->overlay()) {
+            items.push_back(child);
+        }
+    }
     if (items.empty()) {
+        for (auto* child : mutable_children()) {
+            if (child != nullptr && child->visible() && child->overlay()) {
+                if (child->bounds().width == 0.0f && child->bounds().height == 0.0f) {
+                    child->set_bounds(content);
+                }
+                const auto bounds = child->bounds();
+                child->layout({ std::min(bounds.width, content.width), std::min(bounds.height, content.height) });
+            }
+        }
         return;
     }
 
@@ -207,6 +222,16 @@ void LinearLayout::on_layout(Rect content)
         } else {
             child->set_bounds({ cross_start, cursor, width, height });
             cursor += height + margin_after + gap_;
+        }
+    }
+
+    for (auto* child : mutable_children()) {
+        if (child != nullptr && child->visible() && child->overlay()) {
+            if (child->bounds().width == 0.0f && child->bounds().height == 0.0f) {
+                child->set_bounds(content);
+            }
+            const auto bounds = child->bounds();
+            child->layout({ std::min(bounds.width, content.width), std::min(bounds.height, content.height) });
         }
     }
 }
@@ -314,7 +339,12 @@ bool ScrollLayout::event(const Event& event)
 
 void ScrollLayout::on_layout(Rect content)
 {
-    auto& items = mutable_children();
+    std::vector<Widget*> items;
+    for (auto* child : mutable_children()) {
+        if (child != nullptr && child->visible() && !child->overlay()) {
+            items.push_back(child);
+        }
+    }
     const bool row = scroll_direction_ == Direction::Row;
     const float available_main = row ? content.width : content.height;
     const float available_cross = row ? content.height : content.width;
@@ -382,6 +412,16 @@ void ScrollLayout::on_layout(Rect content)
         } else {
             child->set_bounds({ cross_start, cursor, cross, main });
             cursor += main + margin_after + gap();
+        }
+    }
+
+    for (auto* child : mutable_children()) {
+        if (child != nullptr && child->visible() && child->overlay()) {
+            if (child->bounds().width == 0.0f && child->bounds().height == 0.0f) {
+                child->set_bounds(content);
+            }
+            const auto bounds = child->bounds();
+            child->layout({ std::min(bounds.width, content.width), std::min(bounds.height, content.height) });
         }
     }
 }

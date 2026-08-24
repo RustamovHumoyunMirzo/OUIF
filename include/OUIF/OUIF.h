@@ -9,6 +9,7 @@
 #include <OUIF/Geometry.h>
 #include <OUIF/Layout.h>
 #include <OUIF/Renderer.h>
+#include <OUIF/Resources.h>
 #include <OUIF/Style.h>
 #include <OUIF/Widget.h>
 #include <OUIF/Window.h>

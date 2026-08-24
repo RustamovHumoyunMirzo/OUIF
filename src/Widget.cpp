@@ -23,6 +23,8 @@
 namespace ouif {
 
 Widget* Widget::focused_widget_ = nullptr;
+Widget* Widget::dragged_widget_ = nullptr;
+Point Widget::drag_start_ {};
 
 namespace {
 
@@ -1313,6 +1315,30 @@ void apply_declaration(
         return;
     }
 
+    if (property == "z-index" || property == "z_index") {
+        if (auto value = pixels_from_value(*first)) {
+            widget.set_z_index(static_cast<int>(*value));
+        }
+        return;
+    }
+
+    if (property == "enabled" || property == "visible" || property == "visibility" || property == "ghost" || property == "overlay") {
+        const auto text = (first->unit == KATANA_VALUE_IDENT || first->unit == KATANA_VALUE_STRING || first->unit == KATANA_VALUE_PARSER_IDENTIFIER)
+            ? lower_copy(text_or_empty(first->string))
+            : std::string {};
+        const bool value = !(text == "false" || text == "0" || text == "no" || text == "off" || text == "hidden" || text == "none");
+        if (property == "enabled") {
+            widget.set_enabled(value);
+        } else if (property == "visible" || property == "visibility") {
+            widget.set_visible(value);
+        } else if (property == "ghost") {
+            widget.set_ghost(value);
+        } else {
+            widget.set_overlay(value);
+        }
+        return;
+    }
+
     if (property == "margin" || property == "padding") {
         float parts[4] {};
         unsigned int count = 0;
@@ -1695,12 +1721,54 @@ bool rounded_rect_contains(Rect rect, CornerRadius radius, Point point) noexcept
     return true;
 }
 
+std::vector<Widget*> children_by_z(const std::vector<Widget*>& children, bool front_to_back)
+{
+    std::vector<Widget*> sorted;
+    sorted.reserve(children.size());
+    for (auto* child : children) {
+        if (child != nullptr && child->visible()) {
+            sorted.push_back(child);
+        }
+    }
+    std::stable_sort(sorted.begin(), sorted.end(), [front_to_back](const Widget* left, const Widget* right) {
+        return front_to_back ? left->z_index() > right->z_index() : left->z_index() < right->z_index();
+    });
+    return sorted;
+}
+
+Point inverse_transform_point(Rect bounds, Transform transform, Point point) noexcept
+{
+    if (transform.rotation_degrees == 0.0f && transform.scale_x == 1.0f && transform.scale_y == 1.0f
+        && transform.translate_x == 0.0f && transform.translate_y == 0.0f) {
+        return point;
+    }
+
+    constexpr float pi = 3.14159265358979323846f;
+    const Point origin {
+        bounds.x + bounds.width * transform.origin_x,
+        bounds.y + bounds.height * transform.origin_y,
+    };
+    float x = point.x - transform.translate_x - origin.x;
+    float y = point.y - transform.translate_y - origin.y;
+    const float radians = -transform.rotation_degrees * pi / 180.0f;
+    const float cosine = std::cos(radians);
+    const float sine = std::sin(radians);
+    const float rotated_x = x * cosine - y * sine;
+    const float rotated_y = x * sine + y * cosine;
+    x = transform.scale_x == 0.0f ? rotated_x : rotated_x / transform.scale_x;
+    y = transform.scale_y == 0.0f ? rotated_y : rotated_y / transform.scale_y;
+    return { x + origin.x, y + origin.y };
+}
+
 } // namespace
 
 Widget::~Widget()
 {
     if (focused_widget_ == this) {
         focused_widget_ = nullptr;
+    }
+    if (dragged_widget_ == this) {
+        dragged_widget_ = nullptr;
     }
 
     detach_from_parent();
@@ -2611,6 +2679,21 @@ bool Widget::visible() const noexcept
     return visible_;
 }
 
+void Widget::set_visibility(bool visible) noexcept
+{
+    set_visible(visible);
+}
+
+bool Widget::visibility() const noexcept
+{
+    return visible();
+}
+
+bool Widget::get_visibility() const noexcept
+{
+    return visible();
+}
+
 void Widget::set_enabled(bool enabled) noexcept
 {
     enabled_ = enabled;
@@ -2622,6 +2705,60 @@ void Widget::set_enabled(bool enabled) noexcept
 bool Widget::enabled() const noexcept
 {
     return enabled_;
+}
+
+bool Widget::get_enabled() const noexcept
+{
+    return enabled();
+}
+
+void Widget::set_ghost(bool ghost) noexcept
+{
+    ghost_ = ghost;
+    if (ghost_) {
+        hovered_ = false;
+        pressed_ = false;
+    }
+}
+
+bool Widget::ghost() const noexcept
+{
+    return ghost_;
+}
+
+bool Widget::get_ghost() const noexcept
+{
+    return ghost();
+}
+
+void Widget::set_z_index(int z_index) noexcept
+{
+    z_index_ = z_index;
+}
+
+int Widget::z_index() const noexcept
+{
+    return z_index_;
+}
+
+int Widget::get_z_index() const noexcept
+{
+    return z_index();
+}
+
+void Widget::set_overlay(bool overlay) noexcept
+{
+    overlay_ = overlay;
+}
+
+bool Widget::overlay() const noexcept
+{
+    return overlay_;
+}
+
+bool Widget::get_overlay() const noexcept
+{
+    return overlay();
 }
 
 void Widget::set_clip_content(bool clip) noexcept
@@ -2670,6 +2807,35 @@ void Widget::set_keyboard_activation_enabled(bool enabled) noexcept
 bool Widget::keyboard_activation_enabled() const noexcept
 {
     return keyboard_activation_enabled_;
+}
+
+void Widget::set_draggable(bool draggable) noexcept
+{
+    draggable_ = draggable;
+    if (!draggable_ && dragged_widget_ == this) {
+        dragged_widget_ = nullptr;
+        dragging_ = false;
+    }
+}
+
+bool Widget::draggable() const noexcept
+{
+    return draggable_;
+}
+
+void Widget::set_accepts_drop(bool accepts) noexcept
+{
+    accepts_drop_ = accepts;
+}
+
+bool Widget::accepts_drop() const noexcept
+{
+    return accepts_drop_;
+}
+
+bool Widget::dragging() const noexcept
+{
+    return dragging_;
 }
 
 void Widget::set_accessibility_role(AccessibilityRole role) noexcept
@@ -2816,6 +2982,15 @@ bool Widget::remove_child(Widget& child) noexcept
     return detach_child(child, true);
 }
 
+bool Widget::remove_from_parent() noexcept
+{
+    if (parent_ == nullptr) {
+        return false;
+    }
+    auto* parent = parent_;
+    return parent->detach_child(*this, true);
+}
+
 void Widget::clear_children() noexcept
 {
     for (auto* child : children_) {
@@ -2930,7 +3105,10 @@ void Widget::blur() noexcept
 
 bool Widget::hit_test(Point point) const noexcept
 {
-    return visible_ && enabled_ && rounded_rect_contains(bounds_, style_.radius, point);
+    if (!visible_ || ghost_) {
+        return false;
+    }
+    return rounded_rect_contains(bounds_, style_.radius, inverse_transform_point(bounds_, transform_, point));
 }
 
 void Widget::layout(Size available)
@@ -3003,7 +3181,7 @@ void Widget::render(Renderer& renderer)
     if (clip_content_) {
         renderer.push_clip(bounds_);
     }
-    for (auto* child : children_) {
+    for (auto* child : children_by_z(children_, false)) {
         child->render(renderer);
     }
     if (clip_content_) {
@@ -3030,8 +3208,12 @@ void Widget::render(Renderer& renderer)
 
 bool Widget::event(const Event& event)
 {
-    if (!visible_ || !enabled_) {
+    if (!visible_) {
         return false;
+    }
+
+    if (!enabled_) {
+        return ghost_ ? false : false;
     }
 
     if (const auto* key = std::get_if<KeyEvent>(&event)) {
@@ -3053,9 +3235,13 @@ bool Widget::event(const Event& event)
         }
     }
 
-    for (auto it = children_.rbegin(); it != children_.rend(); ++it) {
-        if ((*it)->event(event)) {
+    const auto ordered_children = children_by_z(children_, true);
+    for (auto* child : ordered_children) {
+        if (child->event(event)) {
             return true;
+        }
+        if ((mouse.has_value() || wheel != nullptr) && !child->ghost() && child->hit_test(mouse.has_value() ? mouse->position : wheel->position)) {
+            return false;
         }
     }
 
@@ -3063,8 +3249,22 @@ bool Widget::event(const Event& event)
         return on_event(event);
     }
 
+    if (ghost_) {
+        clear_mouse_state(mouse->position);
+        return false;
+    }
+
     const bool inside = hit_test(mouse->position);
     if (mouse->type == MouseEventType::Move) {
+        if (dragged_widget_ == this && dragging_) {
+            const DragEvent drag {
+                DragEventType::Move,
+                mouse->position,
+                drag_start_,
+                { mouse->position.x - drag_start_.x, mouse->position.y - drag_start_.y },
+            };
+            (void)on_drag_move(drag);
+        }
         if (inside && !hovered_) {
             hovered_ = true;
             MouseEvent enter = *mouse;
@@ -3090,12 +3290,39 @@ bool Widget::event(const Event& event)
         if (inside && can_focus()) {
             focus();
         }
+        if (inside && draggable_ && mouse->button == MouseButton::Left) {
+            dragged_widget_ = this;
+            dragging_ = true;
+            drag_start_ = mouse->position;
+            const DragEvent drag { DragEventType::Start, mouse->position, drag_start_, {} };
+            (void)on_drag_start(drag);
+        }
         return inside && on_mouse_down(*mouse);
     }
 
     if (mouse->type == MouseEventType::Up) {
         const bool clicked = pressed_ && inside;
         pressed_ = false;
+        if (dragged_widget_ != nullptr && accepts_drop_ && inside && dragged_widget_ != this) {
+            const DragEvent drop {
+                DragEventType::Drop,
+                mouse->position,
+                drag_start_,
+                { mouse->position.x - drag_start_.x, mouse->position.y - drag_start_.y },
+            };
+            (void)on_drop(drop);
+        }
+        if (dragged_widget_ == this) {
+            const DragEvent drag {
+                DragEventType::End,
+                mouse->position,
+                drag_start_,
+                { mouse->position.x - drag_start_.x, mouse->position.y - drag_start_.y },
+            };
+            dragging_ = false;
+            dragged_widget_ = nullptr;
+            (void)on_drag_end(drag);
+        }
         const bool handled = on_mouse_up(*mouse);
         if (clicked) {
             MouseEvent click = *mouse;
@@ -3209,6 +3436,30 @@ bool Widget::on_keyboard_activate(const KeyEvent& event)
         { bounds_.width * 0.5f, bounds_.height * 0.5f },
         MouseButton::Left,
     });
+}
+
+bool Widget::on_drag_start(const DragEvent& event)
+{
+    (void)event;
+    return false;
+}
+
+bool Widget::on_drag_move(const DragEvent& event)
+{
+    (void)event;
+    return false;
+}
+
+bool Widget::on_drag_end(const DragEvent& event)
+{
+    (void)event;
+    return false;
+}
+
+bool Widget::on_drop(const DragEvent& event)
+{
+    (void)event;
+    return false;
 }
 
 void Widget::detach_from_parent() noexcept

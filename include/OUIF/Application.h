@@ -142,12 +142,18 @@ public:
     Widget& load_xml_string(std::string_view xml, std::string_view base_path = {});
     void load_stylesheet_file(std::string_view path);
     void join_stylesheet_file(std::string_view path);
+    void load_stylesheet_resource(int id);
+    void join_stylesheet_resource(int id);
     bool load_font(std::string family, std::filesystem::path path);
     bool load_default_system_font();
     void set_default_font_family(std::string family);
     [[nodiscard]] std::string_view default_font_family() const noexcept;
 
     int run();
+    void start();
+    void poll_events();
+    [[nodiscard]] bool should_close() const noexcept;
+    [[nodiscard]] bool running() const noexcept;
     void frame();
     bool dispatch_event(const Event& event);
     void request_exit() noexcept;

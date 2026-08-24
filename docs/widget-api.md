@@ -230,6 +230,16 @@ The same value works in CSS and XML inline style:
 
 OUIF resolves inheritance against the nearest parent only. Because a widget can have one parent at a time, inherited values stay deterministic across reparenting and stylesheet reapplies.
 
+Layering and hit testing follow web-style ordering:
+
+```cpp
+modal.set_z_index(100);
+backdrop.set_ghost(true);
+item.set_visibility(false);
+```
+
+Higher `z-index` widgets render above lower ones and receive pointer events first. Disabled widgets are visual-only and block hits below them; ghost widgets are visible but allow hits to pass through. Invisible widgets do not render, hit test, or consume layout space.
+
 Custom widgets can add their own stylesheet features without forking the parser:
 
 ```cpp
@@ -290,6 +300,34 @@ ouif::Widget::register_effect("glow",
 ```
 
 `Renderer` exposes primitives for rectangles, rounded borders, text, clipping, transforms, and custom shader programs. Effects can call `load_shader_program(...)`, `fill_rect_with_program(...)`, and `destroy_shader_program(...)` when they need shader-backed drawing.
+
+## Drag And Drop
+
+Dragging is opt-in:
+
+```cpp
+tile.set_draggable(true);
+drop_zone.set_accepts_drop(true);
+```
+
+Custom widgets override `on_drag_start(...)`, `on_drag_move(...)`, `on_drag_end(...)`, and `on_drop(...)`. OUIF sends the event data; visuals remain the widget author's choice.
+
+## Resources
+
+Embed files with CMake:
+
+```cmake
+ouif_add_file(my_app 1001 styles/panel.css)
+```
+
+Load them at runtime:
+
+```cpp
+auto css = ouif::Resources::load(1001);
+app.join_stylesheet_resource(1001);
+```
+
+This keeps file-backed APIs open while allowing single-executable apps.
 
 Directional borders follow web-style naming and can be mixed:
 

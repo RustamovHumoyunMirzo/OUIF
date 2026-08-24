@@ -228,9 +228,22 @@ public:
 
     void set_visible(bool visible) noexcept;
     [[nodiscard]] bool visible() const noexcept;
+    void set_visibility(bool visible) noexcept;
+    [[nodiscard]] bool visibility() const noexcept;
+    [[nodiscard]] bool get_visibility() const noexcept;
 
     void set_enabled(bool enabled) noexcept;
     [[nodiscard]] bool enabled() const noexcept;
+    [[nodiscard]] bool get_enabled() const noexcept;
+    void set_ghost(bool ghost) noexcept;
+    [[nodiscard]] bool ghost() const noexcept;
+    [[nodiscard]] bool get_ghost() const noexcept;
+    void set_z_index(int z_index) noexcept;
+    [[nodiscard]] int z_index() const noexcept;
+    [[nodiscard]] int get_z_index() const noexcept;
+    void set_overlay(bool overlay) noexcept;
+    [[nodiscard]] bool overlay() const noexcept;
+    [[nodiscard]] bool get_overlay() const noexcept;
 
     void set_clip_content(bool clip) noexcept;
     void set_clip_content(InheritTag) noexcept;
@@ -241,6 +254,11 @@ public:
     [[nodiscard]] bool can_focus() const noexcept;
     void set_keyboard_activation_enabled(bool enabled) noexcept;
     [[nodiscard]] bool keyboard_activation_enabled() const noexcept;
+    void set_draggable(bool draggable) noexcept;
+    [[nodiscard]] bool draggable() const noexcept;
+    void set_accepts_drop(bool accepts) noexcept;
+    [[nodiscard]] bool accepts_drop() const noexcept;
+    [[nodiscard]] bool dragging() const noexcept;
 
     void set_accessibility_role(AccessibilityRole role) noexcept;
     [[nodiscard]] AccessibilityRole accessibility_role() const noexcept;
@@ -257,6 +275,7 @@ public:
     Widget& add_child(Widget* child);
     Widget& add_child(std::unique_ptr<Widget> child);
     bool remove_child(Widget& child) noexcept;
+    bool remove_from_parent() noexcept;
     void clear_children() noexcept;
     void set_accepts_children(bool accepts) noexcept;
     [[nodiscard]] bool accepts_children() const noexcept;
@@ -319,6 +338,10 @@ protected:
     virtual bool on_key_down(const KeyEvent& event);
     virtual bool on_key_up(const KeyEvent& event);
     virtual bool on_keyboard_activate(const KeyEvent& event);
+    virtual bool on_drag_start(const DragEvent& event);
+    virtual bool on_drag_move(const DragEvent& event);
+    virtual bool on_drag_end(const DragEvent& event);
+    virtual bool on_drop(const DragEvent& event);
 
 private:
     void detach_from_parent() noexcept;
@@ -373,16 +396,24 @@ private:
     float animation_elapsed_ = 0.0f;
     bool visible_ = true;
     bool enabled_ = true;
+    bool ghost_ = false;
+    bool overlay_ = false;
+    int z_index_ = 0;
     bool clip_content_ = true;
     bool accepts_children_ = true;
     bool focusable_ = false;
     bool keyboard_activation_enabled_ = false;
+    bool draggable_ = false;
+    bool accepts_drop_ = false;
+    bool dragging_ = false;
     bool hovered_ = false;
     bool pressed_ = false;
     bool selected_ = false;
     bool focused_ = false;
 
     static Widget* focused_widget_;
+    static Widget* dragged_widget_;
+    static Point drag_start_;
 };
 
 } // namespace ouif

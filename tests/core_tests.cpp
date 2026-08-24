@@ -50,6 +50,44 @@ public:
     float value_ = 0.0f;
 };
 
+class DragSource : public ouif::Widget {
+public:
+    int starts = 0;
+    int moves = 0;
+    int ends = 0;
+
+protected:
+    bool on_drag_start(const ouif::DragEvent&) override
+    {
+        ++starts;
+        return true;
+    }
+
+    bool on_drag_move(const ouif::DragEvent&) override
+    {
+        ++moves;
+        return true;
+    }
+
+    bool on_drag_end(const ouif::DragEvent&) override
+    {
+        ++ends;
+        return true;
+    }
+};
+
+class DropTarget : public ouif::Widget {
+public:
+    int drops = 0;
+
+protected:
+    bool on_drop(const ouif::DragEvent&) override
+    {
+        ++drops;
+        return true;
+    }
+};
+
 } // namespace
 
 int main()
@@ -244,6 +282,23 @@ int main()
 
         divider.set_color("#e8edf3");
         assert(divider.color().r > 0.8f);
+    }
+
+    {
+        ouif::RowLayout row;
+        row.set_bounds({ 0.0f, 0.0f, 300.0f, 80.0f });
+        auto& left = row.add_child<ouif::Widget>();
+        auto& overlay = row.add_child<ouif::Overlay>();
+        auto& right = row.add_child<ouif::Widget>();
+        left.set_size({ 100.0f, 40.0f });
+        right.set_size({ 100.0f, 40.0f });
+        overlay.set_bounds({ 10.0f, 10.0f, 40.0f, 40.0f });
+        overlay.set_z_index(20);
+        row.layout({ 300.0f, 80.0f });
+
+        assert(std::fabs(right.bounds().x - 100.0f) < 0.01f);
+        assert(std::fabs(overlay.bounds().x - 10.0f) < 0.01f);
+        assert(overlay.overlay());
     }
 
     {
@@ -463,6 +518,14 @@ int main()
     }
 
     {
+        ouif::Widget widget;
+        widget.set_bounds({ 100.0f, 100.0f, 100.0f, 100.0f });
+        widget.set_rotation(45.0f);
+        assert(widget.hit_test({ 150.0f, 150.0f }));
+        assert(!widget.hit_test({ 100.0f, 100.0f }));
+    }
+
+    {
         ouif::Widget root;
         root.set_bounds({ 0.0f, 0.0f, 200.0f, 120.0f });
         auto& child = root.add_child<HoverTracker>();
@@ -483,6 +546,29 @@ int main()
         root.event(ouif::MouseMoveEvent { { 220.0f, 40.0f }, {} });
         assert(!child.hovered());
         assert(child.leaves == 2);
+    }
+
+    {
+        ouif::Widget root;
+        root.set_bounds({ 0.0f, 0.0f, 200.0f, 100.0f });
+        auto& bottom = root.add_child<HoverTracker>();
+        auto& top = root.add_child<ouif::Widget>();
+        bottom.set_bounds({ 20.0f, 20.0f, 80.0f, 60.0f });
+        top.set_bounds({ 20.0f, 20.0f, 80.0f, 60.0f });
+        top.set_z_index(10);
+        top.set_enabled(false);
+
+        assert(!root.event(ouif::MouseMoveEvent { { 40.0f, 40.0f }, {} }));
+        assert(!bottom.hovered());
+
+        top.set_ghost(true);
+        assert(!root.event(ouif::MouseMoveEvent { { 40.0f, 40.0f }, {} }));
+        assert(bottom.hovered());
+
+        bottom.set_visible(false);
+        root.layout({ 200.0f, 100.0f });
+        assert(!bottom.visible());
+        assert(!bottom.hit_test({ 40.0f, 40.0f }));
     }
 
     {
@@ -702,6 +788,34 @@ int main()
         assert(widget.stylesheet_layer_effects().size() == 1);
         assert(widget.stylesheet_backdrop_effects().size() == 1);
         assert(ouif::Widget::unregister_effect("counting"));
+    }
+
+    {
+        DragSource source;
+        source.set_bounds({ 0.0f, 0.0f, 80.0f, 80.0f });
+        source.set_draggable(true);
+        assert(source.draggable());
+        assert(source.event(ouif::MouseButtonEvent { { 10.0f, 10.0f }, {}, ouif::MouseButton::Left, true }));
+        assert(source.dragging());
+        assert(source.starts == 1);
+        source.event(ouif::MouseMoveEvent { { 30.0f, 30.0f }, {} });
+        assert(source.moves == 1);
+        assert(source.event(ouif::MouseButtonEvent { { 30.0f, 30.0f }, {}, ouif::MouseButton::Left, false }));
+        assert(!source.dragging());
+        assert(source.ends == 1);
+
+        DropTarget target;
+        target.set_accepts_drop(true);
+        assert(target.accepts_drop());
+    }
+
+    {
+        static const std::uint8_t css[] = ".resource { background: #ffffff; }";
+        ouif::Resources::register_bytes(9101, css, sizeof(css) - 1U);
+        const auto loaded = ouif::Resources::load(9101);
+        assert(loaded.has_value());
+        assert(loaded->as_string().find(".resource") != std::string::npos);
+        assert(ouif::Resources::contains(9101));
     }
 
     {
