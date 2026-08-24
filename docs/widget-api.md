@@ -299,7 +299,9 @@ ouif::Widget::register_effect("glow",
     });
 ```
 
-`Renderer` exposes primitives for rectangles, rounded borders, text, clipping, transforms, and custom shader programs. Effects can call `load_shader_program(...)`, `fill_rect_with_program(...)`, and `destroy_shader_program(...)` when they need shader-backed drawing.
+The built-in `blur(...)` effect samples the renderer's scene texture, so it blurs real content behind the widget instead of drawing a fake glow. The blur output follows the widget's current border radius.
+
+`Renderer` exposes primitives for rectangles, rounded borders, text, clipping, transforms, backdrop blur, and custom shader programs. Effects can call `draw_backdrop_blur(...)`, `load_shader_program(...)`, `fill_rect_with_program(...)`, and `destroy_shader_program(...)` when they need shader-backed drawing.
 
 ## Drag And Drop
 

@@ -383,6 +383,30 @@ void destroy_font_atlases(FontFace& face) noexcept
     face.atlases.clear();
 }
 
+void destroy_handle(bgfx::ProgramHandle& handle) noexcept
+{
+    if (bgfx::isValid(handle)) {
+        bgfx::destroy(handle);
+        handle = BGFX_INVALID_HANDLE;
+    }
+}
+
+void destroy_handle(bgfx::UniformHandle& handle) noexcept
+{
+    if (bgfx::isValid(handle)) {
+        bgfx::destroy(handle);
+        handle = BGFX_INVALID_HANDLE;
+    }
+}
+
+void destroy_handle(bgfx::FrameBufferHandle& handle) noexcept
+{
+    if (bgfx::isValid(handle)) {
+        bgfx::destroy(handle);
+        handle = BGFX_INVALID_HANDLE;
+    }
+}
+
 const char* shader_backend_directory()
 {
     switch (bgfx::getRendererType()) {
@@ -542,9 +566,17 @@ struct Renderer::Impl {
 #if OUIF_WITH_BGFX
     bgfx::ProgramHandle rect_program = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle text_program = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle texture_program = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle blur_program = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle font_sampler = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle source_sampler = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle blur_uniform = BGFX_INVALID_HANDLE;
+    bgfx::FrameBufferHandle scene_framebuffer = BGFX_INVALID_HANDLE;
+    bgfx::TextureHandle scene_texture = BGFX_INVALID_HANDLE;
     std::unordered_map<std::string, FontFace> fonts;
 #endif
+    std::uint8_t draw_view = 0;
+    bool scene_capture_enabled = false;
     std::string default_font_family = "OUIF Sans";
 };
 
@@ -565,6 +597,20 @@ template <typename Impl>
 PosColorTexVertex transformed_text_vertex_from_point(const Impl& impl, Point point, std::uint32_t abgr, float u, float v)
 {
     return text_vertex_from_point(apply_matrix(current_transform(impl), point), impl.width, impl.height, abgr, u, v);
+}
+
+template <typename Impl>
+PosColorTexVertex transformed_texture_vertex_from_point(const Impl& impl, Point point, std::uint32_t abgr)
+{
+    const Point transformed = apply_matrix(current_transform(impl), point);
+    return text_vertex_from_point(
+        transformed,
+        impl.width,
+        impl.height,
+        abgr,
+        std::clamp(point.x / static_cast<float>(impl.width), 0.0f, 1.0f),
+        std::clamp(point.y / static_cast<float>(impl.height), 0.0f, 1.0f)
+    );
 }
 
 template <typename Impl>
@@ -691,6 +737,117 @@ FontAtlas* ensure_atlas(Impl& impl, FontFace& face, float font_size)
     (void)inserted;
     return &iterator->second;
 }
+
+template <typename Impl>
+void destroy_scene_targets(Impl& impl) noexcept
+{
+    impl.scene_texture = BGFX_INVALID_HANDLE;
+    destroy_handle(impl.scene_framebuffer);
+}
+
+template <typename Impl>
+void ensure_scene_targets(Impl& impl)
+{
+    if (bgfx::isValid(impl.scene_framebuffer)) {
+        return;
+    }
+
+    const std::uint64_t flags = BGFX_TEXTURE_RT | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
+    bgfx::TextureHandle texture = bgfx::createTexture2D(
+        static_cast<std::uint16_t>(std::max<std::uint32_t>(1U, impl.width)),
+        static_cast<std::uint16_t>(std::max<std::uint32_t>(1U, impl.height)),
+        false,
+        1,
+        bgfx::TextureFormat::RGBA8,
+        flags
+    );
+    if (!bgfx::isValid(texture)) {
+        return;
+    }
+
+    impl.scene_framebuffer = bgfx::createFrameBuffer(1, &texture, true);
+    if (!bgfx::isValid(impl.scene_framebuffer)) {
+        if (bgfx::isValid(texture)) {
+            bgfx::destroy(texture);
+        }
+        impl.scene_texture = BGFX_INVALID_HANDLE;
+        return;
+    }
+    impl.scene_texture = bgfx::getTexture(impl.scene_framebuffer);
+}
+
+template <typename Impl>
+void submit_textured_rect(Impl& impl, Rect rect, CornerRadius radius, Color color, bgfx::ProgramHandle program, std::uint8_t view_id)
+{
+    if (!bgfx::isValid(program) || !bgfx::isValid(impl.scene_texture) || rect.width <= 0.0f || rect.height <= 0.0f) {
+        return;
+    }
+
+    const auto abgr = pack_abgr(color);
+    const bool rounded = radius.top_left > 0.0f || radius.top_right > 0.0f || radius.bottom_right > 0.0f || radius.bottom_left > 0.0f;
+    if (!rounded) {
+        if (bgfx::getAvailTransientVertexBuffer(4, PosColorTexVertex::layout) < 4 || bgfx::getAvailTransientIndexBuffer(6) < 6) {
+            return;
+        }
+
+        bgfx::TransientVertexBuffer vertices;
+        bgfx::TransientIndexBuffer indices;
+        bgfx::allocTransientVertexBuffer(&vertices, 4, PosColorTexVertex::layout);
+        bgfx::allocTransientIndexBuffer(&indices, 6);
+
+        auto* vertex_data = reinterpret_cast<PosColorTexVertex*>(vertices.data);
+        vertex_data[0] = transformed_texture_vertex_from_point(impl, { rect.x, rect.y }, abgr);
+        vertex_data[1] = transformed_texture_vertex_from_point(impl, { rect.x + rect.width, rect.y }, abgr);
+        vertex_data[2] = transformed_texture_vertex_from_point(impl, { rect.x + rect.width, rect.y + rect.height }, abgr);
+        vertex_data[3] = transformed_texture_vertex_from_point(impl, { rect.x, rect.y + rect.height }, abgr);
+
+        auto* index_data = reinterpret_cast<std::uint16_t*>(indices.data);
+        const std::array<std::uint16_t, 6> quad_indices { 0, 1, 2, 0, 2, 3 };
+        std::copy(quad_indices.begin(), quad_indices.end(), index_data);
+
+        bgfx::setVertexBuffer(0, &vertices);
+        bgfx::setIndexBuffer(&indices);
+        bgfx::setTexture(0, impl.source_sampler, impl.scene_texture);
+        bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
+        apply_scissor(impl);
+        bgfx::submit(view_id, program);
+        return;
+    }
+
+    const auto points = rounded_rect_points(rect, radius, impl.quality.curve_segments);
+    const std::uint32_t vertex_count = static_cast<std::uint32_t>(points.size() + 1U);
+    const std::uint32_t index_count = static_cast<std::uint32_t>(points.size() * 3U);
+    if (vertex_count > bgfx::getAvailTransientVertexBuffer(vertex_count, PosColorTexVertex::layout)
+        || index_count > bgfx::getAvailTransientIndexBuffer(index_count)) {
+        return;
+    }
+
+    bgfx::TransientVertexBuffer vertices;
+    bgfx::TransientIndexBuffer indices;
+    bgfx::allocTransientVertexBuffer(&vertices, vertex_count, PosColorTexVertex::layout);
+    bgfx::allocTransientIndexBuffer(&indices, index_count);
+
+    auto* vertex_data = reinterpret_cast<PosColorTexVertex*>(vertices.data);
+    vertex_data[0] = transformed_texture_vertex_from_point(impl, { rect.x + rect.width * 0.5f, rect.y + rect.height * 0.5f }, abgr);
+    for (std::size_t index = 0; index < points.size(); ++index) {
+        vertex_data[index + 1U] = transformed_texture_vertex_from_point(impl, points[index], abgr);
+    }
+
+    auto* index_data = reinterpret_cast<std::uint16_t*>(indices.data);
+    for (std::uint16_t index = 0; index < static_cast<std::uint16_t>(points.size()); ++index) {
+        const std::uint16_t next = static_cast<std::uint16_t>((index + 1U) % points.size());
+        index_data[index * 3U + 0U] = 0;
+        index_data[index * 3U + 1U] = static_cast<std::uint16_t>(index + 1U);
+        index_data[index * 3U + 2U] = static_cast<std::uint16_t>(next + 1U);
+    }
+
+    bgfx::setVertexBuffer(0, &vertices);
+    bgfx::setIndexBuffer(&indices);
+    bgfx::setTexture(0, impl.source_sampler, impl.scene_texture);
+    bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
+    apply_scissor(impl);
+    bgfx::submit(view_id, program);
+}
 #endif
 
 Renderer::Renderer()
@@ -783,7 +940,38 @@ void Renderer::initialize(const RendererConfig& config)
                 bgfx::destroy(text_fragment);
             }
         }
+
+        const auto texture_vertex = load_shader(shader_root / backend / "vs_ouif_text.bin");
+        const auto texture_fragment = load_shader(shader_root / backend / "fs_ouif_texture.bin");
+        if (bgfx::isValid(texture_vertex) && bgfx::isValid(texture_fragment)) {
+            impl_->texture_program = bgfx::createProgram(texture_vertex, texture_fragment, true);
+        } else {
+            if (bgfx::isValid(texture_vertex)) {
+                bgfx::destroy(texture_vertex);
+            }
+            if (bgfx::isValid(texture_fragment)) {
+                bgfx::destroy(texture_fragment);
+            }
+        }
+
+        const auto blur_vertex = load_shader(shader_root / backend / "vs_ouif_text.bin");
+        const auto blur_fragment = load_shader(shader_root / backend / "fs_ouif_blur.bin");
+        if (bgfx::isValid(blur_vertex) && bgfx::isValid(blur_fragment)) {
+            impl_->blur_program = bgfx::createProgram(blur_vertex, blur_fragment, true);
+            impl_->blur_uniform = bgfx::createUniform("u_blur", bgfx::UniformType::Vec4);
+        } else {
+            if (bgfx::isValid(blur_vertex)) {
+                bgfx::destroy(blur_vertex);
+            }
+            if (bgfx::isValid(blur_fragment)) {
+                bgfx::destroy(blur_fragment);
+            }
+        }
+        if ((bgfx::isValid(impl_->texture_program) || bgfx::isValid(impl_->blur_program)) && !bgfx::isValid(impl_->source_sampler)) {
+            impl_->source_sampler = bgfx::createUniform("s_source", bgfx::UniformType::Sampler);
+        }
     }
+    ensure_scene_targets(*impl_);
 #endif
 
     impl_->initialized = true;
@@ -804,18 +992,14 @@ void Renderer::shutdown() noexcept
     for (auto& [_, face] : impl_->fonts) {
         destroy_font_atlases(face);
     }
-    if (bgfx::isValid(impl_->font_sampler)) {
-        bgfx::destroy(impl_->font_sampler);
-        impl_->font_sampler = BGFX_INVALID_HANDLE;
-    }
-    if (bgfx::isValid(impl_->text_program)) {
-        bgfx::destroy(impl_->text_program);
-        impl_->text_program = BGFX_INVALID_HANDLE;
-    }
-    if (bgfx::isValid(impl_->rect_program)) {
-        bgfx::destroy(impl_->rect_program);
-        impl_->rect_program = BGFX_INVALID_HANDLE;
-    }
+    destroy_scene_targets(*impl_);
+    destroy_handle(impl_->blur_uniform);
+    destroy_handle(impl_->source_sampler);
+    destroy_handle(impl_->font_sampler);
+    destroy_handle(impl_->blur_program);
+    destroy_handle(impl_->texture_program);
+    destroy_handle(impl_->text_program);
+    destroy_handle(impl_->rect_program);
     bgfx::shutdown();
 #endif
 
@@ -831,8 +1015,9 @@ void Renderer::resize(std::uint32_t width, std::uint32_t height)
 
 #if OUIF_WITH_BGFX
     if (impl_->initialized) {
+        destroy_scene_targets(*impl_);
         bgfx::reset(width, height, impl_->reset_flags);
-        bgfx::setViewRect(0, 0, 0, width, height);
+        ensure_scene_targets(*impl_);
     }
 #endif
 }
@@ -848,8 +1033,29 @@ void Renderer::begin_frame(Color clear_color)
     const auto a = static_cast<std::uint32_t>(clear_color.a * 255.0f) & 0xffU;
     const auto rgba = (r << 24U) | (g << 16U) | (b << 8U) | a;
 
+    ensure_scene_targets(*impl_);
+    impl_->draw_view = 0;
+    impl_->scene_capture_enabled = bgfx::isValid(impl_->scene_framebuffer)
+        && bgfx::isValid(impl_->scene_texture)
+        && bgfx::isValid(impl_->texture_program)
+        && bgfx::isValid(impl_->source_sampler);
+
+    if (impl_->scene_capture_enabled) {
+        bgfx::setViewFrameBuffer(0, impl_->scene_framebuffer);
+    } else {
+        bgfx::setViewFrameBuffer(0, BGFX_INVALID_HANDLE);
+    }
+    bgfx::setViewFrameBuffer(1, BGFX_INVALID_HANDLE);
+    bgfx::setViewFrameBuffer(2, BGFX_INVALID_HANDLE);
+    bgfx::setViewRect(0, 0, 0, impl_->width, impl_->height);
+    bgfx::setViewRect(1, 0, 0, impl_->width, impl_->height);
+    bgfx::setViewRect(2, 0, 0, impl_->width, impl_->height);
+    bgfx::setViewRect(3, 0, 0, impl_->width, impl_->height);
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, rgba, 1.0f, 0);
     bgfx::touch(0);
+    if (impl_->scene_capture_enabled) {
+        submit_textured_rect(*impl_, { 0.0f, 0.0f, static_cast<float>(impl_->width), static_cast<float>(impl_->height) }, {}, Color::rgba(255, 255, 255, 255), impl_->texture_program, 1);
+    }
 #else
     (void)clear_color;
 #endif
@@ -929,7 +1135,7 @@ void Renderer::fill_rect(Rect rect, Color color)
     bgfx::setIndexBuffer(&indices);
     bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
     apply_scissor(*impl_);
-    bgfx::submit(0, impl_->rect_program);
+    bgfx::submit(impl_->draw_view, impl_->rect_program);
 #else
     (void)rect;
     (void)color;
@@ -986,7 +1192,7 @@ void Renderer::fill_rounded_rect(Rect rect, CornerRadius radius, Color color)
     bgfx::setIndexBuffer(&indices);
     bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
     apply_scissor(*impl_);
-    bgfx::submit(0, impl_->rect_program);
+    bgfx::submit(impl_->draw_view, impl_->rect_program);
 #else
     (void)radius;
     fill_rect(rect, color);
@@ -1180,7 +1386,7 @@ void Renderer::stroke_rounded_rect(Rect rect, CornerRadius radius, BorderEdges b
     bgfx::setIndexBuffer(&indices);
     bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
     apply_scissor(*impl_);
-    bgfx::submit(0, impl_->rect_program);
+    bgfx::submit(impl_->draw_view, impl_->rect_program);
 #else
     (void)radius;
     if (borders.top.width > 0.0f) {
@@ -1298,11 +1504,37 @@ void Renderer::fill_rect_with_program(Rect rect, Color color, ShaderProgram prog
     bgfx::setIndexBuffer(&indices);
     bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
     apply_scissor(*impl_);
-    bgfx::submit(0, handle);
+    bgfx::submit(impl_->draw_view, handle);
 #else
     (void)rect;
     (void)color;
     (void)program;
+#endif
+}
+
+void Renderer::draw_backdrop_blur(Rect rect, CornerRadius radius, float radius_px, Color tint)
+{
+#if OUIF_WITH_BGFX
+    if (!bgfx::isValid(impl_->blur_program) || !bgfx::isValid(impl_->blur_uniform) || !bgfx::isValid(impl_->source_sampler)
+        || !impl_->scene_capture_enabled || !bgfx::isValid(impl_->scene_texture) || rect.width <= 0.0f || rect.height <= 0.0f || radius_px <= 0.0f) {
+        return;
+    }
+
+    const float clamped_radius = std::clamp(radius_px, 0.0f, 64.0f);
+    const float uniform[4] {
+        1.0f / static_cast<float>(std::max<std::uint32_t>(1U, impl_->width)),
+        1.0f / static_cast<float>(std::max<std::uint32_t>(1U, impl_->height)),
+        clamped_radius,
+        0.0f,
+    };
+    bgfx::setUniform(impl_->blur_uniform, uniform);
+    submit_textured_rect(*impl_, rect, radius, tint, impl_->blur_program, 2);
+    impl_->draw_view = 3;
+#else
+    (void)rect;
+    (void)radius;
+    (void)radius_px;
+    (void)tint;
 #endif
 }
 
@@ -1517,7 +1749,7 @@ void Renderer::draw_text(std::string_view text, Rect rect, const TextStyle& styl
                         bgfx::setTexture(0, impl_->font_sampler, atlas->texture);
                         bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
                         apply_scissor(*impl_);
-                        bgfx::submit(0, impl_->text_program);
+                        bgfx::submit(impl_->draw_view, impl_->text_program);
                     }
 
                     y += line_height;

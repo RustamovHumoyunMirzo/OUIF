@@ -253,33 +253,45 @@ if(TARGET bgfx AND TARGET shaderc)
         ouif_compile_shader(fs_ouif_rect fragment windows s_5_0 dx11)
         ouif_compile_shader(vs_ouif_text vertex windows s_5_0 dx11)
         ouif_compile_shader(fs_ouif_text fragment windows s_5_0 dx11)
+        ouif_compile_shader(fs_ouif_texture fragment windows s_5_0 dx11)
+        ouif_compile_shader(fs_ouif_blur fragment windows s_5_0 dx11)
         set(OUIF_SHADER_BINARIES
             "${OUIF_SHADER_OUTPUT_DIR}/dx11/vs_ouif_rect.bin"
             "${OUIF_SHADER_OUTPUT_DIR}/dx11/fs_ouif_rect.bin"
             "${OUIF_SHADER_OUTPUT_DIR}/dx11/vs_ouif_text.bin"
             "${OUIF_SHADER_OUTPUT_DIR}/dx11/fs_ouif_text.bin"
+            "${OUIF_SHADER_OUTPUT_DIR}/dx11/fs_ouif_texture.bin"
+            "${OUIF_SHADER_OUTPUT_DIR}/dx11/fs_ouif_blur.bin"
         )
     elseif(APPLE)
         ouif_compile_shader(vs_ouif_rect vertex osx metal metal)
         ouif_compile_shader(fs_ouif_rect fragment osx metal metal)
         ouif_compile_shader(vs_ouif_text vertex osx metal metal)
         ouif_compile_shader(fs_ouif_text fragment osx metal metal)
+        ouif_compile_shader(fs_ouif_texture fragment osx metal metal)
+        ouif_compile_shader(fs_ouif_blur fragment osx metal metal)
         set(OUIF_SHADER_BINARIES
             "${OUIF_SHADER_OUTPUT_DIR}/metal/vs_ouif_rect.bin"
             "${OUIF_SHADER_OUTPUT_DIR}/metal/fs_ouif_rect.bin"
             "${OUIF_SHADER_OUTPUT_DIR}/metal/vs_ouif_text.bin"
             "${OUIF_SHADER_OUTPUT_DIR}/metal/fs_ouif_text.bin"
+            "${OUIF_SHADER_OUTPUT_DIR}/metal/fs_ouif_texture.bin"
+            "${OUIF_SHADER_OUTPUT_DIR}/metal/fs_ouif_blur.bin"
         )
     else()
         ouif_compile_shader(vs_ouif_rect vertex linux 140 glsl)
         ouif_compile_shader(fs_ouif_rect fragment linux 140 glsl)
         ouif_compile_shader(vs_ouif_text vertex linux 140 glsl)
         ouif_compile_shader(fs_ouif_text fragment linux 140 glsl)
+        ouif_compile_shader(fs_ouif_texture fragment linux 140 glsl)
+        ouif_compile_shader(fs_ouif_blur fragment linux 140 glsl)
         set(OUIF_SHADER_BINARIES
             "${OUIF_SHADER_OUTPUT_DIR}/glsl/vs_ouif_rect.bin"
             "${OUIF_SHADER_OUTPUT_DIR}/glsl/fs_ouif_rect.bin"
             "${OUIF_SHADER_OUTPUT_DIR}/glsl/vs_ouif_text.bin"
             "${OUIF_SHADER_OUTPUT_DIR}/glsl/fs_ouif_text.bin"
+            "${OUIF_SHADER_OUTPUT_DIR}/glsl/fs_ouif_texture.bin"
+            "${OUIF_SHADER_OUTPUT_DIR}/glsl/fs_ouif_blur.bin"
         )
     endif()
 

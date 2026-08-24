@@ -131,6 +131,7 @@ public:
     [[nodiscard]] ShaderProgram load_shader_program(std::filesystem::path vertex_shader, std::filesystem::path fragment_shader);
     void destroy_shader_program(ShaderProgram program) noexcept;
     void fill_rect_with_program(Rect rect, Color color, ShaderProgram program);
+    void draw_backdrop_blur(Rect rect, CornerRadius radius, float radius_px, Color tint);
     bool load_default_system_font();
     void set_default_font_family(std::string family);
     [[nodiscard]] std::string_view default_font_family() const noexcept;

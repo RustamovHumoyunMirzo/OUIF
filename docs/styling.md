@@ -176,7 +176,9 @@ ouif::Widget::register_effect("glow",
     });
 ```
 
-Custom effects inherit `ouif::Effect` and can override `expand_bounds(...)`, `pre_draw(...)`, and `post_draw(...)`. Use `Renderer` primitives or load shader binaries with `Renderer::load_shader_program(...)` when an effect needs low-level drawing.
+The bgfx renderer implements `blur(...)` as a shader-backed backdrop blur. OUIF captures the current scene to an internal render target, samples it through the blur shader inside the widget's rounded shape, then draws the widget content sharply above it. If the required shader assets are not available, the blur effect becomes a no-op instead of crashing.
+
+Custom effects inherit `ouif::Effect` and can override `expand_bounds(...)`, `pre_draw(...)`, and `post_draw(...)`. Use `Renderer` primitives, `draw_backdrop_blur(...)`, or load shader binaries with `Renderer::load_shader_program(...)` when an effect needs low-level drawing.
 
 ## Directional Borders
 

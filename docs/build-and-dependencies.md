@@ -103,6 +103,9 @@ The renderer currently supports:
 - filled rectangles
 - stroked rectangles
 - rounded rectangles and rounded borders
+- text through font atlases
+- clipping and transforms
+- internal render targets for shader-backed backdrop blur
 - internally compiled shaders
 
-Text, images, clipping, paths, and batching improvements are future work.
+Images, paths, and batching improvements are future work.
