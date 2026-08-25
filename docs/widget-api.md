@@ -97,6 +97,8 @@ Transitions and animations are defined in `OUIF/Animation.h`, included by `OUIF/
 
 Text drawing is a renderer feature. Use `Renderer::draw_text(...)` inside custom `draw()` methods, or use `ouif::Label` when you want a ready-made leaf widget.
 
+Image drawing is also a renderer feature. Use `Renderer::load_image(...)` and `Renderer::draw_image(...)` inside custom `draw()` methods, or use `ouif::Image` when you want a ready-made leaf widget.
+
 Styles support a fluent builder API:
 
 ```cpp
@@ -502,6 +504,14 @@ Use `Spacer` for empty layout space and `Divider` for separator lines:
 ```cpp
 row.add_child<ouif::Spacer>(1.0f);
 column.add_child<ouif::Divider>(ouif::Orientation::Horizontal, 1.0f);
+```
+
+Use `Image` for renderer-backed image content:
+
+```cpp
+auto& preview = row.add_child<ouif::Image>("assets/photo.png");
+preview.set_fit(ouif::ImageFit::Cover);
+preview.set_filter(ouif::ImageFilter::Linear);
 ```
 
 ```cpp

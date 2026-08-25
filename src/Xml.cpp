@@ -264,6 +264,29 @@ Orientation parse_orientation(std::string_view value)
     return Orientation::Horizontal;
 }
 
+ImageFit parse_image_fit(std::string_view value)
+{
+    const auto lower = lower_copy(trim_copy(value));
+    if (lower == "stretch" || lower == "fill") {
+        return ImageFit::Stretch;
+    }
+    if (lower == "cover") {
+        return ImageFit::Cover;
+    }
+    if (lower == "center" || lower == "none") {
+        return ImageFit::Center;
+    }
+    return ImageFit::Contain;
+}
+
+ImageFilter parse_image_filter(std::string_view value)
+{
+    const auto lower = lower_copy(trim_copy(value));
+    return lower == "nearest" || lower == "pixelated" || lower == "crisp-edges"
+        ? ImageFilter::Nearest
+        : ImageFilter::Linear;
+}
+
 std::string read_text_file(const std::filesystem::path& path)
 {
     std::ifstream file(path, std::ios::binary);
@@ -348,13 +371,16 @@ std::unique_ptr<Widget> make_builtin_widget(std::string_view tag)
     if (tag_is(tag, "Label") || tag_is(tag, "Text")) {
         return std::make_unique<Label>();
     }
+    if (tag_is(tag, "Image") || tag_is(tag, "Img")) {
+        return std::make_unique<Image>();
+    }
     if (tag_is(tag, "Overlay")) {
         return std::make_unique<Overlay>();
     }
     return nullptr;
 }
 
-void apply_common_attributes(Widget& widget, const XmlElement& element, std::string& inline_css, std::size_t& inline_counter)
+void apply_common_attributes(Widget& widget, const XmlElement& element, const std::filesystem::path& base_path, std::string& inline_css, std::size_t& inline_counter)
 {
     widget.set_type_name(std::string(element.name()));
 
@@ -490,6 +516,40 @@ void apply_common_attributes(Widget& widget, const XmlElement& element, std::str
         }
     }
 
+    if (auto* image = dynamic_cast<Image*>(&widget)) {
+        if (element.has_attribute("src")) {
+            image->set_source(resolve_path(base_path, element.attribute("src")));
+        } else if (element.has_attribute("source")) {
+            image->set_source(resolve_path(base_path, element.attribute("source")));
+        }
+        if (auto resource = element.attribute_float("resource")) {
+            image->set_resource(static_cast<int>(*resource));
+        } else if (auto resource = element.attribute_float("resource-id")) {
+            image->set_resource(static_cast<int>(*resource));
+        } else if (auto resource = element.attribute_float("resource_id")) {
+            image->set_resource(static_cast<int>(*resource));
+        }
+        if (element.has_attribute("fit")) {
+            image->set_fit(parse_image_fit(element.attribute("fit")));
+        } else if (element.has_attribute("image-fit")) {
+            image->set_fit(parse_image_fit(element.attribute("image-fit")));
+        } else if (element.has_attribute("object-fit")) {
+            image->set_fit(parse_image_fit(element.attribute("object-fit")));
+        }
+        if (element.has_attribute("filter")) {
+            image->set_filter(parse_image_filter(element.attribute("filter")));
+        } else if (element.has_attribute("image-filter")) {
+            image->set_filter(parse_image_filter(element.attribute("image-filter")));
+        } else if (element.has_attribute("image-rendering")) {
+            image->set_filter(parse_image_filter(element.attribute("image-rendering")));
+        }
+        if (auto tint = element.attribute_color("tint")) {
+            image->set_tint(*tint);
+        } else if (auto tint = element.attribute_color("image-tint")) {
+            image->set_tint(*tint);
+        }
+    }
+
     if (auto visible = element.attribute_bool("visible")) {
         widget.set_visible(*visible);
     }
@@ -598,6 +658,7 @@ void apply_common_attributes(Widget& widget, const XmlElement& element, std::str
 std::unique_ptr<Widget> build_widget(
     Application& app,
     const pugi::xml_node& node,
+    const std::filesystem::path& base_path,
     std::string& inline_css,
     std::size_t& inline_counter
 )
@@ -616,7 +677,7 @@ std::unique_ptr<Widget> build_widget(
         }
     }
 
-    apply_common_attributes(*widget, element, inline_css, inline_counter);
+    apply_common_attributes(*widget, element, base_path, inline_css, inline_counter);
     if (auto* label = dynamic_cast<Label*>(widget.get()); label != nullptr && label->text().empty()) {
         const auto text = trim_copy(node.child_value());
         if (!text.empty()) {
@@ -631,7 +692,7 @@ std::unique_ptr<Widget> build_widget(
         if (tag_is(child.name(), "Stylesheet") || tag_is(child.name(), "Style")) {
             continue;
         }
-        widget->add_child(build_widget(app, child, inline_css, inline_counter));
+        widget->add_child(build_widget(app, child, base_path, inline_css, inline_counter));
     }
 
     return widget;
@@ -677,7 +738,7 @@ Widget& load_xml_document(Application& app, pugi::xml_document& document, const 
         throw std::runtime_error("XML UI does not contain a root widget");
     }
 
-    auto root = build_widget(app, root_node, inline_css, inline_counter);
+    auto root = build_widget(app, root_node, base_path, inline_css, inline_counter);
     if (!inline_css.empty()) {
         stylesheet += inline_css;
     }

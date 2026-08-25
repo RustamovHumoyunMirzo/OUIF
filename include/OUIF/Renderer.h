@@ -45,6 +45,24 @@ struct ShaderProgram {
     [[nodiscard]] constexpr bool valid() const noexcept { return id != 0xffffU; }
 };
 
+struct ImageHandle {
+    std::uint16_t id = 0xffffU;
+
+    [[nodiscard]] constexpr bool valid() const noexcept { return id != 0xffffU; }
+};
+
+enum class ImageFit : std::uint8_t {
+    Stretch,
+    Contain,
+    Cover,
+    Center,
+};
+
+enum class ImageFilter : std::uint8_t {
+    Linear,
+    Nearest,
+};
+
 enum class TextAlign : std::uint8_t {
     Start,
     Center,
@@ -132,6 +150,11 @@ public:
     void destroy_shader_program(ShaderProgram program) noexcept;
     void fill_rect_with_program(Rect rect, Color color, ShaderProgram program);
     void draw_backdrop_blur(Rect rect, CornerRadius radius, float radius_px, Color tint);
+    [[nodiscard]] ImageHandle load_image(std::filesystem::path path);
+    [[nodiscard]] ImageHandle load_image(const std::uint8_t* data, std::size_t size);
+    void destroy_image(ImageHandle image) noexcept;
+    [[nodiscard]] Size image_size(ImageHandle image) const noexcept;
+    void draw_image(ImageHandle image, Rect rect, ImageFit fit = ImageFit::Contain, ImageFilter filter = ImageFilter::Linear, Color tint = Color::rgba(255, 255, 255, 255));
     bool load_default_system_font();
     void set_default_font_family(std::string family);
     [[nodiscard]] std::string_view default_font_family() const noexcept;

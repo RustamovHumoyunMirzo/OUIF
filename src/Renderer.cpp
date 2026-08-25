@@ -16,7 +16,10 @@
 #include <vector>
 
 #if OUIF_WITH_BGFX
+#include <bimg/bimg.h>
+#include <bimg/decode.h>
 #include <bgfx/bgfx.h>
+#include <bx/allocator.h>
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>
@@ -69,6 +72,11 @@ struct FontFace {
     stbtt_fontinfo info {};
     bool valid = false;
     std::unordered_map<int, FontAtlas> atlases;
+};
+
+struct RendererImage {
+    bgfx::TextureHandle texture = BGFX_INVALID_HANDLE;
+    Size size {};
 };
 
 struct Mat3 {
@@ -407,6 +415,14 @@ void destroy_handle(bgfx::FrameBufferHandle& handle) noexcept
     }
 }
 
+void destroy_handle(bgfx::TextureHandle& handle) noexcept
+{
+    if (bgfx::isValid(handle)) {
+        bgfx::destroy(handle);
+        handle = BGFX_INVALID_HANDLE;
+    }
+}
+
 const char* shader_backend_directory()
 {
     switch (bgfx::getRendererType()) {
@@ -573,6 +589,8 @@ struct Renderer::Impl {
     bgfx::UniformHandle blur_uniform = BGFX_INVALID_HANDLE;
     bgfx::FrameBufferHandle scene_framebuffer = BGFX_INVALID_HANDLE;
     bgfx::TextureHandle scene_texture = BGFX_INVALID_HANDLE;
+    std::unordered_map<std::uint16_t, RendererImage> images;
+    std::uint16_t next_image_id = 1U;
     std::unordered_map<std::string, FontFace> fonts;
 #endif
     std::uint8_t draw_view = 0;
@@ -611,6 +629,12 @@ PosColorTexVertex transformed_texture_vertex_from_point(const Impl& impl, Point 
         std::clamp(point.x / static_cast<float>(impl.width), 0.0f, 1.0f),
         std::clamp(point.y / static_cast<float>(impl.height), 0.0f, 1.0f)
     );
+}
+
+template <typename Impl>
+PosColorTexVertex transformed_texture_vertex_from_point(const Impl& impl, Point point, std::uint32_t abgr, float u, float v)
+{
+    return text_vertex_from_point(apply_matrix(current_transform(impl), point), impl.width, impl.height, abgr, u, v);
 }
 
 template <typename Impl>
@@ -848,6 +872,46 @@ void submit_textured_rect(Impl& impl, Rect rect, CornerRadius radius, Color colo
     apply_scissor(impl);
     bgfx::submit(view_id, program);
 }
+
+template <typename Impl>
+void submit_image_rect(Impl& impl, bgfx::TextureHandle texture, Rect rect, Color color, float u0, float v0, float u1, float v1, ImageFilter filter)
+{
+    if (!bgfx::isValid(impl.texture_program) || !bgfx::isValid(impl.source_sampler) || !bgfx::isValid(texture)
+        || rect.width <= 0.0f || rect.height <= 0.0f || color.a <= 0.0f) {
+        return;
+    }
+    if (bgfx::getAvailTransientVertexBuffer(4, PosColorTexVertex::layout) < 4 || bgfx::getAvailTransientIndexBuffer(6) < 6) {
+        return;
+    }
+
+    bgfx::TransientVertexBuffer vertices;
+    bgfx::TransientIndexBuffer indices;
+    bgfx::allocTransientVertexBuffer(&vertices, 4, PosColorTexVertex::layout);
+    bgfx::allocTransientIndexBuffer(&indices, 6);
+
+    const auto abgr = pack_abgr(color);
+    auto* vertex_data = reinterpret_cast<PosColorTexVertex*>(vertices.data);
+    vertex_data[0] = transformed_texture_vertex_from_point(impl, { rect.x, rect.y }, abgr, u0, v0);
+    vertex_data[1] = transformed_texture_vertex_from_point(impl, { rect.x + rect.width, rect.y }, abgr, u1, v0);
+    vertex_data[2] = transformed_texture_vertex_from_point(impl, { rect.x + rect.width, rect.y + rect.height }, abgr, u1, v1);
+    vertex_data[3] = transformed_texture_vertex_from_point(impl, { rect.x, rect.y + rect.height }, abgr, u0, v1);
+
+    auto* index_data = reinterpret_cast<std::uint16_t*>(indices.data);
+    const std::array<std::uint16_t, 6> quad_indices { 0, 1, 2, 0, 2, 3 };
+    std::copy(quad_indices.begin(), quad_indices.end(), index_data);
+
+    std::uint32_t sampler_flags = BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
+    if (filter == ImageFilter::Nearest) {
+        sampler_flags |= BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT | BGFX_SAMPLER_MIP_POINT;
+    }
+
+    bgfx::setVertexBuffer(0, &vertices);
+    bgfx::setIndexBuffer(&indices);
+    bgfx::setTexture(0, impl.source_sampler, texture, sampler_flags);
+    bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
+    apply_scissor(impl);
+    bgfx::submit(impl.draw_view, impl.texture_program);
+}
 #endif
 
 Renderer::Renderer()
@@ -992,6 +1056,10 @@ void Renderer::shutdown() noexcept
     for (auto& [_, face] : impl_->fonts) {
         destroy_font_atlases(face);
     }
+    for (auto& [_, image] : impl_->images) {
+        destroy_handle(image.texture);
+    }
+    impl_->images.clear();
     destroy_scene_targets(*impl_);
     destroy_handle(impl_->blur_uniform);
     destroy_handle(impl_->source_sampler);
@@ -1534,6 +1602,167 @@ void Renderer::draw_backdrop_blur(Rect rect, CornerRadius radius, float radius_p
     (void)rect;
     (void)radius;
     (void)radius_px;
+    (void)tint;
+#endif
+}
+
+ImageHandle Renderer::load_image(std::filesystem::path path)
+{
+#if OUIF_WITH_BGFX
+    auto data = read_file(path);
+    if (data.empty()) {
+        return {};
+    }
+    return load_image(reinterpret_cast<const std::uint8_t*>(data.data()), data.size());
+#else
+    (void)path;
+    return {};
+#endif
+}
+
+ImageHandle Renderer::load_image(const std::uint8_t* data, std::size_t size)
+{
+#if OUIF_WITH_BGFX
+    if (data == nullptr || size == 0U || !bgfx::isValid(impl_->texture_program) || !bgfx::isValid(impl_->source_sampler)) {
+        return {};
+    }
+
+    bx::DefaultAllocator allocator;
+    bimg::ImageContainer* parsed = bimg::imageParse(
+        &allocator,
+        data,
+        static_cast<std::uint32_t>(std::min<std::size_t>(size, std::numeric_limits<std::uint32_t>::max())),
+        bimg::TextureFormat::RGBA8
+    );
+    if (parsed == nullptr || parsed->m_width == 0U || parsed->m_height == 0U) {
+        if (parsed != nullptr) {
+            bimg::imageFree(parsed);
+        }
+        return {};
+    }
+
+    bimg::ImageMip mip {};
+    if (!bimg::imageGetRawData(*parsed, 0, 0, parsed->m_data, parsed->m_size, mip) || mip.m_data == nullptr || mip.m_size == 0U) {
+        bimg::imageFree(parsed);
+        return {};
+    }
+
+    const auto width = static_cast<std::uint16_t>(std::min<std::uint32_t>(mip.m_width, std::numeric_limits<std::uint16_t>::max()));
+    const auto height = static_cast<std::uint16_t>(std::min<std::uint32_t>(mip.m_height, std::numeric_limits<std::uint16_t>::max()));
+    const bgfx::Memory* memory = bgfx::copy(mip.m_data, mip.m_size);
+    auto texture = bgfx::createTexture2D(
+        width,
+        height,
+        false,
+        1,
+        bgfx::TextureFormat::RGBA8,
+        BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP,
+        memory
+    );
+
+    const Size natural_size { static_cast<float>(width), static_cast<float>(height) };
+    bimg::imageFree(parsed);
+    if (!bgfx::isValid(texture)) {
+        return {};
+    }
+
+    std::uint16_t id = impl_->next_image_id;
+    for (std::uint32_t attempts = 0; attempts < std::numeric_limits<std::uint16_t>::max(); ++attempts) {
+        if (id == 0xffffU || id == 0U) {
+            id = 1U;
+        }
+        if (!impl_->images.contains(id)) {
+            impl_->next_image_id = static_cast<std::uint16_t>(id + 1U);
+            impl_->images.emplace(id, RendererImage { texture, natural_size });
+            return ImageHandle { id };
+        }
+        ++id;
+    }
+
+    bgfx::destroy(texture);
+    return {};
+#else
+    (void)data;
+    (void)size;
+    return {};
+#endif
+}
+
+void Renderer::destroy_image(ImageHandle image) noexcept
+{
+#if OUIF_WITH_BGFX
+    if (!image.valid()) {
+        return;
+    }
+    const auto found = impl_->images.find(image.id);
+    if (found == impl_->images.end()) {
+        return;
+    }
+    destroy_handle(found->second.texture);
+    impl_->images.erase(found);
+#else
+    (void)image;
+#endif
+}
+
+Size Renderer::image_size(ImageHandle image) const noexcept
+{
+#if OUIF_WITH_BGFX
+    const auto found = impl_->images.find(image.id);
+    return found != impl_->images.end() ? found->second.size : Size {};
+#else
+    (void)image;
+    return {};
+#endif
+}
+
+void Renderer::draw_image(ImageHandle image, Rect rect, ImageFit fit, ImageFilter filter, Color tint)
+{
+#if OUIF_WITH_BGFX
+    const auto found = impl_->images.find(image.id);
+    if (found == impl_->images.end() || rect.width <= 0.0f || rect.height <= 0.0f) {
+        return;
+    }
+
+    const auto natural = found->second.size;
+    if (natural.width <= 0.0f || natural.height <= 0.0f) {
+        return;
+    }
+
+    Rect draw_rect = rect;
+    float u0 = 0.0f;
+    float v0 = 0.0f;
+    float u1 = 1.0f;
+    float v1 = 1.0f;
+
+    const float image_aspect = natural.width / natural.height;
+    const float rect_aspect = rect.width / rect.height;
+    if (fit == ImageFit::Contain || fit == ImageFit::Center) {
+        const float scale = fit == ImageFit::Center ? 1.0f : std::min(rect.width / natural.width, rect.height / natural.height);
+        draw_rect.width = natural.width * scale;
+        draw_rect.height = natural.height * scale;
+        draw_rect.x = rect.x + (rect.width - draw_rect.width) * 0.5f;
+        draw_rect.y = rect.y + (rect.height - draw_rect.height) * 0.5f;
+    } else if (fit == ImageFit::Cover) {
+        if (image_aspect > rect_aspect) {
+            const float visible_u = rect_aspect / image_aspect;
+            u0 = (1.0f - visible_u) * 0.5f;
+            u1 = u0 + visible_u;
+        } else if (image_aspect < rect_aspect) {
+            const float visible_v = image_aspect / rect_aspect;
+            v0 = (1.0f - visible_v) * 0.5f;
+            v1 = v0 + visible_v;
+        }
+    }
+
+    push_clip(rect);
+    submit_image_rect(*impl_, found->second.texture, draw_rect, tint, u0, v0, u1, v1, filter);
+    pop_clip();
+#else
+    (void)image;
+    (void)rect;
+    (void)fit;
+    (void)filter;
     (void)tint;
 #endif
 }

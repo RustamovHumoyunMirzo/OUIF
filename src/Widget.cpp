@@ -804,6 +804,21 @@ bool apply_inherited_css_property(
         }
     }
 
+    if (auto* image = dynamic_cast<Image*>(&widget)) {
+        if (property == "image-fit" || property == "object-fit") {
+            image->set_fit(inherit);
+            return true;
+        }
+        if (property == "image-filter" || property == "image-rendering") {
+            image->set_filter(inherit);
+            return true;
+        }
+        if (property == "image-tint" || property == "tint") {
+            image->set_tint(inherit);
+            return true;
+        }
+    }
+
     return false;
 }
 
@@ -1262,6 +1277,51 @@ void apply_declaration(
         if (property == "text-overflow") {
             if (auto overflow = ident_from_value(*first)) {
                 label->set_text_overflow(equals_ignore_case(*overflow, "wrap") ? TextOverflow::Wrap : TextOverflow::Clip);
+            }
+            return;
+        }
+    }
+
+    if (auto* image = dynamic_cast<Image*>(&widget)) {
+        if (property == "image-source" || property == "source" || property == "src") {
+            if (auto source = ident_from_value(*first)) {
+                image->set_source(std::move(*source));
+            } else if (first->string != nullptr) {
+                image->set_source(std::string(text_or_empty(first->string)));
+            }
+            return;
+        }
+        if (property == "image-resource" || property == "resource") {
+            if (auto id = pixels_from_value(*first)) {
+                image->set_resource(static_cast<int>(*id));
+            }
+            return;
+        }
+        if (property == "image-fit" || property == "object-fit") {
+            if (auto fit = ident_from_value(*first)) {
+                const auto lower = lower_copy(*fit);
+                if (lower == "stretch" || lower == "fill") {
+                    image->set_fit(ImageFit::Stretch);
+                } else if (lower == "cover") {
+                    image->set_fit(ImageFit::Cover);
+                } else if (lower == "center" || lower == "none") {
+                    image->set_fit(ImageFit::Center);
+                } else {
+                    image->set_fit(ImageFit::Contain);
+                }
+            }
+            return;
+        }
+        if (property == "image-filter" || property == "image-rendering") {
+            if (auto filter = ident_from_value(*first)) {
+                const auto lower = lower_copy(*filter);
+                image->set_filter(lower == "nearest" || lower == "pixelated" || lower == "crisp-edges" ? ImageFilter::Nearest : ImageFilter::Linear);
+            }
+            return;
+        }
+        if (property == "image-tint" || property == "tint") {
+            if (auto color = color_from_value(*first)) {
+                image->set_tint(*color);
             }
             return;
         }

@@ -305,10 +305,12 @@ int main()
         ouif::Spacer spacer;
         ouif::Divider divider;
         ouif::Label label("Hello");
+        ouif::Image image("assets/logo.png");
         ouif::Widget child;
         assert(!spacer.accepts_children());
         assert(!divider.accepts_children());
         assert(!label.accepts_children());
+        assert(!image.accepts_children());
         assert(label.text() == "Hello");
         label.set_font_size(18.0f);
         label.set_text_color("#e8edf3");
@@ -326,6 +328,17 @@ int main()
         assert(label.get_transform().scale_x == 1.5f);
         assert(label.get_transform().rotation_degrees == 12.0f);
         assert(label.get_transform().origin_y == 0.75f);
+        assert(image.source().string().find("logo") != std::string::npos);
+        image.set_fit(ouif::ImageFit::Cover);
+        image.set_filter(ouif::ImageFilter::Nearest);
+        image.set_tint("#e8edf3");
+        assert(image.fit() == ouif::ImageFit::Cover);
+        assert(image.filter() == ouif::ImageFilter::Nearest);
+        assert(image.tint().r > 0.8f);
+        image.set_resource(9102);
+        assert(image.resource().has_value());
+        image.clear_resource();
+        assert(!image.resource().has_value());
 
         bool spacer_threw = false;
         try {
@@ -350,6 +363,14 @@ int main()
             label_threw = true;
         }
         assert(label_threw);
+
+        bool image_threw = false;
+        try {
+            image.add_child<ouif::Widget>();
+        } catch (const std::invalid_argument&) {
+            image_threw = true;
+        }
+        assert(image_threw);
 
         ouif::Widget container;
         container.add_child<ouif::Widget>();
@@ -666,6 +687,42 @@ int main()
     }
 
     {
+        ouif::Image image;
+        image.add_class("preview");
+        image.set_stylesheet(R"css(
+            .preview {
+                image-source: "assets/photo.png";
+                image-fit: cover;
+                image-filter: pixelated;
+                image-tint: #e8edf3;
+            }
+        )css");
+
+        assert(image.source().string().find("photo") != std::string::npos);
+        assert(image.fit() == ouif::ImageFit::Cover);
+        assert(image.filter() == ouif::ImageFilter::Nearest);
+        assert(image.tint().r > 0.8f);
+    }
+
+    {
+        ouif::Image parent;
+        ouif::Image child;
+        parent.set_accepts_children(true);
+        parent.set_fit(ouif::ImageFit::Cover);
+        parent.set_filter(ouif::ImageFilter::Nearest);
+        parent.set_tint("#e8edf3");
+        parent.add_child(child);
+
+        child.set_fit(ouif::inherit);
+        child.set_filter(ouif::inherit);
+        child.set_tint(ouif::inherit);
+
+        assert(child.fit() == ouif::ImageFit::Cover);
+        assert(child.filter() == ouif::ImageFilter::Nearest);
+        assert(child.tint().r > 0.8f);
+    }
+
+    {
         ouif::Widget parent;
         ouif::Widget child;
         parent.set_background("#203040");
@@ -899,6 +956,7 @@ int main()
                 </Style>
                 <RowLayout id="surface" class="surface" gap="12" gravity="right bottom" policy="fill,fill" transition="200ms ease-out">
                     <Label id="caption" text="Hello Text" font-size="18" text-color="#e8edf3" transform="translate(2px, 3px) scale(1.1)" />
+                    <Image id="preview" src="assets/panel.png" fit="cover" filter="nearest" tint="#e8edf3" />
                     <XmlTile id="tile_a" class="tile" size="80,40" animation="xmlPulse 1s linear infinite" style="background: #2f6c9c; border: 2px solid #e8edf3;" />
                     <Overlay id="overlay" z-index="12" ghost="true" draggable="true" accepts-drop="true" layer-effect="blur(4px)" />
                     <Spacer flex="1" />
@@ -913,27 +971,33 @@ int main()
         assert(row->gap() == 12.0f);
         assert(row->gravity().horizontal == ouif::HorizontalGravity::Right);
         assert(row->gravity().vertical == ouif::VerticalGravity::Bottom);
-        assert(row->children().size() == 5);
+        assert(row->children().size() == 6);
         auto* caption = dynamic_cast<ouif::Label*>(row->children()[0]);
         assert(caption != nullptr);
         assert(caption->text() == "Hello Text");
         assert(caption->font_size() == 18.0f);
         assert(caption->get_transform().translate_x == 2.0f);
         assert(caption->get_transform().scale_x == 1.1f);
-        assert(row->children()[1]->name() == "tile_a");
-        assert(row->children()[1]->layout_rules().preferred_size.width == 80.0f);
-        assert(std::fabs(row->children()[1]->get_border().width - 2.0f) < 0.01f);
+        auto* preview = dynamic_cast<ouif::Image*>(row->children()[1]);
+        assert(preview != nullptr);
+        assert(preview->source().string().find("panel") != std::string::npos);
+        assert(preview->fit() == ouif::ImageFit::Cover);
+        assert(preview->filter() == ouif::ImageFilter::Nearest);
+        assert(preview->tint().r > 0.8f);
+        assert(row->children()[2]->name() == "tile_a");
+        assert(row->children()[2]->layout_rules().preferred_size.width == 80.0f);
+        assert(std::fabs(row->children()[2]->get_border().width - 2.0f) < 0.01f);
         assert(row->get_transition().enabled);
-        assert(row->children()[1]->get_animation().has_value());
-        auto* overlay = dynamic_cast<ouif::Overlay*>(row->children()[2]);
+        assert(row->children()[2]->get_animation().has_value());
+        auto* overlay = dynamic_cast<ouif::Overlay*>(row->children()[3]);
         assert(overlay != nullptr);
         assert(overlay->z_index() == 12);
         assert(overlay->ghost());
         assert(overlay->draggable());
         assert(overlay->accepts_drop());
         assert(overlay->stylesheet_layer_effects().size() == 1);
-        assert(dynamic_cast<ouif::Spacer*>(row->children()[3]) != nullptr);
-        auto* divider = dynamic_cast<ouif::Divider*>(row->children()[4]);
+        assert(dynamic_cast<ouif::Spacer*>(row->children()[4]) != nullptr);
+        auto* divider = dynamic_cast<ouif::Divider*>(row->children()[5]);
         assert(divider != nullptr);
         assert(divider->orientation() == ouif::Orientation::Vertical);
         assert(std::fabs(divider->thickness() - 2.0f) < 0.01f);

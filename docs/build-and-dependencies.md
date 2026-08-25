@@ -104,6 +104,7 @@ The renderer currently supports:
 - stroked rectangles
 - rounded rectangles and rounded borders
 - text through font atlases
+- image decoding through bimg and texture drawing through bgfx
 - clipping and transforms
 - internal render targets for shader-backed backdrop blur
 - internally compiled shaders

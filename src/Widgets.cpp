@@ -1,6 +1,7 @@
 #include <OUIF/Widgets.h>
 
 #include <OUIF/Renderer.h>
+#include <OUIF/Resources.h>
 
 #include <algorithm>
 #include <utility>
@@ -249,6 +250,186 @@ void Label::draw(Renderer& renderer)
     auto style = text_style_;
     style.color = text_color();
     renderer.draw_text(text_, bounds().inset(layout_rules().padding), style);
+}
+
+Image::Image()
+{
+    set_accepts_children(false);
+    set_size({ 160.0f, 120.0f });
+}
+
+Image::Image(std::filesystem::path source)
+    : Image()
+{
+    set_source(std::move(source));
+}
+
+void Image::set_source(std::filesystem::path source)
+{
+    source_ = std::move(source);
+    resource_id_.reset();
+    image_dirty_ = true;
+}
+
+void Image::set_source(std::string source)
+{
+    set_source(std::filesystem::path(std::move(source)));
+}
+
+const std::filesystem::path& Image::source() const noexcept
+{
+    return source_;
+}
+
+const std::filesystem::path& Image::get_source() const noexcept
+{
+    return source();
+}
+
+void Image::set_resource(int id) noexcept
+{
+    resource_id_ = id;
+    source_.clear();
+    image_dirty_ = true;
+}
+
+void Image::clear_resource() noexcept
+{
+    resource_id_.reset();
+    image_dirty_ = true;
+}
+
+std::optional<int> Image::resource() const noexcept
+{
+    return resource_id_;
+}
+
+std::optional<int> Image::get_resource() const noexcept
+{
+    return resource();
+}
+
+void Image::set_fit(ImageFit fit) noexcept
+{
+    fit_ = fit;
+}
+
+void Image::set_fit(InheritTag) noexcept
+{
+    if (auto* parent_image = dynamic_cast<const Image*>(parent())) {
+        set_fit(parent_image->fit());
+    }
+}
+
+ImageFit Image::fit() const noexcept
+{
+    return fit_;
+}
+
+ImageFit Image::get_fit() const noexcept
+{
+    return fit();
+}
+
+void Image::set_filter(ImageFilter filter) noexcept
+{
+    filter_ = filter;
+}
+
+void Image::set_filter(InheritTag) noexcept
+{
+    if (auto* parent_image = dynamic_cast<const Image*>(parent())) {
+        set_filter(parent_image->filter());
+    }
+}
+
+ImageFilter Image::filter() const noexcept
+{
+    return filter_;
+}
+
+ImageFilter Image::get_filter() const noexcept
+{
+    return filter();
+}
+
+void Image::set_tint(Color tint) noexcept
+{
+    tint_ = tint;
+}
+
+void Image::set_tint(InheritTag) noexcept
+{
+    if (auto* parent_image = dynamic_cast<const Image*>(parent())) {
+        set_tint(parent_image->tint());
+    } else if (parent() != nullptr) {
+        set_tint(parent()->get_foreground());
+    }
+}
+
+Color Image::tint() const noexcept
+{
+    return tint_;
+}
+
+Color Image::get_tint() const noexcept
+{
+    return tint();
+}
+
+bool Image::loaded() const noexcept
+{
+    return image_.valid();
+}
+
+Size Image::natural_size() const noexcept
+{
+    return natural_size_;
+}
+
+void Image::reload(Renderer& renderer)
+{
+    unload(renderer);
+    if (resource_id_.has_value()) {
+        if (const auto resource = Resources::load(*resource_id_)) {
+            image_ = renderer.load_image(resource->data, resource->size);
+        }
+    } else if (!source_.empty()) {
+        image_ = renderer.load_image(source_);
+    }
+    natural_size_ = renderer.image_size(image_);
+    image_dirty_ = false;
+}
+
+void Image::unload(Renderer& renderer) noexcept
+{
+    if (image_.valid()) {
+        renderer.destroy_image(image_);
+    }
+    reset_loaded_state();
+    image_dirty_ = false;
+}
+
+bool Image::event(const Event& event)
+{
+    return Widget::event(event);
+}
+
+void Image::draw(Renderer& renderer)
+{
+    Widget::draw(renderer);
+    if (image_dirty_) {
+        reload(renderer);
+    }
+    if (image_.valid()) {
+        renderer.draw_image(image_, bounds().inset(layout_rules().padding), fit_, filter_, tint_);
+    }
+}
+
+void Image::reset_loaded_state() noexcept
+{
+    image_ = {};
+    natural_size_ = {};
 }
 
 Overlay::Overlay() noexcept

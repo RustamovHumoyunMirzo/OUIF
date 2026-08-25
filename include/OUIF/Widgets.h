@@ -3,6 +3,8 @@
 #include <OUIF/Renderer.h>
 #include <OUIF/Widget.h>
 
+#include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -86,6 +88,59 @@ private:
     std::string text_;
     TextStyle text_style_ {};
     bool has_text_color_ = false;
+};
+
+class OUIF_API Image : public Widget {
+public:
+    Image();
+    explicit Image(std::filesystem::path source);
+
+    void set_source(std::filesystem::path source);
+    void set_source(std::string source);
+    [[nodiscard]] const std::filesystem::path& source() const noexcept;
+    [[nodiscard]] const std::filesystem::path& get_source() const noexcept;
+
+    void set_resource(int id) noexcept;
+    void clear_resource() noexcept;
+    [[nodiscard]] std::optional<int> resource() const noexcept;
+    [[nodiscard]] std::optional<int> get_resource() const noexcept;
+
+    void set_fit(ImageFit fit) noexcept;
+    void set_fit(InheritTag) noexcept;
+    [[nodiscard]] ImageFit fit() const noexcept;
+    [[nodiscard]] ImageFit get_fit() const noexcept;
+
+    void set_filter(ImageFilter filter) noexcept;
+    void set_filter(InheritTag) noexcept;
+    [[nodiscard]] ImageFilter filter() const noexcept;
+    [[nodiscard]] ImageFilter get_filter() const noexcept;
+
+    void set_tint(Color tint) noexcept;
+    void set_tint(InheritTag) noexcept;
+    [[nodiscard]] Color tint() const noexcept;
+    [[nodiscard]] Color get_tint() const noexcept;
+
+    [[nodiscard]] bool loaded() const noexcept;
+    [[nodiscard]] Size natural_size() const noexcept;
+    void reload(Renderer& renderer);
+    void unload(Renderer& renderer) noexcept;
+
+    bool event(const Event& event) override;
+
+protected:
+    void draw(Renderer& renderer) override;
+
+private:
+    void reset_loaded_state() noexcept;
+
+    std::filesystem::path source_;
+    std::optional<int> resource_id_;
+    ImageFit fit_ = ImageFit::Contain;
+    ImageFilter filter_ = ImageFilter::Linear;
+    Color tint_ = Color::rgba(255, 255, 255, 255);
+    ImageHandle image_ {};
+    Size natural_size_ {};
+    bool image_dirty_ = true;
 };
 
 class OUIF_API Overlay : public Widget {

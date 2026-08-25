@@ -35,10 +35,26 @@ Custom widgets can use:
 - `fill_rounded_rect`
 - `stroke_rect`
 - `stroke_rounded_rect`
+- `draw_text`
+- `load_image`
+- `draw_image`
+- `destroy_image`
 - `push_clip`
 - `pop_clip`
 
 Most widgets should rely on the base styled drawing unless they need a custom visual.
+
+## Images
+
+The bgfx renderer uses bimg to decode image bytes and stores the resulting texture internally. `ouif::ImageHandle` is an opaque handle; callers destroy it with `destroy_image(...)` when they load images manually.
+
+```cpp
+auto image = renderer.load_image("assets/photo.png");
+renderer.draw_image(image, bounds(), ouif::ImageFit::Cover, ouif::ImageFilter::Linear);
+renderer.destroy_image(image);
+```
+
+For ordinary UI use, prefer `ouif::Image`; it loads from a file path or `ouif::Resources` ID and draws through this same renderer path.
 
 ## Clipping
 
