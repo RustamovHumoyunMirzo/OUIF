@@ -1,29 +1,8 @@
 #include <OUIF/OUIF.h>
 
-#include <cstdint>
+#include <filesystem>
 
 namespace {
-
-constexpr int sample_image_resource = 4201;
-
-const std::uint8_t sample_tga[] = {
-    0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x02, 0x00,
-    0x20, 0x28,
-    0x35, 0x5f, 0xb8, 0xff,
-    0x2c, 0xc9, 0x7f, 0xff,
-    0xd8, 0x7a, 0x42, 0xff,
-    0xff, 0xff, 0xff, 0x70,
-};
-
-struct RegisterImages {
-    RegisterImages()
-    {
-        ouif::Resources::register_bytes(sample_image_resource, sample_tga, sizeof(sample_tga));
-    }
-};
-
-RegisterImages register_images;
 
 class ImageCard : public ouif::ColLayout {
 public:
@@ -39,7 +18,7 @@ public:
                 .with_border(ouif::Color::hex(0x415168), 1.0f)
                 .with_radius(14.0f));
 
-        image_.set_resource(sample_image_resource);
+        image_.set_source(std::filesystem::path(OUIF_EXAMPLE_CAT_PATH));
         image_.set_fit(fit);
         image_.set_filter(filter);
         image_.set_tint(tint);
