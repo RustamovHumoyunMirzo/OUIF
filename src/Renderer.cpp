@@ -965,6 +965,9 @@ void Renderer::initialize(const RendererConfig& config)
         throw std::runtime_error("bgfx initialization failed");
     }
 
+    impl_->width = width;
+    impl_->height = height;
+
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x121418ff, 1.0f, 0);
     bgfx::setViewRect(0, 0, 0, width, height);
 
@@ -1039,8 +1042,6 @@ void Renderer::initialize(const RendererConfig& config)
 #endif
 
     impl_->initialized = true;
-    impl_->width = width;
-    impl_->height = height;
     if (impl_->default_font_family == "OUIF Sans") {
         load_default_system_font();
     }
