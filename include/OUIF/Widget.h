@@ -85,6 +85,12 @@ struct CssDeclaration {
 
 using CssPropertyHandler = std::function<bool(Widget&, const CssDeclaration&)>;
 
+OUIF_API void define_var(std::string name, std::string value);
+OUIF_API bool edit_var(std::string_view name, std::string value);
+OUIF_API bool delete_var(std::string_view name);
+OUIF_API void clear_vars();
+[[nodiscard]] OUIF_API std::optional<std::string> get_var(std::string_view name);
+
 class OUIF_API Widget {
 public:
     Widget() = default;
@@ -318,6 +324,11 @@ public:
     static void register_css_property(std::string property, CssPropertyHandler handler);
     static bool unregister_css_property(std::string_view property);
     static void clear_css_properties();
+    static void define_var(std::string name, std::string value);
+    static bool edit_var(std::string_view name, std::string value);
+    static bool delete_var(std::string_view name);
+    static void clear_vars();
+    [[nodiscard]] static std::optional<std::string> get_var(std::string_view name);
     static void register_effect(std::string name, EffectFactory factory);
     static bool unregister_effect(std::string_view name);
     static void clear_effects();

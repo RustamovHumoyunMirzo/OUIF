@@ -1,7 +1,5 @@
 #include <OUIF/OUIF.h>
 
-#include <filesystem>
-
 namespace {
 
 class ImageCard : public ouif::ColLayout {
@@ -18,7 +16,7 @@ public:
                 .with_border(ouif::Color::hex(0x415168), 1.0f)
                 .with_radius(14.0f));
 
-        image_.set_source(std::filesystem::path(OUIF_EXAMPLE_CAT_PATH));
+        image_.add_class("cat-photo");
         image_.set_fit(fit);
         image_.set_filter(filter);
         image_.set_tint(tint);
@@ -54,6 +52,11 @@ public:
         set_layout_policy(ouif::SizePolicy::Fill, ouif::SizePolicy::Fill);
         set_style(ouif::Style().with_background(ouif::Color::hex(0x101218)));
         children(contain_, cover_, nearest_);
+        set_stylesheet(R"css(
+            .cat-photo {
+                image-source: path(def(cat-path));
+            }
+        )css");
     }
 
 private:
@@ -66,6 +69,8 @@ private:
 
 int main()
 {
+    ouif::define_var("cat-path", OUIF_EXAMPLE_CAT_PATH);
+
     ouif::Application app(ouif::ApplicationConfig()
             .with_title("OUIF Images")
             .with_size(980, 540)

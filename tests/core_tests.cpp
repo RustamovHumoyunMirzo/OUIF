@@ -689,19 +689,36 @@ int main()
     {
         ouif::Image image;
         image.add_class("preview");
+        ouif::define_var("image-path", "assets/photo.png");
+        ouif::define_var("image-resource-id", "9103");
+        ouif::define_var("preview-tint", "#e8edf3");
         image.set_stylesheet(R"css(
             .preview {
-                image-source: "assets/photo.png";
+                image-source: res(def(image-resource-id));
                 image-fit: cover;
                 image-filter: pixelated;
-                image-tint: #e8edf3;
+                image-tint: var("preview-tint");
             }
         )css");
 
-        assert(image.source().string().find("photo") != std::string::npos);
+        assert(image.resource().has_value());
+        assert(*image.resource() == 9103);
         assert(image.fit() == ouif::ImageFit::Cover);
         assert(image.filter() == ouif::ImageFilter::Nearest);
         assert(image.tint().r > 0.8f);
+
+        image.set_stylesheet(R"css(
+            .preview {
+                image-source: path(def(image-path));
+            }
+        )css");
+        assert(image.source().string().find("photo") != std::string::npos);
+
+        assert(ouif::get_var("image-path").has_value());
+        assert(ouif::edit_var("image-path", "assets/edited.png"));
+        assert(ouif::get_var("image-path")->find("edited") != std::string::npos);
+        assert(ouif::delete_var("image-path"));
+        ouif::clear_vars();
     }
 
     {

@@ -44,6 +44,12 @@ std::unordered_map<std::string, CssPropertyHandler>& css_property_handlers()
     return handlers;
 }
 
+std::unordered_map<std::string, std::string>& css_vars()
+{
+    static std::unordered_map<std::string, std::string> variables;
+    return variables;
+}
+
 std::unordered_map<std::string, EffectFactory>& effect_factories()
 {
     static std::unordered_map<std::string, EffectFactory> factories {
@@ -53,6 +59,161 @@ std::unordered_map<std::string, EffectFactory>& effect_factories()
          } },
     };
     return factories;
+}
+
+std::string trim_copy(std::string_view value)
+{
+    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front())) != 0) {
+        value.remove_prefix(1);
+    }
+    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back())) != 0) {
+        value.remove_suffix(1);
+    }
+    return std::string(value);
+}
+
+std::string unquote_copy(std::string_view value)
+{
+    auto trimmed = trim_copy(value);
+    if (trimmed.size() >= 2U && ((trimmed.front() == '"' && trimmed.back() == '"') || (trimmed.front() == '\'' && trimmed.back() == '\''))) {
+        trimmed.erase(trimmed.begin());
+        trimmed.pop_back();
+    }
+    return trimmed;
+}
+
+std::string quote_css_string(std::string_view value)
+{
+    std::string quoted = "\"";
+    for (const char ch : value) {
+        if (ch == '\\' || ch == '"') {
+            quoted.push_back('\\');
+        }
+        quoted.push_back(ch);
+    }
+    quoted.push_back('"');
+    return quoted;
+}
+
+std::string expand_css_aliases(std::string_view css);
+
+std::string resolve_css_alias(std::string_view name, std::string_view raw_argument)
+{
+    const auto function = lower_copy(name);
+    const auto expanded_argument = expand_css_aliases(raw_argument);
+    const auto argument = unquote_copy(expanded_argument);
+
+    if (function == "var" || function == "def") {
+        const auto found = css_vars().find(argument);
+        if (found != css_vars().end()) {
+            return found->second;
+        }
+        return function == "def" ? argument : std::string {};
+    }
+
+    if (function == "path") {
+        return quote_css_string(argument);
+    }
+
+    if (function == "res") {
+        return argument;
+    }
+
+    return std::string(name) + "(" + std::string(raw_argument) + ")";
+}
+
+std::string expand_css_aliases(std::string_view css)
+{
+    std::string result;
+    result.reserve(css.size());
+
+    for (std::size_t index = 0; index < css.size();) {
+        const char ch = css[index];
+        if (ch == '"' || ch == '\'') {
+            const char quote = ch;
+            result.push_back(ch);
+            ++index;
+            while (index < css.size()) {
+                result.push_back(css[index]);
+                if (css[index] == '\\' && index + 1U < css.size()) {
+                    ++index;
+                    result.push_back(css[index]);
+                } else if (css[index] == quote) {
+                    ++index;
+                    break;
+                }
+                ++index;
+            }
+            continue;
+        }
+
+        if (!std::isalpha(static_cast<unsigned char>(ch))) {
+            result.push_back(ch);
+            ++index;
+            continue;
+        }
+
+        const auto name_start = index;
+        while (index < css.size() && (std::isalnum(static_cast<unsigned char>(css[index])) != 0 || css[index] == '-' || css[index] == '_')) {
+            ++index;
+        }
+        const auto name = css.substr(name_start, index - name_start);
+        const auto lower = lower_copy(name);
+        if (lower != "var" && lower != "def" && lower != "path" && lower != "res") {
+            result.append(name);
+            continue;
+        }
+
+        auto cursor = index;
+        while (cursor < css.size() && std::isspace(static_cast<unsigned char>(css[cursor])) != 0) {
+            ++cursor;
+        }
+        if (cursor >= css.size() || css[cursor] != '(') {
+            result.append(name);
+            continue;
+        }
+
+        std::size_t close = cursor;
+        int depth = 0;
+        bool closed = false;
+        while (close < css.size()) {
+            if (css[close] == '"' || css[close] == '\'') {
+                const char quote = css[close++];
+                while (close < css.size()) {
+                    if (css[close] == '\\' && close + 1U < css.size()) {
+                        close += 2U;
+                        continue;
+                    }
+                    if (css[close++] == quote) {
+                        break;
+                    }
+                }
+                continue;
+            }
+            if (css[close] == '(') {
+                ++depth;
+            } else if (css[close] == ')') {
+                --depth;
+                if (depth == 0) {
+                    closed = true;
+                    break;
+                }
+            }
+            ++close;
+        }
+
+        if (!closed) {
+            result.append(name);
+            index = cursor;
+            continue;
+        }
+
+        const auto argument = css.substr(cursor + 1U, close - cursor - 1U);
+        result += resolve_css_alias(name, argument);
+        index = close + 1U;
+    }
+
+    return result;
 }
 
 std::shared_ptr<Effect> create_effect(std::string_view name, const std::vector<float>& numbers)
@@ -1284,7 +1445,9 @@ void apply_declaration(
 
     if (auto* image = dynamic_cast<Image*>(&widget)) {
         if (property == "image-source" || property == "source" || property == "src") {
-            if (auto source = ident_from_value(*first)) {
+            if (auto resource = pixels_from_value(*first)) {
+                image->set_resource(static_cast<int>(*resource));
+            } else if (auto source = ident_from_value(*first)) {
                 image->set_source(std::move(*source));
             } else if (first->string != nullptr) {
                 image->set_source(std::string(text_or_empty(first->string)));
@@ -2477,6 +2640,43 @@ const std::vector<std::shared_ptr<Effect>>& Widget::stylesheet_backdrop_effects(
     return stylesheet_backdrop_effects_;
 }
 
+void define_var(std::string name, std::string value)
+{
+    if (name.empty()) {
+        return;
+    }
+    css_vars()[std::move(name)] = std::move(value);
+}
+
+bool edit_var(std::string_view name, std::string value)
+{
+    auto found = css_vars().find(std::string(name));
+    if (found == css_vars().end()) {
+        return false;
+    }
+    found->second = std::move(value);
+    return true;
+}
+
+bool delete_var(std::string_view name)
+{
+    return css_vars().erase(std::string(name)) != 0U;
+}
+
+void clear_vars()
+{
+    css_vars().clear();
+}
+
+std::optional<std::string> get_var(std::string_view name)
+{
+    const auto found = css_vars().find(std::string(name));
+    if (found == css_vars().end()) {
+        return std::nullopt;
+    }
+    return found->second;
+}
+
 void Widget::register_css_property(std::string property, CssPropertyHandler handler)
 {
     if (property.empty() || !handler) {
@@ -2493,6 +2693,31 @@ bool Widget::unregister_css_property(std::string_view property)
 void Widget::clear_css_properties()
 {
     css_property_handlers().clear();
+}
+
+void Widget::define_var(std::string name, std::string value)
+{
+    ouif::define_var(std::move(name), std::move(value));
+}
+
+bool Widget::edit_var(std::string_view name, std::string value)
+{
+    return ouif::edit_var(name, std::move(value));
+}
+
+bool Widget::delete_var(std::string_view name)
+{
+    return ouif::delete_var(name);
+}
+
+void Widget::clear_vars()
+{
+    ouif::clear_vars();
+}
+
+std::optional<std::string> Widget::get_var(std::string_view name)
+{
+    return ouif::get_var(name);
 }
 
 void Widget::register_effect(std::string name, EffectFactory factory)
@@ -3687,7 +3912,7 @@ void Widget::apply_stylesheet_to_tree()
         return;
     }
 
-    const auto normalized_stylesheet = normalize_effect_css(stylesheet_);
+    const auto normalized_stylesheet = normalize_effect_css(expand_css_aliases(stylesheet_));
     KatanaOutputPtr output(katana_parse(normalized_stylesheet.c_str(), normalized_stylesheet.size(), KatanaParserModeStylesheet));
     if (!output || output->errors.length > 0 || output->stylesheet == nullptr) {
         return;

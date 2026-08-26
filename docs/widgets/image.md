@@ -40,10 +40,14 @@ Use `Linear` for normal UI images and `Nearest` for pixel art. Tint multiplies t
 
 ```css
 .preview {
-    image-source: "assets/photo.png";
+    image-source: path(def(photo-path));
     image-fit: cover;
     image-filter: linear;
     image-tint: #ffffff;
+}
+
+.embedded {
+    image-source: res(def(photo-resource-id));
 }
 ```
 
@@ -56,6 +60,8 @@ Supported image properties:
 - `image-tint`, `tint`
 
 `image-fit`, `image-filter`, and `image-tint` support `inherit`.
+
+`image-source` accepts regular strings, `path(...)`, or `res(...)`. `path(...)` is for file paths; `res(...)` is for IDs registered through `ouif::Resources`.
 
 ## XML
 

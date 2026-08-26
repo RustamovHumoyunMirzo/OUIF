@@ -53,9 +53,11 @@ Inheritance always uses the widget's direct parent at the time the setter or sty
 ## CSS
 
 ```cpp
+ouif::define_var("tile-bg", "#2f6c9c");
+
 root.set_stylesheet(R"css(
     .tile {
-        background: #2f6c9c;
+        background: var("tile-bg");
         background-hovered: #4692c4;
         border: 2px solid #e8edf3;
         radius: 12px;
@@ -125,6 +127,37 @@ Any supported property can use `inherit`:
 ```
 
 CSS inheritance is resolved while stylesheets walk the tree from parent to child, so children see the parent's latest effective stylesheet result.
+
+## CSS Aliases
+
+OUIF expands a few simple CSS helper functions before Katana parses the stylesheet:
+
+```cpp
+ouif::define_var("bg-color", "#000000");
+ouif::define_var("cat-path", OUIF_EXAMPLE_CAT_PATH);
+ouif::define_var("cat-id", "4201");
+```
+
+```css
+.panel {
+    background: var("bg-color");
+}
+
+.file-image {
+    image-source: path(def(cat-path));
+}
+
+.resource-image {
+    image-source: res(def(cat-id));
+}
+```
+
+- `var(name)` reads a global OUIF CSS variable.
+- `def(name)` reads the same registry, and falls back to the name text when no value is registered.
+- `path(value)` returns a CSS string suitable for file paths.
+- `res(value)` returns a numeric resource ID suitable for `image-source`.
+
+Use `define_var(...)`, `edit_var(...)`, `delete_var(...)`, `get_var(...)`, and `clear_vars()` from C++. `Widget` also exposes static aliases with the same names.
 
 ## Custom CSS Properties
 

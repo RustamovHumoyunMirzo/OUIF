@@ -225,6 +225,14 @@ Fields:
 
 - `std::function<bool(Widget&, const CssDeclaration&)>`
 
+CSS variable functions:
+
+- `define_var(std::string name, std::string value) -> void`
+- `edit_var(std::string_view name, std::string value) -> bool`
+- `delete_var(std::string_view name) -> bool`
+- `clear_vars() -> void`
+- `get_var(std::string_view name) -> std::optional<std::string>`
+
 ### Effect Types
 
 `ouif::EffectLayer` values:
@@ -373,6 +381,11 @@ Stylesheets and identity:
 - `static register_css_property(std::string property, CssPropertyHandler handler) -> void`
 - `static unregister_css_property(std::string_view property) -> bool`
 - `static clear_css_properties() -> void`
+- `static define_var(std::string name, std::string value) -> void`
+- `static edit_var(std::string_view name, std::string value) -> bool`
+- `static delete_var(std::string_view name) -> bool`
+- `static clear_vars() -> void`
+- `static get_var(std::string_view name) -> std::optional<std::string>`
 - `static register_effect(std::string name, EffectFactory factory) -> void`
 - `static unregister_effect(std::string_view name) -> bool`
 - `static clear_effects() -> void`

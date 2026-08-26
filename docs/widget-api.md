@@ -232,6 +232,20 @@ The same value works in CSS and XML inline style:
 
 OUIF resolves inheritance against the nearest parent only. Because a widget can have one parent at a time, inherited values stay deterministic across reparenting and stylesheet reapplies.
 
+Stylesheets can use global OUIF variables and aliases:
+
+```cpp
+ouif::define_var("cat-path", OUIF_EXAMPLE_CAT_PATH);
+ouif::define_var("accent", "#9fd7ff");
+```
+
+```css
+.photo { image-source: path(def(cat-path)); }
+.tile { background: var("accent"); }
+```
+
+`res(...)` resolves resource IDs for image sources, so `image-source: res(def(icon-id));` can load a `Resources` entry.
+
 Layering and hit testing follow web-style ordering:
 
 ```cpp
