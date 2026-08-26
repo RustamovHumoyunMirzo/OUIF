@@ -780,10 +780,12 @@ int main()
 
         image.set_stylesheet(R"css(
             .mark {
-                vector-svg: "<svg viewBox=\"0 0 12 12\"><circle cx=\"6\" cy=\"6\" r=\"6\" /></svg>";
+                vector-svg: "<svg viewBox=\"0 0 12 12\"><defs><linearGradient id=\"g\"><stop stop-color=\"#fff\"/><stop stop-color=\"#000\"/></linearGradient><clipPath id=\"c\"><rect width=\"12\" height=\"12\"/></clipPath><symbol id=\"s\"><circle cx=\"6\" cy=\"6\" r=\"6\" fill=\"url(#g)\" clip-path=\"url(#c)\"/></symbol><filter id=\"b\"><feGaussianBlur stdDeviation=\"2\"/></filter></defs><use href=\"#s\" filter=\"url(#b)\"/></svg>";
             }
         )css");
-        assert(image.svg().find("circle") != std::string_view::npos);
+        assert(image.svg().find("linearGradient") != std::string_view::npos);
+        assert(image.svg().find("clipPath") != std::string_view::npos);
+        assert(image.svg().find("feGaussianBlur") != std::string_view::npos);
         ouif::clear_vars();
     }
 

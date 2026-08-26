@@ -105,6 +105,8 @@ public:
     void polyline(const float* points, std::uint32_t point_count);
     void close_path();
     void fill(Color color, VectorFillRule rule = VectorFillRule::NonZero, bool anti_alias = true);
+    void fill_linear_gradient(float start_x, float start_y, float end_x, float end_y, Color inner, Color outer, VectorFillRule rule = VectorFillRule::NonZero, bool anti_alias = true);
+    void fill_radial_gradient(float center_x, float center_y, float inner_radius, float outer_radius, Color inner, Color outer, VectorFillRule rule = VectorFillRule::NonZero, bool anti_alias = true);
     void stroke(
         Color color,
         float width = 1.0f,
@@ -112,6 +114,8 @@ public:
         VectorLineJoin join = VectorLineJoin::Miter,
         bool anti_alias = true
     );
+    void stroke_linear_gradient(float start_x, float start_y, float end_x, float end_y, Color inner, Color outer, float width = 1.0f, bool anti_alias = true);
+    void stroke_radial_gradient(float center_x, float center_y, float inner_radius, float outer_radius, Color inner, Color outer, float width = 1.0f, bool anti_alias = true);
 
     void push_state();
     void pop_state();
@@ -119,6 +123,9 @@ public:
     void translate(float x, float y);
     void scale(float x, float y);
     void rotate(float radians);
+    void transform(const float matrix[6]);
+    void begin_clip(VectorFillRule rule = VectorFillRule::NonZero);
+    void end_clip();
     void scissor(Rect rect);
     void reset_scissor();
 

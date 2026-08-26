@@ -69,7 +69,7 @@ renderer.draw_vector_image(logo, bounds(), ouif::ImageFit::Contain);
 renderer.destroy_vector_image(logo);
 ```
 
-Custom widgets can use `Renderer::draw_vector(...)` and `VectorCanvas` for low-level path drawing without including vg-renderer headers.
+Custom widgets can use `Renderer::draw_vector(...)` and `VectorCanvas` for low-level path drawing without including vg-renderer headers. The SVG loader supports static paths/shapes, transforms, local defs, gradients, clipping/masks, symbols/use references, and Gaussian blur filter metadata.
 
 ## Clipping
 

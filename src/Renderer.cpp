@@ -88,6 +88,15 @@ struct RendererImage {
     Size size {};
 };
 
+struct Mat3 {
+    float a = 1.0f;
+    float b = 0.0f;
+    float c = 0.0f;
+    float d = 1.0f;
+    float tx = 0.0f;
+    float ty = 0.0f;
+};
+
 enum class SvgShapeType {
     Path,
     Rect,
@@ -108,8 +117,28 @@ struct SvgPaint {
     bool stroke = false;
     Color fill_color = Color::rgba(0, 0, 0, 255);
     Color stroke_color = Color::rgba(0, 0, 0, 255);
+    std::string fill_ref;
+    std::string stroke_ref;
     float stroke_width = 1.0f;
     float opacity = 1.0f;
+};
+
+enum class SvgGradientType {
+    Linear,
+    Radial,
+};
+
+struct SvgGradient {
+    SvgGradientType type = SvgGradientType::Linear;
+    float x1 = 0.0f;
+    float y1 = 0.0f;
+    float x2 = 1.0f;
+    float y2 = 0.0f;
+    float cx = 0.5f;
+    float cy = 0.5f;
+    float r = 0.5f;
+    Color start = Color::rgba(255, 255, 255, 255);
+    Color end = Color::rgba(0, 0, 0, 255);
 };
 
 struct SvgShape {
@@ -119,21 +148,21 @@ struct SvgShape {
     std::vector<float> points;
     Rect rect {};
     CornerRadius radius {};
+    Mat3 transform {};
+    std::string clip_ref;
+    std::string mask_ref;
+    std::string filter_ref;
 };
 
 struct RendererVectorImage {
     Size size {};
     Rect view_box {};
     std::vector<SvgShape> shapes;
-};
-
-struct Mat3 {
-    float a = 1.0f;
-    float b = 0.0f;
-    float c = 0.0f;
-    float d = 1.0f;
-    float tx = 0.0f;
-    float ty = 0.0f;
+    std::unordered_map<std::string, SvgGradient> gradients;
+    std::unordered_map<std::string, std::vector<SvgShape>> clips;
+    std::unordered_map<std::string, std::vector<SvgShape>> masks;
+    std::unordered_map<std::string, std::vector<SvgShape>> symbols;
+    std::unordered_map<std::string, float> gaussian_blurs;
 };
 
 Point apply_matrix(Mat3 matrix, Point point) noexcept
@@ -504,23 +533,51 @@ std::optional<Color> parse_svg_color(std::string_view value)
     return Color::from_hex(text);
 }
 
+std::string parse_svg_url_ref(std::string_view value)
+{
+    auto text = svg_trim(value);
+    if (text.starts_with("url(") && text.ends_with(")")) {
+        text = svg_trim(std::string_view(text).substr(4, text.size() - 5));
+        if (!text.empty() && (text.front() == '"' || text.front() == '\'')) {
+            text.erase(text.begin());
+        }
+        if (!text.empty() && (text.back() == '"' || text.back() == '\'')) {
+            text.pop_back();
+        }
+    }
+    if (!text.empty() && text.front() == '#') {
+        text.erase(text.begin());
+    }
+    return text;
+}
+
 void apply_svg_style_value(SvgPaint& paint, std::string_view key, std::string_view value)
 {
     const auto name = svg_lower(svg_trim(key));
     const auto text = svg_trim(value);
     if (name == "fill") {
-        if (svg_lower(text) == "none") {
+        if (svg_lower(text).starts_with("url(") || (!text.empty() && text.front() == '#')) {
+            paint.fill = true;
+            paint.fill_ref = parse_svg_url_ref(text);
+        } else if (svg_lower(text) == "none") {
             paint.fill = false;
+            paint.fill_ref.clear();
         } else if (auto color = parse_svg_color(text)) {
             paint.fill = true;
             paint.fill_color = *color;
+            paint.fill_ref.clear();
         }
     } else if (name == "stroke") {
-        if (svg_lower(text) == "none") {
+        if (svg_lower(text).starts_with("url(") || (!text.empty() && text.front() == '#')) {
+            paint.stroke = true;
+            paint.stroke_ref = parse_svg_url_ref(text);
+        } else if (svg_lower(text) == "none") {
             paint.stroke = false;
+            paint.stroke_ref.clear();
         } else if (auto color = parse_svg_color(text)) {
             paint.stroke = true;
             paint.stroke_color = *color;
+            paint.stroke_ref.clear();
         }
     } else if (name == "stroke-width") {
         paint.stroke_width = std::max(0.0f, parse_svg_float(text).value_or(paint.stroke_width));
@@ -531,6 +588,25 @@ void apply_svg_style_value(SvgPaint& paint, std::string_view key, std::string_vi
     } else if (name == "stroke-opacity") {
         paint.stroke_color.a *= std::clamp(parse_svg_float(text).value_or(1.0f), 0.0f, 1.0f);
     }
+}
+
+Mat3 translate_matrix(float x, float y) noexcept
+{
+    return { 1.0f, 0.0f, 0.0f, 1.0f, x, y };
+}
+
+Mat3 scale_matrix(float x, float y) noexcept
+{
+    return { x, 0.0f, 0.0f, y, 0.0f, 0.0f };
+}
+
+Mat3 rotate_matrix(float degrees) noexcept
+{
+    constexpr float pi = 3.14159265358979323846f;
+    const float radians = degrees * pi / 180.0f;
+    const float cosine = std::cos(radians);
+    const float sine = std::sin(radians);
+    return { cosine, sine, -sine, cosine, 0.0f, 0.0f };
 }
 
 struct SvgPathReader {
@@ -578,6 +654,70 @@ struct SvgPathReader {
         return parse_svg_float(text.substr(start, index - start));
     }
 };
+
+std::vector<float> parse_svg_number_list(std::string_view text)
+{
+    SvgPathReader reader { text };
+    std::vector<float> values;
+    while (reader.has_number()) {
+        if (auto value = reader.number()) {
+            values.push_back(*value);
+        } else {
+            break;
+        }
+    }
+    return values;
+}
+
+Mat3 parse_svg_transform(std::string_view text)
+{
+    Mat3 transform {};
+    std::size_t index = 0;
+    while (index < text.size()) {
+        while (index < text.size() && std::isspace(static_cast<unsigned char>(text[index])) != 0) {
+            ++index;
+        }
+        const auto name_start = index;
+        while (index < text.size() && std::isalpha(static_cast<unsigned char>(text[index])) != 0) {
+            ++index;
+        }
+        const auto name = svg_lower(text.substr(name_start, index - name_start));
+        while (index < text.size() && std::isspace(static_cast<unsigned char>(text[index])) != 0) {
+            ++index;
+        }
+        if (index >= text.size() || text[index] != '(') {
+            ++index;
+            continue;
+        }
+        const auto arg_start = ++index;
+        int depth = 1;
+        while (index < text.size() && depth > 0) {
+            if (text[index] == '(') {
+                ++depth;
+            } else if (text[index] == ')') {
+                --depth;
+            }
+            ++index;
+        }
+        const auto args = parse_svg_number_list(text.substr(arg_start, index - arg_start - 1U));
+        Mat3 next {};
+        if (name == "translate" && !args.empty()) {
+            next = translate_matrix(args[0], args.size() > 1U ? args[1] : 0.0f);
+        } else if (name == "scale" && !args.empty()) {
+            next = scale_matrix(args[0], args.size() > 1U ? args[1] : args[0]);
+        } else if (name == "rotate" && !args.empty()) {
+            if (args.size() > 2U) {
+                next = multiply(translate_matrix(args[1], args[2]), multiply(rotate_matrix(args[0]), translate_matrix(-args[1], -args[2])));
+            } else {
+                next = rotate_matrix(args[0]);
+            }
+        } else if (name == "matrix" && args.size() >= 6U) {
+            next = { args[0], args[1], args[2], args[3], args[4], args[5] };
+        }
+        transform = multiply(transform, next);
+    }
+    return transform;
+}
 
 std::vector<SvgPathCommand> parse_svg_path(std::string_view data)
 {
@@ -721,6 +861,39 @@ std::vector<float> parse_svg_points(std::string_view text)
 }
 
 #if OUIF_WITH_PUGIXML
+std::string svg_id(pugi::xml_node node)
+{
+    if (auto id = node.attribute("id")) {
+        return id.value();
+    }
+    return {};
+}
+
+std::string svg_href(pugi::xml_node node)
+{
+    if (auto href = node.attribute("href")) {
+        return parse_svg_url_ref(href.value());
+    }
+    if (auto href = node.attribute("xlink:href")) {
+        return parse_svg_url_ref(href.value());
+    }
+    return {};
+}
+
+float parse_svg_unit(std::string_view value, float fallback, float relative) noexcept
+{
+    auto text = svg_trim(value);
+    if (text.empty()) {
+        return fallback;
+    }
+    const bool percent = text.ends_with("%");
+    if (percent) {
+        text.pop_back();
+    }
+    const float number = parse_svg_float(text).value_or(fallback);
+    return percent ? relative * number / 100.0f : number;
+}
+
 SvgPaint svg_paint_from_node(pugi::xml_node node, SvgPaint inherited)
 {
     for (auto attr : node.attributes()) {
@@ -743,16 +916,102 @@ SvgPaint svg_paint_from_node(pugi::xml_node node, SvgPaint inherited)
     return inherited;
 }
 
-void collect_svg_shapes(pugi::xml_node node, SvgPaint paint, std::vector<SvgShape>& shapes)
+SvgGradient parse_svg_gradient(pugi::xml_node node, Rect view_box)
 {
     const auto node_name = svg_lower(node.name());
-    if (node_name == "defs" || node_name == "style" || node_name == "metadata" || svg_lower(node.attribute("display").as_string()) == "none") {
+    SvgGradient gradient;
+    gradient.type = node_name == "radialgradient" ? SvgGradientType::Radial : SvgGradientType::Linear;
+    gradient.x1 = parse_svg_unit(node.attribute("x1").value(), view_box.x, view_box.width);
+    gradient.y1 = parse_svg_unit(node.attribute("y1").value(), view_box.y, view_box.height);
+    gradient.x2 = parse_svg_unit(node.attribute("x2").value(), view_box.x + view_box.width, view_box.width);
+    gradient.y2 = parse_svg_unit(node.attribute("y2").value(), view_box.y, view_box.height);
+    gradient.cx = parse_svg_unit(node.attribute("cx").value(), view_box.x + view_box.width * 0.5f, view_box.width);
+    gradient.cy = parse_svg_unit(node.attribute("cy").value(), view_box.y + view_box.height * 0.5f, view_box.height);
+    gradient.r = parse_svg_unit(node.attribute("r").value(), std::min(view_box.width, view_box.height) * 0.5f, std::min(view_box.width, view_box.height));
+
+    bool has_start = false;
+    for (auto stop : node.children("stop")) {
+        SvgPaint stop_paint;
+        stop_paint.fill_color = Color::rgba(0, 0, 0, 255);
+        for (auto attr : stop.attributes()) {
+            if (svg_lower(attr.name()) == "stop-color") {
+                if (auto color = parse_svg_color(attr.value())) {
+                    stop_paint.fill_color = *color;
+                }
+            } else if (svg_lower(attr.name()) == "stop-opacity") {
+                stop_paint.fill_color.a *= std::clamp(parse_svg_float(attr.value()).value_or(1.0f), 0.0f, 1.0f);
+            } else if (svg_lower(attr.name()) == "style") {
+                std::string_view css = attr.value();
+                while (!css.empty()) {
+                    const auto semicolon = css.find(';');
+                    const auto declaration = semicolon == std::string_view::npos ? css : css.substr(0, semicolon);
+                    if (const auto colon = declaration.find(':'); colon != std::string_view::npos) {
+                        const auto key = svg_lower(svg_trim(declaration.substr(0, colon)));
+                        if (key == "stop-color") {
+                            if (auto color = parse_svg_color(declaration.substr(colon + 1U))) {
+                                stop_paint.fill_color = *color;
+                            }
+                        } else if (key == "stop-opacity") {
+                            stop_paint.fill_color.a *= std::clamp(parse_svg_float(declaration.substr(colon + 1U)).value_or(1.0f), 0.0f, 1.0f);
+                        }
+                    }
+                    if (semicolon == std::string_view::npos) {
+                        break;
+                    }
+                    css.remove_prefix(semicolon + 1U);
+                }
+            }
+        }
+        if (!has_start) {
+            gradient.start = stop_paint.fill_color;
+            gradient.end = stop_paint.fill_color;
+            has_start = true;
+        } else {
+            gradient.end = stop_paint.fill_color;
+        }
+    }
+    return gradient;
+}
+
+void collect_svg_shapes(pugi::xml_node node, SvgPaint paint, std::vector<SvgShape>& shapes, const RendererVectorImage& defs, Mat3 transform)
+{
+    const auto node_name = svg_lower(node.name());
+    if (node_name == "defs" || node_name == "style" || node_name == "metadata" || node_name == "lineargradient" || node_name == "radialgradient"
+        || node_name == "clippath" || node_name == "mask" || node_name == "symbol" || svg_lower(node.attribute("display").as_string()) == "none") {
         return;
     }
 
     paint = svg_paint_from_node(node, paint);
+    if (auto attr = node.attribute("transform")) {
+        transform = multiply(transform, parse_svg_transform(attr.value()));
+    }
+
+    if (node_name == "use") {
+        const auto ref = svg_href(node);
+        if (const auto found = defs.symbols.find(ref); found != defs.symbols.end()) {
+            const float x = parse_svg_float(node.attribute("x").value()).value_or(0.0f);
+            const float y = parse_svg_float(node.attribute("y").value()).value_or(0.0f);
+            const auto local = multiply(transform, translate_matrix(x, y));
+            for (auto symbol_shape : found->second) {
+                symbol_shape.transform = multiply(local, symbol_shape.transform);
+                shapes.push_back(std::move(symbol_shape));
+            }
+        }
+        return;
+    }
+
     SvgShape shape;
     shape.paint = paint;
+    shape.transform = transform;
+    if (auto clip = node.attribute("clip-path")) {
+        shape.clip_ref = parse_svg_url_ref(clip.value());
+    }
+    if (auto mask = node.attribute("mask")) {
+        shape.mask_ref = parse_svg_url_ref(mask.value());
+    }
+    if (auto filter = node.attribute("filter")) {
+        shape.filter_ref = parse_svg_url_ref(filter.value());
+    }
     bool append = false;
 
     if (node_name == "path" && node.attribute("d")) {
@@ -812,8 +1071,48 @@ void collect_svg_shapes(pugi::xml_node node, SvgPaint paint, std::vector<SvgShap
 
     for (auto child : node.children()) {
         if (child.type() == pugi::node_element) {
-            collect_svg_shapes(child, paint, shapes);
+            collect_svg_shapes(child, paint, shapes, defs, transform);
         }
+    }
+}
+
+void collect_svg_defs(pugi::xml_node node, RendererVectorImage& defs)
+{
+    for (auto child : node.children()) {
+        if (child.type() != pugi::node_element) {
+            continue;
+        }
+        const auto name = svg_lower(child.name());
+        const auto id = svg_id(child);
+        if ((name == "lineargradient" || name == "radialgradient") && !id.empty()) {
+            defs.gradients[id] = parse_svg_gradient(child, defs.view_box);
+            continue;
+        }
+        if (name == "filter" && !id.empty()) {
+            for (auto filter_child : child.children()) {
+                if (svg_lower(filter_child.name()) == "fegaussianblur") {
+                    defs.gaussian_blurs[id] = parse_svg_float(filter_child.attribute("stdDeviation").value()).value_or(0.0f);
+                }
+            }
+            continue;
+        }
+        if ((name == "clippath" || name == "mask" || name == "symbol") && !id.empty()) {
+            std::vector<SvgShape> shapes;
+            for (auto item : child.children()) {
+                if (item.type() == pugi::node_element) {
+                    collect_svg_shapes(item, {}, shapes, defs, {});
+                }
+            }
+            if (name == "clippath") {
+                defs.clips[id] = std::move(shapes);
+            } else if (name == "mask") {
+                defs.masks[id] = std::move(shapes);
+            } else {
+                defs.symbols[id] = std::move(shapes);
+            }
+            continue;
+        }
+        collect_svg_defs(child, defs);
     }
 }
 
@@ -848,14 +1147,66 @@ RendererVectorImage parse_svg_document(std::string_view svg)
         }
     }
 
+    collect_svg_defs(root, result);
     SvgPaint paint;
-    collect_svg_shapes(root, paint, result.shapes);
+    collect_svg_shapes(root, paint, result.shapes, result, {});
     return result;
 }
 #endif
 
-void draw_svg_shape(VectorCanvas& canvas, const SvgShape& shape, Color tint)
+void apply_svg_matrix(VectorCanvas& canvas, Mat3 matrix)
 {
+    const float values[6] { matrix.a, matrix.b, matrix.c, matrix.d, matrix.tx, matrix.ty };
+    canvas.transform(values);
+}
+
+void draw_svg_shape(VectorCanvas& canvas, const SvgShape& shape, const RendererVectorImage& image, Color tint)
+{
+    canvas.push_state();
+    if (!shape.clip_ref.empty()) {
+        if (const auto clip = image.clips.find(shape.clip_ref); clip != image.clips.end()) {
+            canvas.begin_clip();
+            for (const auto& clip_shape : clip->second) {
+                draw_svg_shape(canvas, clip_shape, image, Color::rgba(255, 255, 255, 255));
+            }
+            canvas.end_clip();
+        }
+    }
+    if (!shape.mask_ref.empty()) {
+        if (const auto mask = image.masks.find(shape.mask_ref); mask != image.masks.end()) {
+            canvas.begin_clip();
+            for (const auto& mask_shape : mask->second) {
+                draw_svg_shape(canvas, mask_shape, image, Color::rgba(255, 255, 255, 255));
+            }
+            canvas.end_clip();
+        }
+    }
+    if (!shape.filter_ref.empty()) {
+        if (const auto blur = image.gaussian_blurs.find(shape.filter_ref); blur != image.gaussian_blurs.end() && blur->second > 0.0f) {
+            const float radius = std::min(12.0f, blur->second);
+            SvgShape shadow = shape;
+            shadow.filter_ref.clear();
+            Color blur_tint = tint;
+            blur_tint.a *= 0.12f;
+            const std::array<Point, 8> offsets {{
+                { -radius, 0.0f },
+                { radius, 0.0f },
+                { 0.0f, -radius },
+                { 0.0f, radius },
+                { -radius * 0.7f, -radius * 0.7f },
+                { radius * 0.7f, -radius * 0.7f },
+                { radius * 0.7f, radius * 0.7f },
+                { -radius * 0.7f, radius * 0.7f },
+            }};
+            for (const auto offset : offsets) {
+                canvas.push_state();
+                canvas.translate(offset.x, offset.y);
+                draw_svg_shape(canvas, shadow, image, blur_tint);
+                canvas.pop_state();
+            }
+        }
+    }
+    apply_svg_matrix(canvas, shape.transform);
     canvas.begin_path();
     switch (shape.type) {
     case SvgShapeType::Path:
@@ -904,11 +1255,40 @@ void draw_svg_shape(VectorCanvas& canvas, const SvgShape& shape, Color tint)
     fill.a *= shape.paint.opacity;
     stroke.a *= shape.paint.opacity;
     if (shape.paint.fill && fill.a > 0.0f) {
-        canvas.fill(fill, VectorFillRule::NonZero, true);
+        if (!shape.paint.fill_ref.empty()) {
+            if (const auto gradient = image.gradients.find(shape.paint.fill_ref); gradient != image.gradients.end()) {
+                const auto start = multiply_color(gradient->second.start, tint);
+                const auto end = multiply_color(gradient->second.end, tint);
+                if (gradient->second.type == SvgGradientType::Radial) {
+                    canvas.fill_radial_gradient(gradient->second.cx, gradient->second.cy, 0.0f, gradient->second.r, start, end);
+                } else {
+                    canvas.fill_linear_gradient(gradient->second.x1, gradient->second.y1, gradient->second.x2, gradient->second.y2, start, end);
+                }
+            } else {
+                canvas.fill(fill, VectorFillRule::NonZero, true);
+            }
+        } else {
+            canvas.fill(fill, VectorFillRule::NonZero, true);
+        }
     }
     if (shape.paint.stroke && shape.paint.stroke_width > 0.0f && stroke.a > 0.0f) {
-        canvas.stroke(stroke, shape.paint.stroke_width, VectorLineCap::Butt, VectorLineJoin::Round, true);
+        if (!shape.paint.stroke_ref.empty()) {
+            if (const auto gradient = image.gradients.find(shape.paint.stroke_ref); gradient != image.gradients.end()) {
+                const auto start = multiply_color(gradient->second.start, tint);
+                const auto end = multiply_color(gradient->second.end, tint);
+                if (gradient->second.type == SvgGradientType::Radial) {
+                    canvas.stroke_radial_gradient(gradient->second.cx, gradient->second.cy, 0.0f, gradient->second.r, start, end, shape.paint.stroke_width);
+                } else {
+                    canvas.stroke_linear_gradient(gradient->second.x1, gradient->second.y1, gradient->second.x2, gradient->second.y2, start, end, shape.paint.stroke_width);
+                }
+            } else {
+                canvas.stroke(stroke, shape.paint.stroke_width, VectorLineCap::Butt, VectorLineJoin::Round, true);
+            }
+        } else {
+            canvas.stroke(stroke, shape.paint.stroke_width, VectorLineCap::Butt, VectorLineJoin::Round, true);
+        }
     }
+    canvas.pop_state();
 }
 
 bgfx::ShaderHandle load_shader(const std::filesystem::path& path)
@@ -1197,12 +1577,56 @@ void VectorCanvas::fill(Color color, VectorFillRule rule, bool anti_alias)
 #endif
 }
 
+void VectorCanvas::fill_linear_gradient(float start_x, float start_y, float end_x, float end_y, Color inner, Color outer, VectorFillRule rule, bool anti_alias)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        auto gradient = vg::createLinearGradient(context, start_x, start_y, end_x, end_y, to_vg_color(inner), to_vg_color(outer));
+        const auto flags = VG_FILL_FLAGS(vg::PathType::Concave, to_vg_fill_rule(rule), anti_alias ? 1 : 0);
+        vg::fillPath(context, gradient, flags);
+    }
+#endif
+}
+
+void VectorCanvas::fill_radial_gradient(float center_x, float center_y, float inner_radius, float outer_radius, Color inner, Color outer, VectorFillRule rule, bool anti_alias)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        auto gradient = vg::createRadialGradient(context, center_x, center_y, inner_radius, outer_radius, to_vg_color(inner), to_vg_color(outer));
+        const auto flags = VG_FILL_FLAGS(vg::PathType::Concave, to_vg_fill_rule(rule), anti_alias ? 1 : 0);
+        vg::fillPath(context, gradient, flags);
+    }
+#endif
+}
+
 void VectorCanvas::stroke(Color color, float width, VectorLineCap cap, VectorLineJoin join, bool anti_alias)
 {
 #if OUIF_WITH_VG_RENDERER
     if (auto* context = static_cast<vg::Context*>(native_context_)) {
         const auto flags = VG_STROKE_FLAGS(to_vg_line_cap(cap), to_vg_line_join(join), anti_alias ? 1 : 0);
         vg::strokePath(context, to_vg_color(color), std::max(0.0f, width), flags);
+    }
+#endif
+}
+
+void VectorCanvas::stroke_linear_gradient(float start_x, float start_y, float end_x, float end_y, Color inner, Color outer, float width, bool anti_alias)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        auto gradient = vg::createLinearGradient(context, start_x, start_y, end_x, end_y, to_vg_color(inner), to_vg_color(outer));
+        const auto flags = VG_STROKE_FLAGS(vg::LineCap::Butt, vg::LineJoin::Round, anti_alias ? 1 : 0);
+        vg::strokePath(context, gradient, std::max(0.0f, width), flags);
+    }
+#endif
+}
+
+void VectorCanvas::stroke_radial_gradient(float center_x, float center_y, float inner_radius, float outer_radius, Color inner, Color outer, float width, bool anti_alias)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        auto gradient = vg::createRadialGradient(context, center_x, center_y, inner_radius, outer_radius, to_vg_color(inner), to_vg_color(outer));
+        const auto flags = VG_STROKE_FLAGS(vg::LineCap::Butt, vg::LineJoin::Round, anti_alias ? 1 : 0);
+        vg::strokePath(context, gradient, std::max(0.0f, width), flags);
     }
 #endif
 }
@@ -1257,6 +1681,33 @@ void VectorCanvas::rotate(float radians)
 #if OUIF_WITH_VG_RENDERER
     if (auto* context = static_cast<vg::Context*>(native_context_)) {
         vg::transformRotate(context, radians);
+    }
+#endif
+}
+
+void VectorCanvas::transform(const float matrix[6])
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_); context != nullptr && matrix != nullptr) {
+        vg::transformMult(context, matrix, vg::TransformOrder::Post);
+    }
+#endif
+}
+
+void VectorCanvas::begin_clip(VectorFillRule rule)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::beginClip(context, rule == VectorFillRule::EvenOdd ? vg::ClipRule::Out : vg::ClipRule::In);
+    }
+#endif
+}
+
+void VectorCanvas::end_clip()
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::endClip(context);
     }
 #endif
 }
@@ -2703,7 +3154,7 @@ void Renderer::draw_vector_image(VectorImageHandle image, Rect rect, ImageFit fi
 
     VectorCanvas canvas(impl_->vector_context);
     for (const auto& shape : vector_image.shapes) {
-        draw_svg_shape(canvas, shape, tint);
+        draw_svg_shape(canvas, shape, vector_image, tint);
     }
 
     vg::popState(impl_->vector_context);

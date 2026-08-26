@@ -114,4 +114,4 @@ The renderer currently supports:
 - internal render targets for shader-backed backdrop blur
 - internally compiled shaders
 
-More complete SVG features such as gradients, masks, SVG filters, and external symbol references are planned on top of the same vector backend.
+SVG support includes static shapes, path commands, transforms, local symbols/use references, linear/radial gradients, clipPath/mask clipping, and Gaussian blur filter metadata routed through the vector renderer.

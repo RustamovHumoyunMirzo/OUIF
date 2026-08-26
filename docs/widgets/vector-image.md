@@ -77,3 +77,7 @@ void draw(ouif::Renderer& renderer) override
 ```
 
 `VectorCanvas` exposes path, stroke, fill, transform, scissor, and state methods while keeping vg-renderer private to OUIF.
+
+## SVG Features
+
+The SVG loader supports static shapes, path commands, nested groups, transforms, local `symbol`/`use` references, `linearGradient`, `radialGradient`, `clipPath`, mask-style clipping, and `feGaussianBlur` filter metadata. Gradient paints use `fill="url(#id)"` or `stroke="url(#id)"`.

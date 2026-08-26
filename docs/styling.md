@@ -165,6 +165,8 @@ ouif::define_var("cat-id", "4201");
 
 Use `define_var(...)`, `edit_var(...)`, `delete_var(...)`, `get_var(...)`, and `clear_vars()` from C++. `Widget` also exposes static aliases with the same names.
 
+SVG files loaded by `VectorImage` can contain their own SVG attributes and defs, including gradients and local symbol/use references. OUIF CSS chooses the SVG source, fit, tint, layout, and widget states around that vector content.
+
 ## Custom CSS Properties
 
 Framework extensions and custom widgets can register new CSS properties:

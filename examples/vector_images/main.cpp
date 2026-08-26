@@ -4,8 +4,24 @@ namespace {
 
 constexpr const char* LogoSvg = R"svg(
 <svg width="96" height="96" viewBox="0 0 96 96">
+    <defs>
+        <linearGradient id="brand" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#4692c4" />
+            <stop offset="100%" stop-color="#a270c6" />
+        </linearGradient>
+        <clipPath id="roundClip">
+            <rect x="8" y="8" width="80" height="80" rx="18" />
+        </clipPath>
+        <symbol id="spark">
+            <path d="M48 20 L55 41 L77 48 L55 55 L48 76 L41 55 L19 48 L41 41 Z" fill="#ffffff" opacity="0.82" />
+        </symbol>
+        <filter id="soft">
+            <feGaussianBlur stdDeviation="2" />
+        </filter>
+    </defs>
     <rect x="8" y="8" width="80" height="80" rx="18" fill="#20252e" stroke="#e8edf3" stroke-width="3" />
-    <circle cx="48" cy="48" r="25" fill="#4692c4" />
+    <circle cx="48" cy="48" r="25" fill="url(#brand)" clip-path="url(#roundClip)" filter="url(#soft)" />
+    <use href="#spark" />
     <path d="M35 51 L45 61 L63 34" fill="none" stroke="#ffffff" stroke-width="7" />
 </svg>
 )svg";
