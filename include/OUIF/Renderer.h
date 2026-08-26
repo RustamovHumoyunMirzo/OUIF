@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -51,6 +52,12 @@ struct ImageHandle {
     [[nodiscard]] constexpr bool valid() const noexcept { return id != 0xffffU; }
 };
 
+struct VectorImageHandle {
+    std::uint16_t id = 0xffffU;
+
+    [[nodiscard]] constexpr bool valid() const noexcept { return id != 0xffffU; }
+};
+
 enum class ImageFit : std::uint8_t {
     Stretch,
     Contain,
@@ -61,6 +68,65 @@ enum class ImageFit : std::uint8_t {
 enum class ImageFilter : std::uint8_t {
     Linear,
     Nearest,
+};
+
+enum class VectorLineCap : std::uint8_t {
+    Butt,
+    Round,
+    Square,
+};
+
+enum class VectorLineJoin : std::uint8_t {
+    Miter,
+    Round,
+    Bevel,
+};
+
+enum class VectorFillRule : std::uint8_t {
+    NonZero,
+    EvenOdd,
+};
+
+class OUIF_API VectorCanvas {
+public:
+    explicit VectorCanvas(void* native_context = nullptr) noexcept;
+
+    void begin_path();
+    void move_to(float x, float y);
+    void line_to(float x, float y);
+    void cubic_to(float c1x, float c1y, float c2x, float c2y, float x, float y);
+    void quadratic_to(float cx, float cy, float x, float y);
+    void arc(float cx, float cy, float radius, float start_radians, float end_radians, bool clockwise = true);
+    void rect(float x, float y, float width, float height);
+    void rounded_rect(float x, float y, float width, float height, float radius);
+    void rounded_rect(float x, float y, float width, float height, CornerRadius radius);
+    void circle(float cx, float cy, float radius);
+    void ellipse(float cx, float cy, float rx, float ry);
+    void polyline(const float* points, std::uint32_t point_count);
+    void close_path();
+    void fill(Color color, VectorFillRule rule = VectorFillRule::NonZero, bool anti_alias = true);
+    void stroke(
+        Color color,
+        float width = 1.0f,
+        VectorLineCap cap = VectorLineCap::Butt,
+        VectorLineJoin join = VectorLineJoin::Miter,
+        bool anti_alias = true
+    );
+
+    void push_state();
+    void pop_state();
+    void set_alpha(float alpha);
+    void translate(float x, float y);
+    void scale(float x, float y);
+    void rotate(float radians);
+    void scissor(Rect rect);
+    void reset_scissor();
+
+    [[nodiscard]] void* native_handle() const noexcept;
+    [[nodiscard]] bool valid() const noexcept;
+
+private:
+    void* native_context_ = nullptr;
 };
 
 enum class TextAlign : std::uint8_t {
@@ -155,6 +221,13 @@ public:
     void destroy_image(ImageHandle image) noexcept;
     [[nodiscard]] Size image_size(ImageHandle image) const noexcept;
     void draw_image(ImageHandle image, Rect rect, ImageFit fit = ImageFit::Contain, ImageFilter filter = ImageFilter::Linear, Color tint = Color::rgba(255, 255, 255, 255));
+    [[nodiscard]] VectorImageHandle load_vector_image(std::filesystem::path path);
+    [[nodiscard]] VectorImageHandle load_vector_image(std::string svg);
+    [[nodiscard]] VectorImageHandle load_vector_image(const std::uint8_t* data, std::size_t size);
+    void destroy_vector_image(VectorImageHandle image) noexcept;
+    [[nodiscard]] Size vector_image_size(VectorImageHandle image) const noexcept;
+    void draw_vector_image(VectorImageHandle image, Rect rect, ImageFit fit = ImageFit::Contain, Color tint = Color::rgba(255, 255, 255, 255));
+    void draw_vector(Rect rect, const std::function<void(VectorCanvas&)>& draw_callback);
     bool load_default_system_font();
     void set_default_font_family(std::string family);
     [[nodiscard]] std::string_view default_font_family() const noexcept;

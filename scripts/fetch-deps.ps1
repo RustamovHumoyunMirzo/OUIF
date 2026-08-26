@@ -38,5 +38,6 @@ Sync-Repo "https://github.com/bkaradzic/bimg.git" (Join-Path $BgfxCMake "bimg")
 Sync-Repo "https://github.com/glfw/glfw.git" (Join-Path $Deps "glfw")
 Sync-Repo "https://github.com/hackers-painters/katana-parser.git" (Join-Path $Deps "katana")
 Sync-Repo "https://github.com/zeux/pugixml.git" (Join-Path $Deps "pugixml")
+Sync-Repo "https://github.com/RudjiGames/vg_renderer.git" (Join-Path $Deps "vg-renderer")
 
 Write-Host "OUIF dependencies are ready in $Deps"

@@ -19,6 +19,8 @@ external/
     bimg/
   glfw/
   katana/
+  pugixml/
+  vg-renderer/
 ```
 
 This mirrors what `bgfx.cmake` expects, but avoids recursive submodule fetches during CMake configure.
@@ -43,6 +45,8 @@ Useful options:
 - `OUIF_FETCH_BGFX`: use `external/bgfx.cmake`
 - `OUIF_FETCH_GLFW`: use `external/glfw`
 - `OUIF_USE_KATANA`: build Katana CSS parser from `external/katana`
+- `OUIF_USE_PUGIXML`: build pugixml XML parser from `external/pugixml`
+- `OUIF_USE_VG_RENDERER`: build vg-renderer vector backend from `external/vg-renderer`
 - `OUIF_INSTALL`: generate install targets
 - `OUIF_DEPS_DIR`: dependency source directory
 
@@ -105,8 +109,9 @@ The renderer currently supports:
 - rounded rectangles and rounded borders
 - text through font atlases
 - image decoding through bimg and texture drawing through bgfx
+- SVG/vector drawing through vg-renderer
 - clipping and transforms
 - internal render targets for shader-backed backdrop blur
 - internally compiled shaders
 
-Images, paths, and batching improvements are future work.
+More complete SVG features such as gradients, masks, SVG filters, and external symbol references are planned on top of the same vector backend.

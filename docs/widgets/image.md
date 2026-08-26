@@ -70,3 +70,5 @@ Supported image properties:
 ```
 
 `<Img>` is also accepted as an alias. XML image paths are resolved relative to the XML file.
+
+Use [VectorImage](vector-image.md) for SVG/vector assets.

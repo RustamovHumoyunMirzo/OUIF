@@ -16,6 +16,7 @@ Current widget/container docs:
 - [Divider](divider.md)
 - [Label](label.md)
 - [Image](image.md)
+- [VectorImage](vector-image.md)
 - [Overlay](overlay.md)
 
 Future controls such as buttons, sliders, inputs, and lists should get their own page in this directory when they are added.

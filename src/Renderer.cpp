@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <charconv>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
@@ -23,6 +24,14 @@
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>
+#endif
+
+#if OUIF_WITH_VG_RENDERER
+#include <vg/vg.h>
+#endif
+
+#if OUIF_WITH_PUGIXML
+#include <pugixml.hpp>
 #endif
 
 namespace ouif {
@@ -79,6 +88,45 @@ struct RendererImage {
     Size size {};
 };
 
+enum class SvgShapeType {
+    Path,
+    Rect,
+    Circle,
+    Ellipse,
+    Line,
+    Polyline,
+    Polygon,
+};
+
+struct SvgPathCommand {
+    char command = 'M';
+    std::array<float, 6> values {};
+};
+
+struct SvgPaint {
+    bool fill = true;
+    bool stroke = false;
+    Color fill_color = Color::rgba(0, 0, 0, 255);
+    Color stroke_color = Color::rgba(0, 0, 0, 255);
+    float stroke_width = 1.0f;
+    float opacity = 1.0f;
+};
+
+struct SvgShape {
+    SvgShapeType type = SvgShapeType::Path;
+    SvgPaint paint {};
+    std::vector<SvgPathCommand> path;
+    std::vector<float> points;
+    Rect rect {};
+    CornerRadius radius {};
+};
+
+struct RendererVectorImage {
+    Size size {};
+    Rect view_box {};
+    std::vector<SvgShape> shapes;
+};
+
 struct Mat3 {
     float a = 1.0f;
     float b = 0.0f;
@@ -95,6 +143,59 @@ Point apply_matrix(Mat3 matrix, Point point) noexcept
         matrix.b * point.x + matrix.d * point.y + matrix.ty,
     };
 }
+
+std::uint8_t color_channel(float value) noexcept
+{
+    return static_cast<std::uint8_t>(std::clamp(value, 0.0f, 1.0f) * 255.0f);
+}
+
+Color multiply_color(Color color, Color tint) noexcept
+{
+    return {
+        color.r * tint.r,
+        color.g * tint.g,
+        color.b * tint.b,
+        color.a * tint.a,
+    };
+}
+
+#if OUIF_WITH_VG_RENDERER
+vg::Color to_vg_color(Color color) noexcept
+{
+    return vg::color4ub(color_channel(color.r), color_channel(color.g), color_channel(color.b), color_channel(color.a));
+}
+
+vg::LineCap::Enum to_vg_line_cap(VectorLineCap cap) noexcept
+{
+    switch (cap) {
+    case VectorLineCap::Round:
+        return vg::LineCap::Round;
+    case VectorLineCap::Square:
+        return vg::LineCap::Square;
+    case VectorLineCap::Butt:
+    default:
+        return vg::LineCap::Butt;
+    }
+}
+
+vg::LineJoin::Enum to_vg_line_join(VectorLineJoin join) noexcept
+{
+    switch (join) {
+    case VectorLineJoin::Round:
+        return vg::LineJoin::Round;
+    case VectorLineJoin::Bevel:
+        return vg::LineJoin::Bevel;
+    case VectorLineJoin::Miter:
+    default:
+        return vg::LineJoin::Miter;
+    }
+}
+
+vg::FillRule::Enum to_vg_fill_rule(VectorFillRule rule) noexcept
+{
+    return rule == VectorFillRule::EvenOdd ? vg::FillRule::EvenOdd : vg::FillRule::NonZero;
+}
+#endif
 
 Mat3 multiply(Mat3 left, Mat3 right) noexcept
 {
@@ -337,6 +438,479 @@ std::vector<unsigned char> read_binary_file(const std::filesystem::path& path)
     };
 }
 
+std::optional<float> parse_svg_float(std::string_view value) noexcept
+{
+    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front())) != 0) {
+        value.remove_prefix(1);
+    }
+    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back())) != 0) {
+        value.remove_suffix(1);
+    }
+    if (value.empty()) {
+        return std::nullopt;
+    }
+
+    float parsed = 0.0f;
+    const auto* first = value.data();
+    const auto* last = value.data() + value.size();
+    const auto result = std::from_chars(first, last, parsed);
+    return result.ec == std::errc() ? std::optional<float>(parsed) : std::nullopt;
+}
+
+std::string svg_trim(std::string_view value)
+{
+    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front())) != 0) {
+        value.remove_prefix(1);
+    }
+    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back())) != 0) {
+        value.remove_suffix(1);
+    }
+    return std::string(value);
+}
+
+std::string svg_lower(std::string_view value)
+{
+    std::string copy(value);
+    std::transform(copy.begin(), copy.end(), copy.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return copy;
+}
+
+std::optional<Color> parse_svg_color(std::string_view value)
+{
+    auto text = svg_lower(svg_trim(value));
+    if (text.empty() || text == "none") {
+        return std::nullopt;
+    }
+    if (text == "white") {
+        return Color::rgba(255, 255, 255, 255);
+    }
+    if (text == "black" || text == "currentcolor") {
+        return Color::rgba(0, 0, 0, 255);
+    }
+    if (text == "red") {
+        return Color::rgba(255, 0, 0, 255);
+    }
+    if (text == "green") {
+        return Color::rgba(0, 128, 0, 255);
+    }
+    if (text == "blue") {
+        return Color::rgba(0, 0, 255, 255);
+    }
+    if (text == "transparent") {
+        return Color::rgba(0, 0, 0, 0);
+    }
+    return Color::from_hex(text);
+}
+
+void apply_svg_style_value(SvgPaint& paint, std::string_view key, std::string_view value)
+{
+    const auto name = svg_lower(svg_trim(key));
+    const auto text = svg_trim(value);
+    if (name == "fill") {
+        if (svg_lower(text) == "none") {
+            paint.fill = false;
+        } else if (auto color = parse_svg_color(text)) {
+            paint.fill = true;
+            paint.fill_color = *color;
+        }
+    } else if (name == "stroke") {
+        if (svg_lower(text) == "none") {
+            paint.stroke = false;
+        } else if (auto color = parse_svg_color(text)) {
+            paint.stroke = true;
+            paint.stroke_color = *color;
+        }
+    } else if (name == "stroke-width") {
+        paint.stroke_width = std::max(0.0f, parse_svg_float(text).value_or(paint.stroke_width));
+    } else if (name == "opacity") {
+        paint.opacity = std::clamp(parse_svg_float(text).value_or(paint.opacity), 0.0f, 1.0f);
+    } else if (name == "fill-opacity") {
+        paint.fill_color.a *= std::clamp(parse_svg_float(text).value_or(1.0f), 0.0f, 1.0f);
+    } else if (name == "stroke-opacity") {
+        paint.stroke_color.a *= std::clamp(parse_svg_float(text).value_or(1.0f), 0.0f, 1.0f);
+    }
+}
+
+struct SvgPathReader {
+    std::string_view text;
+    std::size_t index = 0;
+
+    void skip() noexcept
+    {
+        while (index < text.size() && (std::isspace(static_cast<unsigned char>(text[index])) != 0 || text[index] == ',')) {
+            ++index;
+        }
+    }
+
+    [[nodiscard]] bool has_number() noexcept
+    {
+        skip();
+        return index < text.size() && (std::isdigit(static_cast<unsigned char>(text[index])) != 0 || text[index] == '-' || text[index] == '+' || text[index] == '.');
+    }
+
+    std::optional<float> number() noexcept
+    {
+        skip();
+        const auto start = index;
+        if (index < text.size() && (text[index] == '-' || text[index] == '+')) {
+            ++index;
+        }
+        while (index < text.size() && std::isdigit(static_cast<unsigned char>(text[index])) != 0) {
+            ++index;
+        }
+        if (index < text.size() && text[index] == '.') {
+            ++index;
+            while (index < text.size() && std::isdigit(static_cast<unsigned char>(text[index])) != 0) {
+                ++index;
+            }
+        }
+        if (index < text.size() && (text[index] == 'e' || text[index] == 'E')) {
+            ++index;
+            if (index < text.size() && (text[index] == '-' || text[index] == '+')) {
+                ++index;
+            }
+            while (index < text.size() && std::isdigit(static_cast<unsigned char>(text[index])) != 0) {
+                ++index;
+            }
+        }
+        return parse_svg_float(text.substr(start, index - start));
+    }
+};
+
+std::vector<SvgPathCommand> parse_svg_path(std::string_view data)
+{
+    SvgPathReader reader { data };
+    std::vector<SvgPathCommand> commands;
+    char command = 'M';
+    Point current {};
+    Point subpath {};
+
+    while (reader.index < reader.text.size()) {
+        reader.skip();
+        if (reader.index >= reader.text.size()) {
+            break;
+        }
+        if (std::isalpha(static_cast<unsigned char>(reader.text[reader.index])) != 0) {
+            command = reader.text[reader.index++];
+        }
+        const bool relative = std::islower(static_cast<unsigned char>(command)) != 0;
+        const char op = static_cast<char>(std::toupper(static_cast<unsigned char>(command)));
+
+        if (op == 'Z') {
+            commands.push_back({ 'Z', {} });
+            current = subpath;
+            continue;
+        }
+
+        if (op != 'M' && op != 'L' && op != 'H' && op != 'V' && op != 'C' && op != 'Q') {
+            while (reader.index < reader.text.size() && std::isalpha(static_cast<unsigned char>(reader.text[reader.index])) == 0) {
+                ++reader.index;
+            }
+            continue;
+        }
+
+        while (reader.has_number()) {
+            SvgPathCommand parsed;
+            parsed.command = op;
+            if (op == 'M' || op == 'L') {
+                auto x = reader.number();
+                auto y = reader.number();
+                if (!x || !y) {
+                    break;
+                }
+                Point point { *x, *y };
+                if (relative) {
+                    point.x += current.x;
+                    point.y += current.y;
+                }
+                parsed.values[0] = point.x;
+                parsed.values[1] = point.y;
+                current = point;
+                if (op == 'M') {
+                    subpath = point;
+                    command = relative ? 'l' : 'L';
+                }
+            } else if (op == 'H') {
+                auto x = reader.number();
+                if (!x) {
+                    break;
+                }
+                current.x = relative ? current.x + *x : *x;
+                parsed.command = 'L';
+                parsed.values[0] = current.x;
+                parsed.values[1] = current.y;
+            } else if (op == 'V') {
+                auto y = reader.number();
+                if (!y) {
+                    break;
+                }
+                current.y = relative ? current.y + *y : *y;
+                parsed.command = 'L';
+                parsed.values[0] = current.x;
+                parsed.values[1] = current.y;
+            } else if (op == 'C') {
+                std::array<float, 6> values {};
+                bool ok = true;
+                for (auto& value : values) {
+                    auto parsed_value = reader.number();
+                    if (!parsed_value) {
+                        ok = false;
+                        break;
+                    }
+                    value = *parsed_value;
+                }
+                if (!ok) {
+                    break;
+                }
+                if (relative) {
+                    for (int index = 0; index < 6; index += 2) {
+                        values[index] += current.x;
+                        values[index + 1] += current.y;
+                    }
+                }
+                parsed.values = values;
+                current = { values[4], values[5] };
+            } else if (op == 'Q') {
+                std::array<float, 6> values {};
+                bool ok = true;
+                for (int index = 0; index < 4; ++index) {
+                    auto parsed_value = reader.number();
+                    if (!parsed_value) {
+                        ok = false;
+                        break;
+                    }
+                    values[index] = *parsed_value;
+                }
+                if (!ok) {
+                    break;
+                }
+                if (relative) {
+                    values[0] += current.x;
+                    values[1] += current.y;
+                    values[2] += current.x;
+                    values[3] += current.y;
+                }
+                parsed.values = values;
+                current = { values[2], values[3] };
+            } else {
+                break;
+            }
+            commands.push_back(parsed);
+        }
+    }
+
+    return commands;
+}
+
+std::vector<float> parse_svg_points(std::string_view text)
+{
+    SvgPathReader reader { text };
+    std::vector<float> points;
+    while (reader.has_number()) {
+        auto x = reader.number();
+        auto y = reader.number();
+        if (!x || !y) {
+            break;
+        }
+        points.push_back(*x);
+        points.push_back(*y);
+    }
+    return points;
+}
+
+#if OUIF_WITH_PUGIXML
+SvgPaint svg_paint_from_node(pugi::xml_node node, SvgPaint inherited)
+{
+    for (auto attr : node.attributes()) {
+        apply_svg_style_value(inherited, attr.name(), attr.value());
+    }
+    if (auto style = node.attribute("style")) {
+        std::string_view css = style.value();
+        while (!css.empty()) {
+            const auto semicolon = css.find(';');
+            const auto declaration = semicolon == std::string_view::npos ? css : css.substr(0, semicolon);
+            if (const auto colon = declaration.find(':'); colon != std::string_view::npos) {
+                apply_svg_style_value(inherited, declaration.substr(0, colon), declaration.substr(colon + 1U));
+            }
+            if (semicolon == std::string_view::npos) {
+                break;
+            }
+            css.remove_prefix(semicolon + 1U);
+        }
+    }
+    return inherited;
+}
+
+void collect_svg_shapes(pugi::xml_node node, SvgPaint paint, std::vector<SvgShape>& shapes)
+{
+    const auto node_name = svg_lower(node.name());
+    if (node_name == "defs" || node_name == "style" || node_name == "metadata" || svg_lower(node.attribute("display").as_string()) == "none") {
+        return;
+    }
+
+    paint = svg_paint_from_node(node, paint);
+    SvgShape shape;
+    shape.paint = paint;
+    bool append = false;
+
+    if (node_name == "path" && node.attribute("d")) {
+        shape.type = SvgShapeType::Path;
+        shape.path = parse_svg_path(node.attribute("d").value());
+        append = !shape.path.empty();
+    } else if (node_name == "rect") {
+        shape.type = SvgShapeType::Rect;
+        const float x = parse_svg_float(node.attribute("x").value()).value_or(0.0f);
+        const float y = parse_svg_float(node.attribute("y").value()).value_or(0.0f);
+        const float width = parse_svg_float(node.attribute("width").value()).value_or(0.0f);
+        const float height = parse_svg_float(node.attribute("height").value()).value_or(0.0f);
+        const float radius = std::max(parse_svg_float(node.attribute("rx").value()).value_or(0.0f), parse_svg_float(node.attribute("ry").value()).value_or(0.0f));
+        shape.rect = { x, y, width, height };
+        shape.radius = CornerRadius(radius);
+        append = width > 0.0f && height > 0.0f;
+    } else if (node_name == "circle") {
+        shape.type = SvgShapeType::Circle;
+        shape.rect = {
+            parse_svg_float(node.attribute("cx").value()).value_or(0.0f),
+            parse_svg_float(node.attribute("cy").value()).value_or(0.0f),
+            parse_svg_float(node.attribute("r").value()).value_or(0.0f),
+            0.0f,
+        };
+        append = shape.rect.width > 0.0f;
+    } else if (node_name == "ellipse") {
+        shape.type = SvgShapeType::Ellipse;
+        shape.rect = {
+            parse_svg_float(node.attribute("cx").value()).value_or(0.0f),
+            parse_svg_float(node.attribute("cy").value()).value_or(0.0f),
+            parse_svg_float(node.attribute("rx").value()).value_or(0.0f),
+            parse_svg_float(node.attribute("ry").value()).value_or(0.0f),
+        };
+        append = shape.rect.width > 0.0f && shape.rect.height > 0.0f;
+    } else if (node_name == "line") {
+        shape.type = SvgShapeType::Line;
+        shape.paint.fill = false;
+        if (!shape.paint.stroke) {
+            shape.paint.stroke = true;
+        }
+        shape.rect = {
+            parse_svg_float(node.attribute("x1").value()).value_or(0.0f),
+            parse_svg_float(node.attribute("y1").value()).value_or(0.0f),
+            parse_svg_float(node.attribute("x2").value()).value_or(0.0f),
+            parse_svg_float(node.attribute("y2").value()).value_or(0.0f),
+        };
+        append = true;
+    } else if (node_name == "polyline" || node_name == "polygon") {
+        shape.type = node_name == "polygon" ? SvgShapeType::Polygon : SvgShapeType::Polyline;
+        shape.points = parse_svg_points(node.attribute("points").value());
+        append = shape.points.size() >= 4U;
+    }
+
+    if (append) {
+        shapes.push_back(std::move(shape));
+    }
+
+    for (auto child : node.children()) {
+        if (child.type() == pugi::node_element) {
+            collect_svg_shapes(child, paint, shapes);
+        }
+    }
+}
+
+RendererVectorImage parse_svg_document(std::string_view svg)
+{
+    RendererVectorImage result;
+    pugi::xml_document doc;
+    const auto status = doc.load_buffer(svg.data(), svg.size(), pugi::parse_default | pugi::parse_declaration);
+    if (!status) {
+        return result;
+    }
+
+    auto root = doc.child("svg");
+    if (!root) {
+        root = doc.first_child();
+    }
+    const float width = parse_svg_float(root.attribute("width").value()).value_or(0.0f);
+    const float height = parse_svg_float(root.attribute("height").value()).value_or(0.0f);
+    result.size = { width > 0.0f ? width : 100.0f, height > 0.0f ? height : 100.0f };
+    result.view_box = { 0.0f, 0.0f, result.size.width, result.size.height };
+
+    if (auto view_box_attr = root.attribute("viewBox")) {
+        const auto values = parse_svg_points(view_box_attr.value());
+        if (values.size() >= 4U && values[2] > 0.0f && values[3] > 0.0f) {
+            result.view_box = { values[0], values[1], values[2], values[3] };
+            if (width <= 0.0f) {
+                result.size.width = values[2];
+            }
+            if (height <= 0.0f) {
+                result.size.height = values[3];
+            }
+        }
+    }
+
+    SvgPaint paint;
+    collect_svg_shapes(root, paint, result.shapes);
+    return result;
+}
+#endif
+
+void draw_svg_shape(VectorCanvas& canvas, const SvgShape& shape, Color tint)
+{
+    canvas.begin_path();
+    switch (shape.type) {
+    case SvgShapeType::Path:
+        for (const auto& command : shape.path) {
+            if (command.command == 'M') {
+                canvas.move_to(command.values[0], command.values[1]);
+            } else if (command.command == 'L') {
+                canvas.line_to(command.values[0], command.values[1]);
+            } else if (command.command == 'C') {
+                canvas.cubic_to(command.values[0], command.values[1], command.values[2], command.values[3], command.values[4], command.values[5]);
+            } else if (command.command == 'Q') {
+                canvas.quadratic_to(command.values[0], command.values[1], command.values[2], command.values[3]);
+            } else if (command.command == 'Z') {
+                canvas.close_path();
+            }
+        }
+        break;
+    case SvgShapeType::Rect:
+        if (shape.radius.top_left > 0.0f || shape.radius.top_right > 0.0f || shape.radius.bottom_right > 0.0f || shape.radius.bottom_left > 0.0f) {
+            canvas.rounded_rect(shape.rect.x, shape.rect.y, shape.rect.width, shape.rect.height, shape.radius);
+        } else {
+            canvas.rect(shape.rect.x, shape.rect.y, shape.rect.width, shape.rect.height);
+        }
+        break;
+    case SvgShapeType::Circle:
+        canvas.circle(shape.rect.x, shape.rect.y, shape.rect.width);
+        break;
+    case SvgShapeType::Ellipse:
+        canvas.ellipse(shape.rect.x, shape.rect.y, shape.rect.width, shape.rect.height);
+        break;
+    case SvgShapeType::Line:
+        canvas.move_to(shape.rect.x, shape.rect.y);
+        canvas.line_to(shape.rect.width, shape.rect.height);
+        break;
+    case SvgShapeType::Polyline:
+    case SvgShapeType::Polygon:
+        canvas.polyline(shape.points.data(), static_cast<std::uint32_t>(shape.points.size() / 2U));
+        if (shape.type == SvgShapeType::Polygon) {
+            canvas.close_path();
+        }
+        break;
+    }
+
+    Color fill = multiply_color(shape.paint.fill_color, tint);
+    Color stroke = multiply_color(shape.paint.stroke_color, tint);
+    fill.a *= shape.paint.opacity;
+    stroke.a *= shape.paint.opacity;
+    if (shape.paint.fill && fill.a > 0.0f) {
+        canvas.fill(fill, VectorFillRule::NonZero, true);
+    }
+    if (shape.paint.stroke && shape.paint.stroke_width > 0.0f && stroke.a > 0.0f) {
+        canvas.stroke(stroke, shape.paint.stroke_width, VectorLineCap::Butt, VectorLineJoin::Round, true);
+    }
+}
+
 bgfx::ShaderHandle load_shader(const std::filesystem::path& path)
 {
     auto data = read_file(path);
@@ -491,6 +1065,230 @@ std::uint32_t reset_flags(const RendererQualityConfig& quality, bool vsync)
 } // namespace
 #endif
 
+VectorCanvas::VectorCanvas(void* native_context) noexcept
+    : native_context_(native_context)
+{
+}
+
+void VectorCanvas::begin_path()
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::beginPath(context);
+    }
+#endif
+}
+
+void VectorCanvas::move_to(float x, float y)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::moveTo(context, x, y);
+    }
+#endif
+}
+
+void VectorCanvas::line_to(float x, float y)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::lineTo(context, x, y);
+    }
+#endif
+}
+
+void VectorCanvas::cubic_to(float c1x, float c1y, float c2x, float c2y, float x, float y)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::cubicTo(context, c1x, c1y, c2x, c2y, x, y);
+    }
+#endif
+}
+
+void VectorCanvas::quadratic_to(float cx, float cy, float x, float y)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::quadraticTo(context, cx, cy, x, y);
+    }
+#endif
+}
+
+void VectorCanvas::arc(float cx, float cy, float radius, float start_radians, float end_radians, bool clockwise)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::arc(context, cx, cy, radius, start_radians, end_radians, clockwise ? vg::Winding::CW : vg::Winding::CCW);
+    }
+#endif
+}
+
+void VectorCanvas::rect(float x, float y, float width, float height)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::rect(context, x, y, width, height);
+    }
+#endif
+}
+
+void VectorCanvas::rounded_rect(float x, float y, float width, float height, float radius)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::roundedRect(context, x, y, width, height, radius);
+    }
+#endif
+}
+
+void VectorCanvas::rounded_rect(float x, float y, float width, float height, CornerRadius radius)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::roundedRectVarying(context, x, y, width, height, radius.top_left, radius.top_right, radius.bottom_right, radius.bottom_left);
+    }
+#endif
+}
+
+void VectorCanvas::circle(float cx, float cy, float radius)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::circle(context, cx, cy, radius);
+    }
+#endif
+}
+
+void VectorCanvas::ellipse(float cx, float cy, float rx, float ry)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::ellipse(context, cx, cy, rx, ry);
+    }
+#endif
+}
+
+void VectorCanvas::polyline(const float* points, std::uint32_t point_count)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_); context != nullptr && points != nullptr && point_count > 0U) {
+        vg::polyline(context, points, point_count);
+    }
+#endif
+}
+
+void VectorCanvas::close_path()
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::closePath(context);
+    }
+#endif
+}
+
+void VectorCanvas::fill(Color color, VectorFillRule rule, bool anti_alias)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        const auto flags = VG_FILL_FLAGS(vg::PathType::Concave, to_vg_fill_rule(rule), anti_alias ? 1 : 0);
+        vg::fillPath(context, to_vg_color(color), flags);
+    }
+#endif
+}
+
+void VectorCanvas::stroke(Color color, float width, VectorLineCap cap, VectorLineJoin join, bool anti_alias)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        const auto flags = VG_STROKE_FLAGS(to_vg_line_cap(cap), to_vg_line_join(join), anti_alias ? 1 : 0);
+        vg::strokePath(context, to_vg_color(color), std::max(0.0f, width), flags);
+    }
+#endif
+}
+
+void VectorCanvas::push_state()
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::pushState(context);
+    }
+#endif
+}
+
+void VectorCanvas::pop_state()
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::popState(context);
+    }
+#endif
+}
+
+void VectorCanvas::set_alpha(float alpha)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::setGlobalAlpha(context, std::clamp(alpha, 0.0f, 1.0f));
+    }
+#endif
+}
+
+void VectorCanvas::translate(float x, float y)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::transformTranslate(context, x, y);
+    }
+#endif
+}
+
+void VectorCanvas::scale(float x, float y)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::transformScale(context, x, y);
+    }
+#endif
+}
+
+void VectorCanvas::rotate(float radians)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::transformRotate(context, radians);
+    }
+#endif
+}
+
+void VectorCanvas::scissor(Rect rect)
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::setScissor(context, rect.x, rect.y, rect.width, rect.height);
+    }
+#endif
+}
+
+void VectorCanvas::reset_scissor()
+{
+#if OUIF_WITH_VG_RENDERER
+    if (auto* context = static_cast<vg::Context*>(native_context_)) {
+        vg::resetScissor(context);
+    }
+#endif
+}
+
+void* VectorCanvas::native_handle() const noexcept
+{
+    return native_context_;
+}
+
+bool VectorCanvas::valid() const noexcept
+{
+    return native_context_ != nullptr;
+}
+
 namespace {
 
 std::array<std::string_view, 7> glyph_pattern(char raw) noexcept
@@ -591,7 +1389,13 @@ struct Renderer::Impl {
     bgfx::TextureHandle scene_texture = BGFX_INVALID_HANDLE;
     std::unordered_map<std::uint16_t, RendererImage> images;
     std::uint16_t next_image_id = 1U;
+    std::unordered_map<std::uint16_t, RendererVectorImage> vector_images;
+    std::uint16_t next_vector_image_id = 1U;
     std::unordered_map<std::string, FontFace> fonts;
+#if OUIF_WITH_VG_RENDERER
+    bx::DefaultAllocator vector_allocator;
+    vg::Context* vector_context = nullptr;
+#endif
 #endif
     std::uint8_t draw_view = 0;
     bool scene_capture_enabled = false;
@@ -1039,6 +1843,9 @@ void Renderer::initialize(const RendererConfig& config)
         }
     }
     ensure_scene_targets(*impl_);
+#if OUIF_WITH_VG_RENDERER
+    impl_->vector_context = vg::createContext(&impl_->vector_allocator);
+#endif
 #endif
 
     impl_->initialized = true;
@@ -1061,6 +1868,13 @@ void Renderer::shutdown() noexcept
         destroy_handle(image.texture);
     }
     impl_->images.clear();
+    impl_->vector_images.clear();
+#if OUIF_WITH_VG_RENDERER
+    if (impl_->vector_context != nullptr) {
+        vg::destroyContext(impl_->vector_context);
+        impl_->vector_context = nullptr;
+    }
+#endif
     destroy_scene_targets(*impl_);
     destroy_handle(impl_->blur_uniform);
     destroy_handle(impl_->source_sampler);
@@ -1765,6 +2579,168 @@ void Renderer::draw_image(ImageHandle image, Rect rect, ImageFit fit, ImageFilte
     (void)fit;
     (void)filter;
     (void)tint;
+#endif
+}
+
+VectorImageHandle Renderer::load_vector_image(std::filesystem::path path)
+{
+#if OUIF_WITH_BGFX && OUIF_WITH_PUGIXML
+    auto data = read_file(path);
+    if (data.empty()) {
+        return {};
+    }
+    return load_vector_image(reinterpret_cast<const std::uint8_t*>(data.data()), data.size());
+#else
+    (void)path;
+    return {};
+#endif
+}
+
+VectorImageHandle Renderer::load_vector_image(std::string svg)
+{
+    return load_vector_image(reinterpret_cast<const std::uint8_t*>(svg.data()), svg.size());
+}
+
+VectorImageHandle Renderer::load_vector_image(const std::uint8_t* data, std::size_t size)
+{
+#if OUIF_WITH_BGFX && OUIF_WITH_PUGIXML
+    if (data == nullptr || size == 0U) {
+        return {};
+    }
+
+    auto image = parse_svg_document(std::string_view(reinterpret_cast<const char*>(data), size));
+    if (image.shapes.empty() || image.size.width <= 0.0f || image.size.height <= 0.0f) {
+        return {};
+    }
+
+    std::uint16_t id = impl_->next_vector_image_id;
+    for (std::uint32_t attempts = 0; attempts < std::numeric_limits<std::uint16_t>::max(); ++attempts) {
+        if (id == 0xffffU || id == 0U) {
+            id = 1U;
+        }
+        if (!impl_->vector_images.contains(id)) {
+            impl_->next_vector_image_id = static_cast<std::uint16_t>(id + 1U);
+            impl_->vector_images.emplace(id, std::move(image));
+            return VectorImageHandle { id };
+        }
+        ++id;
+    }
+    return {};
+#else
+    (void)data;
+    (void)size;
+    return {};
+#endif
+}
+
+void Renderer::destroy_vector_image(VectorImageHandle image) noexcept
+{
+#if OUIF_WITH_BGFX
+    if (!image.valid()) {
+        return;
+    }
+    impl_->vector_images.erase(image.id);
+#else
+    (void)image;
+#endif
+}
+
+Size Renderer::vector_image_size(VectorImageHandle image) const noexcept
+{
+#if OUIF_WITH_BGFX
+    const auto found = impl_->vector_images.find(image.id);
+    return found != impl_->vector_images.end() ? found->second.size : Size {};
+#else
+    (void)image;
+    return {};
+#endif
+}
+
+void Renderer::draw_vector_image(VectorImageHandle image, Rect rect, ImageFit fit, Color tint)
+{
+#if OUIF_WITH_BGFX && OUIF_WITH_VG_RENDERER
+    const auto found = impl_->vector_images.find(image.id);
+    if (found == impl_->vector_images.end() || impl_->vector_context == nullptr || rect.width <= 0.0f || rect.height <= 0.0f) {
+        return;
+    }
+
+    const auto& vector_image = found->second;
+    const auto natural = vector_image.size;
+    Rect draw_rect = rect;
+    if (natural.width > 0.0f && natural.height > 0.0f && fit != ImageFit::Stretch) {
+        const float scale_x = rect.width / natural.width;
+        const float scale_y = rect.height / natural.height;
+        float scale = 1.0f;
+        if (fit == ImageFit::Contain) {
+            scale = std::min(scale_x, scale_y);
+        } else if (fit == ImageFit::Cover) {
+            scale = std::max(scale_x, scale_y);
+        }
+        if (fit == ImageFit::Center) {
+            draw_rect.width = natural.width;
+            draw_rect.height = natural.height;
+        } else {
+            draw_rect.width = natural.width * scale;
+            draw_rect.height = natural.height * scale;
+        }
+        draw_rect.x = rect.x + (rect.width - draw_rect.width) * 0.5f;
+        draw_rect.y = rect.y + (rect.height - draw_rect.height) * 0.5f;
+    }
+
+    push_clip(rect);
+    vg::begin(impl_->vector_context, impl_->draw_view, static_cast<std::uint16_t>(impl_->width), static_cast<std::uint16_t>(impl_->height), 1.0f);
+    vg::pushState(impl_->vector_context);
+    if (!impl_->clip_stack.empty()) {
+        const auto clip = impl_->clip_stack.back();
+        vg::setScissor(impl_->vector_context, clip.x, clip.y, clip.width, clip.height);
+    }
+    const auto matrix = current_transform(*impl_);
+    const float transform[6] { matrix.a, matrix.b, matrix.c, matrix.d, matrix.tx, matrix.ty };
+    vg::transformMult(impl_->vector_context, transform, vg::TransformOrder::Post);
+    vg::transformTranslate(impl_->vector_context, draw_rect.x, draw_rect.y);
+    vg::transformScale(impl_->vector_context, draw_rect.width / vector_image.view_box.width, draw_rect.height / vector_image.view_box.height);
+    vg::transformTranslate(impl_->vector_context, -vector_image.view_box.x, -vector_image.view_box.y);
+
+    VectorCanvas canvas(impl_->vector_context);
+    for (const auto& shape : vector_image.shapes) {
+        draw_svg_shape(canvas, shape, tint);
+    }
+
+    vg::popState(impl_->vector_context);
+    vg::end(impl_->vector_context);
+    pop_clip();
+#else
+    (void)image;
+    (void)rect;
+    (void)fit;
+    (void)tint;
+#endif
+}
+
+void Renderer::draw_vector(Rect rect, const std::function<void(VectorCanvas&)>& draw_callback)
+{
+#if OUIF_WITH_BGFX && OUIF_WITH_VG_RENDERER
+    if (impl_->vector_context == nullptr || !draw_callback || rect.width <= 0.0f || rect.height <= 0.0f) {
+        return;
+    }
+
+    vg::begin(impl_->vector_context, impl_->draw_view, static_cast<std::uint16_t>(impl_->width), static_cast<std::uint16_t>(impl_->height), 1.0f);
+    vg::pushState(impl_->vector_context);
+    if (!impl_->clip_stack.empty()) {
+        const auto clip = impl_->clip_stack.back();
+        vg::setScissor(impl_->vector_context, clip.x, clip.y, clip.width, clip.height);
+    }
+    const auto matrix = current_transform(*impl_);
+    const float transform[6] { matrix.a, matrix.b, matrix.c, matrix.d, matrix.tx, matrix.ty };
+    vg::transformMult(impl_->vector_context, transform, vg::TransformOrder::Post);
+    vg::transformTranslate(impl_->vector_context, rect.x, rect.y);
+    VectorCanvas canvas(impl_->vector_context);
+    draw_callback(canvas);
+    vg::popState(impl_->vector_context);
+    vg::end(impl_->vector_context);
+#else
+    (void)rect;
+    (void)draw_callback;
 #endif
 }
 

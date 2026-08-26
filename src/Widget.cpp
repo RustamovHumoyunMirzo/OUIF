@@ -980,6 +980,17 @@ bool apply_inherited_css_property(
         }
     }
 
+    if (auto* vector_image = dynamic_cast<VectorImage*>(&widget)) {
+        if (property == "vector-fit" || property == "svg-fit" || property == "object-fit") {
+            vector_image->set_fit(inherit);
+            return true;
+        }
+        if (property == "vector-tint" || property == "svg-tint" || property == "tint" || property == "color") {
+            vector_image->set_tint(inherit);
+            return true;
+        }
+    }
+
     return false;
 }
 
@@ -1485,6 +1496,52 @@ void apply_declaration(
         if (property == "image-tint" || property == "tint") {
             if (auto color = color_from_value(*first)) {
                 image->set_tint(*color);
+            }
+            return;
+        }
+    }
+
+    if (auto* vector_image = dynamic_cast<VectorImage*>(&widget)) {
+        if (property == "vector-source" || property == "svg-source" || property == "source" || property == "src") {
+            if (auto resource = pixels_from_value(*first)) {
+                vector_image->set_resource(static_cast<int>(*resource));
+            } else if (auto source = ident_from_value(*first)) {
+                vector_image->set_source(std::move(*source));
+            } else if (first->string != nullptr) {
+                vector_image->set_source(std::string(text_or_empty(first->string)));
+            }
+            return;
+        }
+        if (property == "vector-resource" || property == "svg-resource" || property == "resource") {
+            if (auto id = pixels_from_value(*first)) {
+                vector_image->set_resource(static_cast<int>(*id));
+            }
+            return;
+        }
+        if (property == "vector-svg" || property == "svg") {
+            if (first->string != nullptr) {
+                vector_image->set_svg(std::string(text_or_empty(first->string)));
+            }
+            return;
+        }
+        if (property == "vector-fit" || property == "svg-fit") {
+            if (auto fit = ident_from_value(*first)) {
+                const auto lower = lower_copy(*fit);
+                if (lower == "stretch" || lower == "fill") {
+                    vector_image->set_fit(ImageFit::Stretch);
+                } else if (lower == "cover") {
+                    vector_image->set_fit(ImageFit::Cover);
+                } else if (lower == "center" || lower == "none") {
+                    vector_image->set_fit(ImageFit::Center);
+                } else {
+                    vector_image->set_fit(ImageFit::Contain);
+                }
+            }
+            return;
+        }
+        if (property == "vector-tint" || property == "svg-tint") {
+            if (auto color = color_from_value(*first)) {
+                vector_image->set_tint(*color);
             }
             return;
         }

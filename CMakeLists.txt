@@ -19,6 +19,7 @@ option(OUIF_FETCH_BGFX "Fetch bgfx with CMake FetchContent" ON)
 option(OUIF_FETCH_GLFW "Fetch GLFW for OUIF's private window backend" ON)
 option(OUIF_USE_KATANA "Build Katana CSS parser for OUIF stylesheet support" ON)
 option(OUIF_USE_PUGIXML "Build pugixml for OUIF XML UI support" ON)
+option(OUIF_USE_VG_RENDERER "Build vg-renderer for OUIF vector/SVG rendering support" ON)
 option(OUIF_INSTALL "Generate install targets" ON)
 set(OUIF_DEPS_DIR "${PROJECT_SOURCE_DIR}/external" CACHE PATH "Directory for OUIF-managed source dependencies")
 
@@ -102,6 +103,49 @@ if(OUIF_USE_PUGIXML)
         message(FATAL_ERROR
             "pugixml sources were not found at ${OUIF_PUGIXML_DIR}. "
             "Run scripts/fetch-deps.ps1 or scripts/fetch-deps.sh, then configure again."
+        )
+    endif()
+endif()
+
+if(OUIF_USE_VG_RENDERER)
+    set(OUIF_VG_RENDERER_DIR "${OUIF_DEPS_DIR}/vg-renderer" CACHE PATH "vg-renderer source directory")
+    if(EXISTS "${OUIF_VG_RENDERER_DIR}/include/vg/vg.h")
+        add_library(
+            ouif_vg_renderer STATIC
+            "${OUIF_VG_RENDERER_DIR}/src/vg.cpp"
+            "${OUIF_VG_RENDERER_DIR}/src/stroker.cpp"
+            "${OUIF_VG_RENDERER_DIR}/src/path.cpp"
+            "${OUIF_VG_RENDERER_DIR}/src/vg_util.cpp"
+            "${OUIF_VG_RENDERER_DIR}/src/libs/fontstash.cpp"
+            "${OUIF_VG_RENDERER_DIR}/src/libs/stb_truetype.cpp"
+            "${OUIF_VG_RENDERER_DIR}/src/libtess2/bucketalloc.c"
+            "${OUIF_VG_RENDERER_DIR}/src/libtess2/dict.c"
+            "${OUIF_VG_RENDERER_DIR}/src/libtess2/geom.c"
+            "${OUIF_VG_RENDERER_DIR}/src/libtess2/mesh.c"
+            "${OUIF_VG_RENDERER_DIR}/src/libtess2/priorityq.c"
+            "${OUIF_VG_RENDERER_DIR}/src/libtess2/sweep.c"
+            "${OUIF_VG_RENDERER_DIR}/src/libtess2/tess.c"
+        )
+        target_include_directories(
+            ouif_vg_renderer
+            PUBLIC
+                "${OUIF_VG_RENDERER_DIR}/include"
+            PRIVATE
+                "${OUIF_VG_RENDERER_DIR}/src"
+                "${OUIF_VG_RENDERER_DIR}/src/libs"
+                "${OUIF_VG_RENDERER_DIR}/src/libtess2"
+        )
+        if(TARGET bgfx)
+            target_link_libraries(ouif_vg_renderer PUBLIC bgfx bx)
+        endif()
+        set_target_properties(ouif_vg_renderer PROPERTIES POSITION_INDEPENDENT_CODE ON)
+        if(NOT MSVC)
+            target_compile_options(ouif_vg_renderer PRIVATE -w)
+        endif()
+    else()
+        message(FATAL_ERROR
+            "vg-renderer sources were not found at ${OUIF_VG_RENDERER_DIR}. "
+            "Run: git clone --depth 1 https://github.com/RudjiGames/vg_renderer.git external/vg-renderer"
         )
     endif()
 endif()
@@ -227,6 +271,13 @@ else()
     target_compile_definitions(ouif PRIVATE OUIF_WITH_PUGIXML=0)
 endif()
 
+if(TARGET ouif_vg_renderer)
+    target_link_libraries(ouif PRIVATE ouif_vg_renderer)
+    target_compile_definitions(ouif PRIVATE OUIF_WITH_VG_RENDERER=1)
+else()
+    target_compile_definitions(ouif PRIVATE OUIF_WITH_VG_RENDERER=0)
+endif()
+
 if(TARGET bgfx AND TARGET shaderc)
     set(OUIF_SHADER_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/ouif-shaders")
 
@@ -316,6 +367,7 @@ if(OUIF_BUILD_EXAMPLES)
     add_subdirectory(examples/blur_effect)
     add_subdirectory(examples/fonts)
     add_subdirectory(examples/images)
+    add_subdirectory(examples/vector_images)
     add_subdirectory(examples/xml_ui)
     add_subdirectory(examples/clipping_scroll)
 endif()

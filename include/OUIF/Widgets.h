@@ -143,6 +143,58 @@ private:
     bool image_dirty_ = true;
 };
 
+class OUIF_API VectorImage : public Widget {
+public:
+    VectorImage();
+    explicit VectorImage(std::filesystem::path source);
+
+    void set_source(std::filesystem::path source);
+    void set_source(std::string source);
+    [[nodiscard]] const std::filesystem::path& source() const noexcept;
+    [[nodiscard]] const std::filesystem::path& get_source() const noexcept;
+
+    void set_svg(std::string svg);
+    [[nodiscard]] std::string_view svg() const noexcept;
+    [[nodiscard]] std::string_view get_svg() const noexcept;
+
+    void set_resource(int id) noexcept;
+    void clear_resource() noexcept;
+    [[nodiscard]] std::optional<int> resource() const noexcept;
+    [[nodiscard]] std::optional<int> get_resource() const noexcept;
+
+    void set_fit(ImageFit fit) noexcept;
+    void set_fit(InheritTag) noexcept;
+    [[nodiscard]] ImageFit fit() const noexcept;
+    [[nodiscard]] ImageFit get_fit() const noexcept;
+
+    void set_tint(Color tint) noexcept;
+    void set_tint(InheritTag) noexcept;
+    [[nodiscard]] Color tint() const noexcept;
+    [[nodiscard]] Color get_tint() const noexcept;
+
+    [[nodiscard]] bool loaded() const noexcept;
+    [[nodiscard]] Size natural_size() const noexcept;
+    void reload(Renderer& renderer);
+    void unload(Renderer& renderer) noexcept;
+
+    bool event(const Event& event) override;
+
+protected:
+    void draw(Renderer& renderer) override;
+
+private:
+    void reset_loaded_state() noexcept;
+
+    std::filesystem::path source_;
+    std::string inline_svg_;
+    std::optional<int> resource_id_;
+    ImageFit fit_ = ImageFit::Contain;
+    Color tint_ = Color::rgba(255, 255, 255, 255);
+    VectorImageHandle image_ {};
+    Size natural_size_ {};
+    bool image_dirty_ = true;
+};
+
 class OUIF_API Overlay : public Widget {
 public:
     Overlay() noexcept;

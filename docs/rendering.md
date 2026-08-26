@@ -39,6 +39,9 @@ Custom widgets can use:
 - `load_image`
 - `draw_image`
 - `destroy_image`
+- `load_vector_image`
+- `draw_vector_image`
+- `draw_vector`
 - `push_clip`
 - `pop_clip`
 
@@ -55,6 +58,18 @@ renderer.destroy_image(image);
 ```
 
 For ordinary UI use, prefer `ouif::Image`; it loads from a file path or `ouif::Resources` ID and draws through this same renderer path.
+
+## Vector Images
+
+OUIF uses vg-renderer internally for vector drawing. `ouif::VectorImage` can load SVG from a file path, embedded resource, or inline string. Manual renderer users can also keep an opaque `VectorImageHandle`:
+
+```cpp
+auto logo = renderer.load_vector_image("assets/logo.svg");
+renderer.draw_vector_image(logo, bounds(), ouif::ImageFit::Contain);
+renderer.destroy_vector_image(logo);
+```
+
+Custom widgets can use `Renderer::draw_vector(...)` and `VectorCanvas` for low-level path drawing without including vg-renderer headers.
 
 ## Clipping
 

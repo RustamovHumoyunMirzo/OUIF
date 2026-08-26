@@ -432,6 +432,186 @@ void Image::reset_loaded_state() noexcept
     natural_size_ = {};
 }
 
+VectorImage::VectorImage()
+{
+    set_accepts_children(false);
+    set_size({ 160.0f, 120.0f });
+}
+
+VectorImage::VectorImage(std::filesystem::path source)
+    : VectorImage()
+{
+    set_source(std::move(source));
+}
+
+void VectorImage::set_source(std::filesystem::path source)
+{
+    source_ = std::move(source);
+    inline_svg_.clear();
+    resource_id_.reset();
+    image_dirty_ = true;
+}
+
+void VectorImage::set_source(std::string source)
+{
+    set_source(std::filesystem::path(std::move(source)));
+}
+
+const std::filesystem::path& VectorImage::source() const noexcept
+{
+    return source_;
+}
+
+const std::filesystem::path& VectorImage::get_source() const noexcept
+{
+    return source();
+}
+
+void VectorImage::set_svg(std::string svg)
+{
+    inline_svg_ = std::move(svg);
+    source_.clear();
+    resource_id_.reset();
+    image_dirty_ = true;
+}
+
+std::string_view VectorImage::svg() const noexcept
+{
+    return inline_svg_;
+}
+
+std::string_view VectorImage::get_svg() const noexcept
+{
+    return svg();
+}
+
+void VectorImage::set_resource(int id) noexcept
+{
+    resource_id_ = id;
+    source_.clear();
+    inline_svg_.clear();
+    image_dirty_ = true;
+}
+
+void VectorImage::clear_resource() noexcept
+{
+    resource_id_.reset();
+    image_dirty_ = true;
+}
+
+std::optional<int> VectorImage::resource() const noexcept
+{
+    return resource_id_;
+}
+
+std::optional<int> VectorImage::get_resource() const noexcept
+{
+    return resource();
+}
+
+void VectorImage::set_fit(ImageFit fit) noexcept
+{
+    fit_ = fit;
+}
+
+void VectorImage::set_fit(InheritTag) noexcept
+{
+    if (auto* parent_image = dynamic_cast<const VectorImage*>(parent())) {
+        set_fit(parent_image->fit());
+    }
+}
+
+ImageFit VectorImage::fit() const noexcept
+{
+    return fit_;
+}
+
+ImageFit VectorImage::get_fit() const noexcept
+{
+    return fit();
+}
+
+void VectorImage::set_tint(Color tint) noexcept
+{
+    tint_ = tint;
+}
+
+void VectorImage::set_tint(InheritTag) noexcept
+{
+    if (auto* parent_image = dynamic_cast<const VectorImage*>(parent())) {
+        set_tint(parent_image->tint());
+    } else if (parent() != nullptr) {
+        set_tint(parent()->get_foreground());
+    }
+}
+
+Color VectorImage::tint() const noexcept
+{
+    return tint_;
+}
+
+Color VectorImage::get_tint() const noexcept
+{
+    return tint();
+}
+
+bool VectorImage::loaded() const noexcept
+{
+    return image_.valid();
+}
+
+Size VectorImage::natural_size() const noexcept
+{
+    return natural_size_;
+}
+
+void VectorImage::reload(Renderer& renderer)
+{
+    unload(renderer);
+    if (resource_id_.has_value()) {
+        if (const auto resource = Resources::load(*resource_id_)) {
+            image_ = renderer.load_vector_image(resource->data, resource->size);
+        }
+    } else if (!inline_svg_.empty()) {
+        image_ = renderer.load_vector_image(inline_svg_);
+    } else if (!source_.empty()) {
+        image_ = renderer.load_vector_image(source_);
+    }
+    natural_size_ = renderer.vector_image_size(image_);
+    image_dirty_ = false;
+}
+
+void VectorImage::unload(Renderer& renderer) noexcept
+{
+    if (image_.valid()) {
+        renderer.destroy_vector_image(image_);
+    }
+    reset_loaded_state();
+    image_dirty_ = false;
+}
+
+bool VectorImage::event(const Event& event)
+{
+    return Widget::event(event);
+}
+
+void VectorImage::draw(Renderer& renderer)
+{
+    Widget::draw(renderer);
+    if (image_dirty_) {
+        reload(renderer);
+    }
+    if (image_.valid()) {
+        renderer.draw_vector_image(image_, bounds().inset(layout_rules().padding), fit_, tint_);
+    }
+}
+
+void VectorImage::reset_loaded_state() noexcept
+{
+    image_ = {};
+    natural_size_ = {};
+}
+
 Overlay::Overlay() noexcept
 {
     set_overlay(true);

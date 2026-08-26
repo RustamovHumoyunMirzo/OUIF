@@ -374,6 +374,9 @@ std::unique_ptr<Widget> make_builtin_widget(std::string_view tag)
     if (tag_is(tag, "Image") || tag_is(tag, "Img")) {
         return std::make_unique<Image>();
     }
+    if (tag_is(tag, "VectorImage") || tag_is(tag, "Svg") || tag_is(tag, "SVG")) {
+        return std::make_unique<VectorImage>();
+    }
     if (tag_is(tag, "Overlay")) {
         return std::make_unique<Overlay>();
     }
@@ -550,6 +553,48 @@ void apply_common_attributes(Widget& widget, const XmlElement& element, const st
         }
     }
 
+    if (auto* vector_image = dynamic_cast<VectorImage*>(&widget)) {
+        if (element.has_attribute("src")) {
+            vector_image->set_source(resolve_path(base_path, element.attribute("src")));
+        } else if (element.has_attribute("source")) {
+            vector_image->set_source(resolve_path(base_path, element.attribute("source")));
+        } else if (element.has_attribute("svg-source")) {
+            vector_image->set_source(resolve_path(base_path, element.attribute("svg-source")));
+        } else if (element.has_attribute("vector-source")) {
+            vector_image->set_source(resolve_path(base_path, element.attribute("vector-source")));
+        }
+        if (element.has_attribute("svg")) {
+            vector_image->set_svg(std::string(element.attribute("svg")));
+        } else if (element.has_attribute("vector-svg")) {
+            vector_image->set_svg(std::string(element.attribute("vector-svg")));
+        }
+        if (auto resource = element.attribute_float("resource")) {
+            vector_image->set_resource(static_cast<int>(*resource));
+        } else if (auto resource = element.attribute_float("resource-id")) {
+            vector_image->set_resource(static_cast<int>(*resource));
+        } else if (auto resource = element.attribute_float("resource_id")) {
+            vector_image->set_resource(static_cast<int>(*resource));
+        } else if (auto resource = element.attribute_float("svg-resource")) {
+            vector_image->set_resource(static_cast<int>(*resource));
+        }
+        if (element.has_attribute("fit")) {
+            vector_image->set_fit(parse_image_fit(element.attribute("fit")));
+        } else if (element.has_attribute("svg-fit")) {
+            vector_image->set_fit(parse_image_fit(element.attribute("svg-fit")));
+        } else if (element.has_attribute("vector-fit")) {
+            vector_image->set_fit(parse_image_fit(element.attribute("vector-fit")));
+        } else if (element.has_attribute("object-fit")) {
+            vector_image->set_fit(parse_image_fit(element.attribute("object-fit")));
+        }
+        if (auto tint = element.attribute_color("tint")) {
+            vector_image->set_tint(*tint);
+        } else if (auto tint = element.attribute_color("svg-tint")) {
+            vector_image->set_tint(*tint);
+        } else if (auto tint = element.attribute_color("vector-tint")) {
+            vector_image->set_tint(*tint);
+        }
+    }
+
     if (auto visible = element.attribute_bool("visible")) {
         widget.set_visible(*visible);
     }
@@ -682,6 +727,12 @@ std::unique_ptr<Widget> build_widget(
         const auto text = trim_copy(node.child_value());
         if (!text.empty()) {
             label->set_text(text);
+        }
+    }
+    if (auto* vector_image = dynamic_cast<VectorImage*>(widget.get()); vector_image != nullptr && vector_image->svg().empty() && vector_image->source().empty() && !vector_image->resource().has_value()) {
+        const auto text = trim_copy(node.child_value());
+        if (!text.empty() && text.find("<svg") != std::string::npos) {
+            vector_image->set_svg(text);
         }
     }
 

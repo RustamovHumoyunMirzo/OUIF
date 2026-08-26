@@ -110,6 +110,7 @@ Selectors currently support type names, classes, names, and state pseudo classes
 - `animation`, `animation-name`, `animation-duration`, `animation-timing-function`, `animation-iteration-count`
 - label text: `font-size`, `font-family`, `text-color`, `text-align`, `text-overflow`
 - image drawing: `image-source`, `image-resource`, `image-fit`, `image-filter`, `image-tint`
+- vector image drawing: `svg-source`, `svg-resource`, `svg-fit`, `svg-tint`, `vector-svg`
 - transforms: `transform`, `translate`, `translate-x`, `translate-y`, `scale`, `scale-x`, `scale-y`, `rotate`, `transform-origin`
 
 `width` and `height` support `px`, `%`, `vw`, and `vh`. Spacing and radius values currently resolve as pixels.
@@ -150,12 +151,17 @@ ouif::define_var("cat-id", "4201");
 .resource-image {
     image-source: res(def(cat-id));
 }
+
+.logo {
+    svg-source: path(def(logo-path));
+    svg-tint: var("icon-color");
+}
 ```
 
 - `var(name)` reads a global OUIF CSS variable.
 - `def(name)` reads the same registry, and falls back to the name text when no value is registered.
 - `path(value)` returns a CSS string suitable for file paths.
-- `res(value)` returns a numeric resource ID suitable for `image-source`.
+- `res(value)` returns a numeric resource ID suitable for `image-source` or `svg-source`.
 
 Use `define_var(...)`, `edit_var(...)`, `delete_var(...)`, `get_var(...)`, and `clear_vars()` from C++. `Widget` also exposes static aliases with the same names.
 

@@ -673,6 +673,35 @@ Overlay widgets do not consume Row/Col/Scroll layout space. Use `z-index` or `se
 - `unload(Renderer& renderer) noexcept -> void`
 - `event(const Event& event) -> bool`
 
+### `ouif::VectorImage`
+
+- `VectorImage()`
+- `VectorImage(std::filesystem::path source)`
+- `set_source(std::filesystem::path source) -> void`
+- `set_source(std::string source) -> void`
+- `source() const noexcept -> const std::filesystem::path&`
+- `get_source() const noexcept -> const std::filesystem::path&`
+- `set_svg(std::string svg) -> void`
+- `svg() const noexcept -> std::string_view`
+- `get_svg() const noexcept -> std::string_view`
+- `set_resource(int id) noexcept -> void`
+- `clear_resource() noexcept -> void`
+- `resource() const noexcept -> std::optional<int>`
+- `get_resource() const noexcept -> std::optional<int>`
+- `set_fit(ImageFit fit) noexcept -> void`
+- `set_fit(InheritTag) noexcept -> void`
+- `fit() const noexcept -> ImageFit`
+- `get_fit() const noexcept -> ImageFit`
+- `set_tint(Color tint) noexcept -> void`
+- `set_tint(InheritTag) noexcept -> void`
+- `tint() const noexcept -> Color`
+- `get_tint() const noexcept -> Color`
+- `loaded() const noexcept -> bool`
+- `natural_size() const noexcept -> Size`
+- `reload(Renderer& renderer) -> void`
+- `unload(Renderer& renderer) noexcept -> void`
+- `event(const Event& event) -> bool`
+
 ## Rendering
 
 ### `ouif::Renderer`
@@ -699,6 +728,13 @@ Overlay widgets do not consume Row/Col/Scroll layout space. Use `z-index` or `se
 - `destroy_image(ImageHandle image) noexcept -> void`
 - `image_size(ImageHandle image) const noexcept -> Size`
 - `draw_image(ImageHandle image, Rect rect, ImageFit fit = ImageFit::Contain, ImageFilter filter = ImageFilter::Linear, Color tint = Color::rgba(255, 255, 255, 255)) -> void`
+- `load_vector_image(std::filesystem::path path) -> VectorImageHandle`
+- `load_vector_image(std::string svg) -> VectorImageHandle`
+- `load_vector_image(const std::uint8_t* data, std::size_t size) -> VectorImageHandle`
+- `destroy_vector_image(VectorImageHandle image) noexcept -> void`
+- `vector_image_size(VectorImageHandle image) const noexcept -> Size`
+- `draw_vector_image(VectorImageHandle image, Rect rect, ImageFit fit = ImageFit::Contain, Color tint = Color::rgba(255, 255, 255, 255)) -> void`
+- `draw_vector(Rect rect, const std::function<void(VectorCanvas&)>& draw_callback) -> void`
 - `load_default_system_font() -> bool`
 - `set_default_font_family(std::string family) -> void`
 - `default_font_family() const noexcept -> std::string_view`

@@ -306,11 +306,13 @@ int main()
         ouif::Divider divider;
         ouif::Label label("Hello");
         ouif::Image image("assets/logo.png");
+        ouif::VectorImage vector_image("assets/logo.svg");
         ouif::Widget child;
         assert(!spacer.accepts_children());
         assert(!divider.accepts_children());
         assert(!label.accepts_children());
         assert(!image.accepts_children());
+        assert(!vector_image.accepts_children());
         assert(label.text() == "Hello");
         label.set_font_size(18.0f);
         label.set_text_color("#e8edf3");
@@ -339,6 +341,17 @@ int main()
         assert(image.resource().has_value());
         image.clear_resource();
         assert(!image.resource().has_value());
+        assert(vector_image.source().string().find("logo") != std::string::npos);
+        vector_image.set_svg("<svg viewBox=\"0 0 10 10\"><rect width=\"10\" height=\"10\" /></svg>");
+        assert(vector_image.svg().find("rect") != std::string_view::npos);
+        vector_image.set_fit(ouif::ImageFit::Cover);
+        vector_image.set_tint("#e8edf3");
+        assert(vector_image.fit() == ouif::ImageFit::Cover);
+        assert(vector_image.tint().r > 0.8f);
+        vector_image.set_resource(9104);
+        assert(vector_image.resource().has_value());
+        vector_image.clear_resource();
+        assert(!vector_image.resource().has_value());
 
         bool spacer_threw = false;
         try {
@@ -371,6 +384,14 @@ int main()
             image_threw = true;
         }
         assert(image_threw);
+
+        bool vector_image_threw = false;
+        try {
+            vector_image.add_child<ouif::Widget>();
+        } catch (const std::invalid_argument&) {
+            vector_image_threw = true;
+        }
+        assert(vector_image_threw);
 
         ouif::Widget container;
         container.add_child<ouif::Widget>();
@@ -740,6 +761,48 @@ int main()
     }
 
     {
+        ouif::VectorImage image;
+        image.add_class("mark");
+        ouif::define_var("svg-resource-id", "9105");
+        ouif::define_var("svg-tint", "#e8edf3");
+        image.set_stylesheet(R"css(
+            .mark {
+                svg-source: res(def(svg-resource-id));
+                svg-fit: cover;
+                svg-tint: var("svg-tint");
+            }
+        )css");
+
+        assert(image.resource().has_value());
+        assert(*image.resource() == 9105);
+        assert(image.fit() == ouif::ImageFit::Cover);
+        assert(image.tint().r > 0.8f);
+
+        image.set_stylesheet(R"css(
+            .mark {
+                vector-svg: "<svg viewBox=\"0 0 12 12\"><circle cx=\"6\" cy=\"6\" r=\"6\" /></svg>";
+            }
+        )css");
+        assert(image.svg().find("circle") != std::string_view::npos);
+        ouif::clear_vars();
+    }
+
+    {
+        ouif::VectorImage parent;
+        ouif::VectorImage child;
+        parent.set_accepts_children(true);
+        parent.set_fit(ouif::ImageFit::Cover);
+        parent.set_tint("#e8edf3");
+        parent.add_child(child);
+
+        child.set_fit(ouif::inherit);
+        child.set_tint(ouif::inherit);
+
+        assert(child.fit() == ouif::ImageFit::Cover);
+        assert(child.tint().r > 0.8f);
+    }
+
+    {
         ouif::Widget parent;
         ouif::Widget child;
         parent.set_background("#203040");
@@ -974,6 +1037,7 @@ int main()
                 <RowLayout id="surface" class="surface" gap="12" gravity="right bottom" policy="fill,fill" transition="200ms ease-out">
                     <Label id="caption" text="Hello Text" font-size="18" text-color="#e8edf3" transform="translate(2px, 3px) scale(1.1)" />
                     <Image id="preview" src="assets/panel.png" fit="cover" filter="nearest" tint="#e8edf3" />
+                    <VectorImage id="logo" svg="&lt;svg viewBox=&quot;0 0 16 16&quot;&gt;&lt;rect width=&quot;16&quot; height=&quot;16&quot; fill=&quot;#4692c4&quot; /&gt;&lt;/svg&gt;" fit="contain" tint="#ffffff" />
                     <XmlTile id="tile_a" class="tile" size="80,40" animation="xmlPulse 1s linear infinite" style="background: #2f6c9c; border: 2px solid #e8edf3;" />
                     <Overlay id="overlay" z-index="12" ghost="true" draggable="true" accepts-drop="true" layer-effect="blur(4px)" />
                     <Spacer flex="1" />
@@ -988,7 +1052,7 @@ int main()
         assert(row->gap() == 12.0f);
         assert(row->gravity().horizontal == ouif::HorizontalGravity::Right);
         assert(row->gravity().vertical == ouif::VerticalGravity::Bottom);
-        assert(row->children().size() == 6);
+        assert(row->children().size() == 7);
         auto* caption = dynamic_cast<ouif::Label*>(row->children()[0]);
         assert(caption != nullptr);
         assert(caption->text() == "Hello Text");
@@ -1001,20 +1065,24 @@ int main()
         assert(preview->fit() == ouif::ImageFit::Cover);
         assert(preview->filter() == ouif::ImageFilter::Nearest);
         assert(preview->tint().r > 0.8f);
-        assert(row->children()[2]->name() == "tile_a");
-        assert(row->children()[2]->layout_rules().preferred_size.width == 80.0f);
-        assert(std::fabs(row->children()[2]->get_border().width - 2.0f) < 0.01f);
+        auto* logo = dynamic_cast<ouif::VectorImage*>(row->children()[2]);
+        assert(logo != nullptr);
+        assert(logo->svg().find("rect") != std::string_view::npos);
+        assert(logo->fit() == ouif::ImageFit::Contain);
+        assert(row->children()[3]->name() == "tile_a");
+        assert(row->children()[3]->layout_rules().preferred_size.width == 80.0f);
+        assert(std::fabs(row->children()[3]->get_border().width - 2.0f) < 0.01f);
         assert(row->get_transition().enabled);
-        assert(row->children()[2]->get_animation().has_value());
-        auto* overlay = dynamic_cast<ouif::Overlay*>(row->children()[3]);
+        assert(row->children()[3]->get_animation().has_value());
+        auto* overlay = dynamic_cast<ouif::Overlay*>(row->children()[4]);
         assert(overlay != nullptr);
         assert(overlay->z_index() == 12);
         assert(overlay->ghost());
         assert(overlay->draggable());
         assert(overlay->accepts_drop());
         assert(overlay->stylesheet_layer_effects().size() == 1);
-        assert(dynamic_cast<ouif::Spacer*>(row->children()[4]) != nullptr);
-        auto* divider = dynamic_cast<ouif::Divider*>(row->children()[5]);
+        assert(dynamic_cast<ouif::Spacer*>(row->children()[5]) != nullptr);
+        auto* divider = dynamic_cast<ouif::Divider*>(row->children()[6]);
         assert(divider != nullptr);
         assert(divider->orientation() == ouif::Orientation::Vertical);
         assert(std::fabs(divider->thickness() - 2.0f) < 0.01f);
