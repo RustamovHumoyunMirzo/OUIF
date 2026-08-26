@@ -204,6 +204,7 @@ Effects are open C++ objects with render hooks. CSS just names and configures th
 ```css
 .panel {
     backdrop-effect: blur(12px);
+    layer-effect: blur(6px, 1);
     layer-effect: glow(8px, soft);
 }
 ```
@@ -212,6 +213,7 @@ Built-in `blur(...)` is registered through the same effect registry developers u
 
 ```cpp
 panel.add_backdrop_effect("blur", { 12.0f });
+panel.add_layer_effect("blur", { 6.0f, 1.0f });
 
 ouif::Widget::register_effect("glow",
     [](const ouif::EffectParameters& parameters) {
@@ -219,9 +221,13 @@ ouif::Widget::register_effect("glow",
     });
 ```
 
-The bgfx renderer implements `blur(...)` as a shader-backed backdrop blur. OUIF captures the current scene to an internal render target, samples it through the blur shader inside the widget's rounded shape, then draws the widget content sharply above it. If the required shader assets are not available, the blur effect becomes a no-op instead of crashing.
+`blur(px)` and `blur(px, 0)` use the separable Gaussian blur path. `blur(px, 1)` uses the Dual Kawase path.
 
-Custom effects inherit `ouif::Effect` and can override `expand_bounds(...)`, `pre_draw(...)`, and `post_draw(...)`. Use `Renderer` primitives, `draw_backdrop_blur(...)`, or load shader binaries with `Renderer::load_shader_program(...)` when an effect needs low-level drawing.
+Backdrop effects affect the scene behind the widget bounds, then the widget and its children are drawn normally above the result. Layer effects capture the widget and its children first, then draw the blurred layer back into the original surface. Both forms follow rounded bounds.
+
+The bgfx renderer implements `blur(...)` as shader-backed render-target passes. If the required shader assets are not available, the blur effect becomes a no-op instead of crashing.
+
+Custom effects inherit `ouif::Effect` and can override `expand_bounds(...)`, `pre_draw(...)`, and `post_draw(...)`. Use `Renderer` primitives, `draw_backdrop_blur(...)`, `begin_layer_capture(...)`, `end_layer_blur(...)`, or load shader binaries with `Renderer::load_shader_program(...)` when an effect needs low-level drawing.
 
 ## Directional Borders
 

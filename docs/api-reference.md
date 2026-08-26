@@ -267,9 +267,16 @@ CSS variable functions:
 
 `ouif::BlurEffect`:
 
-- `BlurEffect(float radius = 8.0f) noexcept`
+- `BlurEffect(float radius = 8.0f, BlurType type = BlurType::Gaussian) noexcept`
 - `set_radius(float radius) noexcept -> void`
 - `radius() const noexcept -> float`
+- `set_type(BlurType type) noexcept -> void`
+- `type() const noexcept -> BlurType`
+
+`ouif::BlurType`:
+
+- `Gaussian = 0`
+- `DualKawase = 1`
 - overrides `expand_bounds(...)`, `pre_draw(...)`, and `post_draw(...)`
 
 ### `ouif::Widget`
@@ -722,7 +729,9 @@ Overlay widgets do not consume Row/Col/Scroll layout space. Use `z-index` or `se
 - `load_shader_program(std::filesystem::path vertex_shader, std::filesystem::path fragment_shader) -> ShaderProgram`
 - `destroy_shader_program(ShaderProgram program) noexcept -> void`
 - `fill_rect_with_program(Rect rect, Color color, ShaderProgram program) -> void`
-- `draw_backdrop_blur(Rect rect, CornerRadius radius, float radius_px, Color tint) -> void`
+- `draw_backdrop_blur(Rect rect, CornerRadius radius, float radius_px, Color tint, BlurType type = BlurType::Gaussian) -> void`
+- `begin_layer_capture(Rect bounds) -> void`
+- `end_layer_blur(Rect bounds, CornerRadius radius, float radius_px, Color tint, BlurType type = BlurType::Gaussian) -> void`
 - `load_image(std::filesystem::path path) -> ImageHandle`
 - `load_image(const std::uint8_t* data, std::size_t size) -> ImageHandle`
 - `destroy_image(ImageHandle image) noexcept -> void`

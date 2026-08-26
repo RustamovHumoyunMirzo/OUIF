@@ -55,7 +55,10 @@ std::unordered_map<std::string, EffectFactory>& effect_factories()
     static std::unordered_map<std::string, EffectFactory> factories {
         { "blur", [](const EffectParameters& parameters) {
              const float radius = parameters.numbers.empty() ? 8.0f : parameters.numbers.front();
-             return std::make_shared<BlurEffect>(radius);
+             const BlurType type = parameters.numbers.size() > 1U && static_cast<int>(parameters.numbers[1]) == 1
+                 ? BlurType::DualKawase
+                 : BlurType::Gaussian;
+             return std::make_shared<BlurEffect>(radius, type);
          } },
     };
     return factories;

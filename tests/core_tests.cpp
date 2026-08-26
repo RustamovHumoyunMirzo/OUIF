@@ -907,8 +907,17 @@ int main()
         ouif::Widget widget;
         widget.add_layer_effect("blur", { 6.0f });
         assert(widget.layer_effects().size() == 1);
+        auto* layer_blur = dynamic_cast<ouif::BlurEffect*>(widget.layer_effects().front().get());
+        assert(layer_blur != nullptr);
+        assert(layer_blur->type() == ouif::BlurType::Gaussian);
         widget.clear_layer_effects();
         assert(widget.layer_effects().empty());
+
+        ouif::BlurEffect dual_blur(9.0f, ouif::BlurType::DualKawase);
+        assert(dual_blur.radius() == 9.0f);
+        assert(dual_blur.type() == ouif::BlurType::DualKawase);
+        dual_blur.set_type(ouif::BlurType::Gaussian);
+        assert(dual_blur.type() == ouif::BlurType::Gaussian);
 
         ouif::Widget::register_effect("counting", [](const ouif::EffectParameters& parameters) {
             const float value = parameters.numbers.empty() ? 0.0f : parameters.numbers.front();
@@ -919,13 +928,16 @@ int main()
         widget.set_stylesheet(R"css(
             .effected {
                 layer-effect: counting(7px);
-                backdrop-effect: blur(4px);
+                backdrop-effect: blur(4px, 1);
             }
         )css");
         assert(widget.layer_effects().empty());
         assert(widget.backdrop_effects().empty());
         assert(widget.stylesheet_layer_effects().size() == 1);
         assert(widget.stylesheet_backdrop_effects().size() == 1);
+        auto* stylesheet_blur = dynamic_cast<ouif::BlurEffect*>(widget.stylesheet_backdrop_effects().front().get());
+        assert(stylesheet_blur != nullptr);
+        assert(stylesheet_blur->type() == ouif::BlurType::DualKawase);
         assert(ouif::Widget::unregister_effect("counting"));
     }
 

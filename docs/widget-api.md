@@ -296,6 +296,7 @@ public:
 
 tile.add_layer_effect(std::make_shared<GlowEffect>());
 tile.add_backdrop_effect("blur", { 12.0f });
+tile.add_layer_effect("blur", { 6.0f, 1.0f });
 ```
 
 CSS and XML inline style use the same registry:
@@ -303,6 +304,7 @@ CSS and XML inline style use the same registry:
 ```css
 .tile {
     backdrop-effect: blur(12px);
+    layer-effect: blur(6px, 1);
 }
 ```
 
@@ -315,9 +317,9 @@ ouif::Widget::register_effect("glow",
     });
 ```
 
-The built-in `blur(...)` effect samples the renderer's scene texture, so it blurs real content behind the widget instead of drawing a fake glow. The blur output follows the widget's current border radius.
+The built-in `blur(px)` effect defaults to Gaussian blur. `blur(px, 1)` selects Dual Kawase blur. Backdrop blur samples real content behind the widget, while layer blur captures the widget and its children and blurs that layer. The blur output follows the widget's current border radius.
 
-`Renderer` exposes primitives for rectangles, rounded borders, text, clipping, transforms, backdrop blur, and custom shader programs. Effects can call `draw_backdrop_blur(...)`, `load_shader_program(...)`, `fill_rect_with_program(...)`, and `destroy_shader_program(...)` when they need shader-backed drawing.
+`Renderer` exposes primitives for rectangles, rounded borders, text, clipping, transforms, backdrop blur, layer capture, and custom shader programs. Effects can call `draw_backdrop_blur(...)`, `begin_layer_capture(...)`, `end_layer_blur(...)`, `load_shader_program(...)`, `fill_rect_with_program(...)`, and `destroy_shader_program(...)` when they need shader-backed drawing.
 
 ## Drag And Drop
 

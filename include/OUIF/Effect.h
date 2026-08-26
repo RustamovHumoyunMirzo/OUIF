@@ -1,7 +1,7 @@
 #pragma once
 
 #include <OUIF/Export.h>
-#include <OUIF/Geometry.h>
+#include <OUIF/Renderer.h>
 
 #include <functional>
 #include <memory>
@@ -46,10 +46,12 @@ using EffectFactory = std::function<std::shared_ptr<Effect>(const EffectParamete
 
 class OUIF_API BlurEffect final : public Effect {
 public:
-    explicit BlurEffect(float radius = 8.0f) noexcept;
+    explicit BlurEffect(float radius = 8.0f, BlurType type = BlurType::Gaussian) noexcept;
 
     void set_radius(float radius) noexcept;
     [[nodiscard]] float radius() const noexcept;
+    void set_type(BlurType type) noexcept;
+    [[nodiscard]] BlurType type() const noexcept;
 
     [[nodiscard]] Rect expand_bounds(const EffectContext& context) const override;
     void pre_draw(const EffectContext& context) override;
@@ -57,6 +59,7 @@ public:
 
 private:
     float radius_ = 8.0f;
+    BlurType type_ = BlurType::Gaussian;
 };
 
 } // namespace ouif

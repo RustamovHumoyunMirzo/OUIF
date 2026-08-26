@@ -70,6 +70,11 @@ enum class ImageFilter : std::uint8_t {
     Nearest,
 };
 
+enum class BlurType : std::uint8_t {
+    Gaussian = 0,
+    DualKawase = 1,
+};
+
 enum class VectorLineCap : std::uint8_t {
     Butt,
     Round,
@@ -222,7 +227,9 @@ public:
     [[nodiscard]] ShaderProgram load_shader_program(std::filesystem::path vertex_shader, std::filesystem::path fragment_shader);
     void destroy_shader_program(ShaderProgram program) noexcept;
     void fill_rect_with_program(Rect rect, Color color, ShaderProgram program);
-    void draw_backdrop_blur(Rect rect, CornerRadius radius, float radius_px, Color tint);
+    void draw_backdrop_blur(Rect rect, CornerRadius radius, float radius_px, Color tint, BlurType type = BlurType::Gaussian);
+    void begin_layer_capture(Rect bounds);
+    void end_layer_blur(Rect bounds, CornerRadius radius, float radius_px, Color tint, BlurType type = BlurType::Gaussian);
     [[nodiscard]] ImageHandle load_image(std::filesystem::path path);
     [[nodiscard]] ImageHandle load_image(const std::uint8_t* data, std::size_t size);
     void destroy_image(ImageHandle image) noexcept;
