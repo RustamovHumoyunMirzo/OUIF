@@ -1857,10 +1857,14 @@ struct Renderer::Impl {
 #endif
 #endif
     std::uint8_t draw_view = 0;
+    std::uint8_t next_effect_view = 2;
     bool scene_capture_enabled = false;
     struct LayerCapture {
         Rect bounds {};
         std::uint8_t previous_view = 0;
+        std::uint8_t capture_view = 0;
+        std::uint8_t pass_view = 0;
+        std::uint8_t output_view = 0;
     };
     std::vector<LayerCapture> layer_captures;
     std::string default_font_family = "OUIF Sans";
@@ -2195,7 +2199,21 @@ void submit_textured_rect(Impl& impl, Rect rect, CornerRadius radius, Color colo
 }
 
 template <typename Impl>
-void submit_gaussian_blur(Impl& impl, bgfx::TextureHandle source, Rect output_rect, CornerRadius radius, Color tint, float radius_px, std::uint8_t output_view)
+std::uint8_t allocate_effect_view(Impl& impl)
+{
+    constexpr std::uint8_t max_effect_view = 63;
+    const std::uint8_t view = impl.next_effect_view;
+    if (impl.next_effect_view < max_effect_view) {
+        ++impl.next_effect_view;
+    }
+    bgfx::setViewRect(view, 0, 0, impl.width, impl.height);
+    bgfx::setViewMode(view, bgfx::ViewMode::Sequential);
+    bgfx::setViewFrameBuffer(view, impl.scene_framebuffer);
+    return view;
+}
+
+template <typename Impl>
+void submit_gaussian_blur(Impl& impl, bgfx::TextureHandle source, Rect output_rect, CornerRadius radius, Color tint, float radius_px, std::uint8_t pass_view, std::uint8_t output_view)
 {
     if (!bgfx::isValid(impl.blur_program) || !bgfx::isValid(impl.blur_uniform) || !bgfx::isValid(impl.blur_framebuffer_b)
         || !bgfx::isValid(impl.blur_texture_b) || !bgfx::isValid(source)) {
@@ -2216,9 +2234,9 @@ void submit_gaussian_blur(Impl& impl, bgfx::TextureHandle source, Rect output_re
         1.0f,
     };
 
-    bgfx::setViewFrameBuffer(5, impl.blur_framebuffer_b);
-    bgfx::setViewClear(5, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x00000000, 1.0f, 0);
-    bgfx::touch(5);
+    bgfx::setViewFrameBuffer(pass_view, impl.blur_framebuffer_b);
+    bgfx::setViewClear(pass_view, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x00000000, 1.0f, 0);
+    bgfx::touch(pass_view);
     bgfx::setUniform(impl.blur_uniform, horizontal);
     submit_textured_rect_from(
         impl,
@@ -2227,7 +2245,7 @@ void submit_gaussian_blur(Impl& impl, bgfx::TextureHandle source, Rect output_re
         {},
         Color::rgba(255, 255, 255, 0),
         impl.blur_program,
-        5
+        pass_view
     );
 
     bgfx::setUniform(impl.blur_uniform, vertical);
@@ -2507,6 +2525,7 @@ void Renderer::begin_frame(Color clear_color)
 
     ensure_scene_targets(*impl_);
     impl_->draw_view = 0;
+    impl_->next_effect_view = 2;
     impl_->scene_capture_enabled = bgfx::isValid(impl_->scene_framebuffer)
         && bgfx::isValid(impl_->scene_texture)
         && bgfx::isValid(impl_->texture_program)
@@ -2520,15 +2539,13 @@ void Renderer::begin_frame(Color clear_color)
     bgfx::setViewFrameBuffer(1, BGFX_INVALID_HANDLE);
     bgfx::setViewFrameBuffer(2, BGFX_INVALID_HANDLE);
     bgfx::setViewRect(0, 0, 0, impl_->width, impl_->height);
-    for (std::uint8_t view = 1; view < 12; ++view) {
+    for (std::uint8_t view = 1; view < 64; ++view) {
         bgfx::setViewRect(view, 0, 0, impl_->width, impl_->height);
         bgfx::setViewFrameBuffer(view, BGFX_INVALID_HANDLE);
+        bgfx::setViewMode(view, bgfx::ViewMode::Sequential);
     }
     bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, rgba, 1.0f, 0);
     bgfx::touch(0);
-    if (impl_->scene_capture_enabled) {
-        submit_textured_rect(*impl_, { 0.0f, 0.0f, static_cast<float>(impl_->width), static_cast<float>(impl_->height) }, {}, Color::rgba(255, 255, 255, 255), impl_->texture_program, 1);
-    }
 #else
     (void)clear_color;
 #endif
@@ -3005,22 +3022,26 @@ void Renderer::draw_backdrop_blur(Rect rect, CornerRadius radius, float radius_p
         if (bgfx::isValid(impl_->blur_framebuffer_a) && bgfx::isValid(impl_->blur_texture_a)) {
             const auto saved_transform = impl_->transform_stack;
             impl_->transform_stack.clear();
-            bgfx::setViewFrameBuffer(4, impl_->blur_framebuffer_a);
-            bgfx::setViewClear(4, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x00000000, 1.0f, 0);
-            bgfx::touch(4);
+            const std::uint8_t pass_view = allocate_effect_view(*impl_);
+            const std::uint8_t output_view = allocate_effect_view(*impl_);
+            bgfx::setViewFrameBuffer(pass_view, impl_->blur_framebuffer_a);
+            bgfx::setViewClear(pass_view, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x00000000, 1.0f, 0);
+            bgfx::touch(pass_view);
             bgfx::setUniform(impl_->blur_uniform, uniform);
-            submit_textured_rect_from(*impl_, impl_->scene_texture, { 0.0f, 0.0f, static_cast<float>(impl_->width), static_cast<float>(impl_->height) }, {}, Color::rgba(255, 255, 255, 255), impl_->kawase_down_program, 4);
+            submit_textured_rect_from(*impl_, impl_->scene_texture, { 0.0f, 0.0f, static_cast<float>(impl_->width), static_cast<float>(impl_->height) }, {}, Color::rgba(255, 255, 255, 255), impl_->kawase_down_program, pass_view);
             impl_->transform_stack = saved_transform;
             bgfx::setUniform(impl_->blur_uniform, uniform);
-            submit_textured_rect_from(*impl_, impl_->blur_texture_a, rect, radius, tint, impl_->kawase_up_program, 2);
+            submit_textured_rect_from(*impl_, impl_->blur_texture_a, rect, radius, tint, impl_->kawase_up_program, output_view);
         }
     } else if (bgfx::isValid(impl_->blur_program)) {
         const auto saved_transform = impl_->transform_stack;
         impl_->transform_stack.clear();
-        submit_gaussian_blur(*impl_, impl_->scene_texture, rect, radius, tint, radius_px, 2);
+        const std::uint8_t pass_view = allocate_effect_view(*impl_);
+        const std::uint8_t output_view = allocate_effect_view(*impl_);
+        submit_gaussian_blur(*impl_, impl_->scene_texture, rect, radius, tint, radius_px, pass_view, output_view);
         impl_->transform_stack = saved_transform;
     }
-    impl_->draw_view = 3;
+    impl_->draw_view = allocate_effect_view(*impl_);
 #else
     (void)rect;
     (void)radius;
@@ -3040,12 +3061,16 @@ void Renderer::begin_layer_capture(Rect bounds)
     if (!bgfx::isValid(impl_->layer_framebuffer) || !bgfx::isValid(impl_->layer_texture)) {
         return;
     }
-    impl_->layer_captures.push_back({ bounds, impl_->draw_view });
-    impl_->draw_view = 6;
-    bgfx::setViewFrameBuffer(6, impl_->layer_framebuffer);
-    bgfx::setViewClear(6, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x00000000, 1.0f, 0);
-    bgfx::setViewRect(6, 0, 0, impl_->width, impl_->height);
-    bgfx::touch(6);
+    const std::uint8_t capture_view = allocate_effect_view(*impl_);
+    const std::uint8_t pass_view = allocate_effect_view(*impl_);
+    const std::uint8_t output_view = allocate_effect_view(*impl_);
+    impl_->layer_captures.push_back({ bounds, impl_->draw_view, capture_view, pass_view, output_view });
+    impl_->draw_view = capture_view;
+    bgfx::setViewFrameBuffer(capture_view, impl_->layer_framebuffer);
+    bgfx::setViewClear(capture_view, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x00000000, 1.0f, 0);
+    bgfx::setViewRect(capture_view, 0, 0, impl_->width, impl_->height);
+    bgfx::setViewMode(capture_view, bgfx::ViewMode::Sequential);
+    bgfx::touch(capture_view);
 #else
     (void)bounds;
 #endif
@@ -3059,7 +3084,7 @@ void Renderer::end_layer_blur(Rect bounds, CornerRadius radius, float radius_px,
     }
     const auto capture = impl_->layer_captures.back();
     impl_->layer_captures.pop_back();
-    impl_->draw_view = capture.previous_view;
+    impl_->draw_view = capture.output_view;
     if (!bgfx::isValid(impl_->layer_texture) || !bgfx::isValid(impl_->blur_uniform) || !bgfx::isValid(impl_->source_sampler)
         || bounds.width <= 0.0f || bounds.height <= 0.0f || radius_px <= 0.0f) {
         return;
@@ -3076,17 +3101,19 @@ void Renderer::end_layer_blur(Rect bounds, CornerRadius radius, float radius_px,
             clamped_radius,
             1.0f,
         };
-        bgfx::setViewFrameBuffer(4, impl_->blur_framebuffer_a);
-        bgfx::setViewClear(4, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x00000000, 1.0f, 0);
-        bgfx::touch(4);
+        bgfx::setViewFrameBuffer(capture.pass_view, impl_->blur_framebuffer_a);
+        bgfx::setViewClear(capture.pass_view, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x00000000, 1.0f, 0);
+        bgfx::setViewMode(capture.pass_view, bgfx::ViewMode::Sequential);
+        bgfx::touch(capture.pass_view);
         bgfx::setUniform(impl_->blur_uniform, uniform);
-        submit_textured_rect_from(*impl_, impl_->layer_texture, { 0.0f, 0.0f, static_cast<float>(impl_->width), static_cast<float>(impl_->height) }, {}, Color::rgba(255, 255, 255, 255), impl_->kawase_down_program, 4);
+        submit_textured_rect_from(*impl_, impl_->layer_texture, { 0.0f, 0.0f, static_cast<float>(impl_->width), static_cast<float>(impl_->height) }, {}, Color::rgba(255, 255, 255, 255), impl_->kawase_down_program, capture.pass_view);
         bgfx::setUniform(impl_->blur_uniform, uniform);
-        submit_textured_rect_from(*impl_, impl_->blur_texture_a, capture.bounds, radius, tint, impl_->kawase_up_program, capture.previous_view);
+        submit_textured_rect_from(*impl_, impl_->blur_texture_a, capture.bounds, radius, tint, impl_->kawase_up_program, capture.output_view);
     } else if (bgfx::isValid(impl_->blur_program)) {
-        submit_gaussian_blur(*impl_, impl_->layer_texture, capture.bounds, radius, tint, radius_px, capture.previous_view);
+        submit_gaussian_blur(*impl_, impl_->layer_texture, capture.bounds, radius, tint, radius_px, capture.pass_view, capture.output_view);
     }
     impl_->transform_stack = saved_transform;
+    impl_->draw_view = allocate_effect_view(*impl_);
 #else
     (void)bounds;
     (void)radius;
@@ -3719,6 +3746,23 @@ void Renderer::pop_transform()
 void Renderer::end_frame()
 {
 #if OUIF_WITH_BGFX
+    if (impl_->scene_capture_enabled) {
+        const auto saved_transform = impl_->transform_stack;
+        const auto saved_draw_view = impl_->draw_view;
+        impl_->transform_stack.clear();
+        const std::uint8_t copy_view = allocate_effect_view(*impl_);
+        bgfx::setViewFrameBuffer(copy_view, BGFX_INVALID_HANDLE);
+        submit_textured_rect(
+            *impl_,
+            { 0.0f, 0.0f, static_cast<float>(impl_->width), static_cast<float>(impl_->height) },
+            {},
+            Color::rgba(255, 255, 255, 255),
+            impl_->texture_program,
+            copy_view
+        );
+        impl_->draw_view = saved_draw_view;
+        impl_->transform_stack = saved_transform;
+    }
     bgfx::frame();
 #endif
 }

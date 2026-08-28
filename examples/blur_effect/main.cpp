@@ -46,7 +46,7 @@ public:
         , violet_("#7a529c", { 360.0f, 140.0f })
         , green_("#4c8a5f", { 320.0f, 120.0f })
         , css_panel_("CSS Blur", "backdrop-effect: blur(18px) is parsed from the stylesheet.")
-        , cpp_panel_("C++ Blur", "add_layer_effect(\"blur\", { 12.0f }) uses the same effect registry.")
+        , cpp_panel_("C++ Blur", "add_backdrop_effect(\"blur\", { 18.0f }) uses the same effect registry.")
     {
         set_layout_policy(ouif::SizePolicy::Fill, ouif::SizePolicy::Fill);
         set_style(ouif::Style()
@@ -62,9 +62,11 @@ public:
 
         css_panel_.set_bounds({ 170.0f, 250.0f, 360.0f, 210.0f });
         css_panel_.set_z_index(10);
+        css_panel_.add_class("css-glass");
         cpp_panel_.set_bounds({ 570.0f, 210.0f, 360.0f, 210.0f });
         cpp_panel_.set_z_index(10);
-        cpp_panel_.add_layer_effect("blur", { 12.0f });
+        cpp_panel_.add_class("cpp-glass");
+        cpp_panel_.add_backdrop_effect("blur", { 18.0f });
 
         children(blue_, violet_, green_, css_panel_, cpp_panel_);
 
@@ -73,12 +75,15 @@ public:
                 background: #1f2733cc;
                 border: #e8edf366 1px;
                 border-radius: 24px;
-                backdrop-effect: blur(18px);
             }
 
             .glass:hover {
                 background: #293446dd;
                 border: #9fd7ff99 2px;
+            }
+
+            .css-glass {
+                backdrop-effect: blur(18px);
             }
 
             .title {
