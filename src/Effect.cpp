@@ -82,7 +82,7 @@ void BlurEffect::post_draw(const EffectContext& context)
     }
 
     const auto style = context.widget.get_style();
-    context.renderer.end_layer_blur(context.bounds, style.radius, radius_, Color::rgba(255, 255, 255, 255), type_);
+    context.renderer.end_layer_blur(context.bounds, style.radius, radius_, Color::rgba(255, 255, 255, 0), type_);
 }
 
 } // namespace ouif
