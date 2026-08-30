@@ -298,6 +298,45 @@ std::string utf8_from_codepoint(std::uint32_t codepoint)
     return text;
 }
 
+std::uint32_t printable_codepoint_from_key(const KeyEvent& event) noexcept
+{
+    if (event.control || event.alt || event.super) {
+        return 0;
+    }
+
+    const auto key = event.key;
+    if (key >= static_cast<std::uint32_t>('A') && key <= static_cast<std::uint32_t>('Z')) {
+        const auto base = event.shift ? 'A' : 'a';
+        return static_cast<std::uint32_t>(base + static_cast<char>(key - static_cast<std::uint32_t>('A')));
+    }
+    if (key >= static_cast<std::uint32_t>(Key::Num0) && key <= static_cast<std::uint32_t>(Key::Num9)) {
+        static constexpr char shifted[] = { ')', '!', '@', '#', '$', '%', '^', '&', '*', '(' };
+        const auto index = key - static_cast<std::uint32_t>(Key::Num0);
+        return static_cast<std::uint32_t>(event.shift ? shifted[index] : static_cast<char>('0' + index));
+    }
+
+    switch (key) {
+    case static_cast<std::uint32_t>(Key::Space):
+        return ' ';
+    case static_cast<std::uint32_t>(Key::Apostrophe):
+        return event.shift ? '"' : '\'';
+    case static_cast<std::uint32_t>(Key::Comma):
+        return event.shift ? '<' : ',';
+    case static_cast<std::uint32_t>(Key::Minus):
+        return event.shift ? '_' : '-';
+    case static_cast<std::uint32_t>(Key::Period):
+        return event.shift ? '>' : '.';
+    case static_cast<std::uint32_t>(Key::Slash):
+        return event.shift ? '?' : '/';
+    case static_cast<std::uint32_t>(Key::Semicolon):
+        return event.shift ? ':' : ';';
+    case static_cast<std::uint32_t>(Key::Equal):
+        return event.shift ? '+' : '=';
+    default:
+        return 0;
+    }
+}
+
 std::string& input_clipboard_storage()
 {
     static std::string text;
@@ -626,6 +665,11 @@ void Input::draw(Renderer& renderer)
 bool Input::on_event(const Event& event)
 {
     if (const auto* text = std::get_if<TextInputEvent>(&event)) {
+        if (suppress_next_codepoint_ == text->codepoint) {
+            suppress_next_codepoint_ = 0;
+            return true;
+        }
+        suppress_next_codepoint_ = 0;
         if (text->codepoint >= 32U) {
             insert_text(utf8_from_codepoint(text->codepoint));
             return true;
@@ -693,6 +737,11 @@ bool Input::on_key_down(const KeyEvent& event)
         if (!event.shift) {
             selection_anchor_ = caret_;
         }
+        return true;
+    }
+    if (const auto codepoint = printable_codepoint_from_key(event); codepoint >= 32U) {
+        insert_text(utf8_from_codepoint(codepoint));
+        suppress_next_codepoint_ = codepoint;
         return true;
     }
     return false;

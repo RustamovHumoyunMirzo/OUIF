@@ -38,7 +38,7 @@ Supported editing operations:
 - editing: `insert_text`, `erase_selection`, `erase_previous`, `erase_next`
 - clipboard: `copy_selection`, `cut_selection`, `paste_text`, `paste_clipboard`, `set_clipboard_text`, `clipboard_text`
 
-Keyboard input supports character events, arrows, Home/End, Backspace, Delete, and Ctrl+A/C/X/V.
+Keyboard input supports character events, printable-key fallback for basic text, arrows, Home/End, Backspace, Delete, and Ctrl+A/C/X/V. The fallback is guarded so a GLFW key event followed by its matching character event does not insert the same character twice.
 
 IME and platform composition can be fed through `set_composition_text(...)`; composition text is drawn next to committed text without mutating `text()` until the backend sends committed characters.
 

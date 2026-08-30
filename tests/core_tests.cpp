@@ -256,6 +256,23 @@ int main()
         assert(input.composition_text().empty());
     }
 
+    {
+        ouif::Widget root;
+        root.set_bounds({ 0.0f, 0.0f, 320.0f, 120.0f });
+        auto& input = root.add_child<ouif::Input>("live");
+        input.set_bounds({ 10.0f, 10.0f, 220.0f, 40.0f });
+        assert(root.event(ouif::MouseButtonEvent { { 230.0f, 20.0f }, {}, ouif::MouseButton::Left, true }));
+        assert(input.focused());
+        assert(root.event(ouif::TextInputEvent { '!' }));
+        assert(input.text() == "live!");
+        assert(root.event(ouif::KeyEvent { static_cast<std::uint32_t>(ouif::Key::Backspace), ouif::KeyAction::Press }));
+        assert(input.text() == "live");
+        assert(root.event(ouif::KeyEvent { static_cast<std::uint32_t>('A'), ouif::KeyAction::Press }));
+        assert(input.text() == "livea");
+        assert(root.event(ouif::TextInputEvent { 'a' }));
+        assert(input.text() == "livea");
+    }
+
     ouif::RowLayout row;
     row.set_bounds({ 0.0f, 0.0f, 400.0f, 100.0f });
     row.set_alignment(ouif::Align::Center);

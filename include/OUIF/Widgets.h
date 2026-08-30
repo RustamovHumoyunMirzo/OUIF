@@ -166,6 +166,7 @@ private:
     Color placeholder_color_ = Color::rgba(160, 172, 190, 255);
     std::size_t caret_ = 0;
     std::size_t selection_anchor_ = 0;
+    std::uint32_t suppress_next_codepoint_ = 0;
 };
 
 class OUIF_API Image : public Widget {
