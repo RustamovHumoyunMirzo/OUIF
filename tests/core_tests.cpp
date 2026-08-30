@@ -105,6 +105,12 @@ int main()
     auto alpha = ouif::Color::from_hex("#e8edf3dc");
     assert(alpha.has_value());
     assert(alpha->a > 0.8f && alpha->a < 0.9f);
+    auto short_hex = ouif::Color::from_hex("#abc");
+    assert(short_hex.has_value());
+    assert(short_hex->r > 0.65f && short_hex->b > 0.78f);
+    auto transparent = ouif::Color::named("transparent");
+    assert(transparent.has_value());
+    assert(transparent->a == 0.0f);
 
     ouif::Widget root;
     root.set_bounds({ 0.0f, 0.0f, 400.0f, 300.0f });
@@ -189,6 +195,8 @@ int main()
         .with_border_selected(ouif::Color::rgb(10, 11, 12), 4.0f);
     assert(style.border.width == 2.0f);
     assert(style.border_selected.width == 4.0f);
+    style.with_background(ouif::Gradient::Linear(90.0f, { { 0.0f, ouif::Color::named("black").value() }, { 1.0f, ouif::Color::named("white").value() } }));
+    assert(style.background_gradient.has_value());
 
     ouif::Style aggregate_style {
         .background = "#101218",
@@ -201,6 +209,52 @@ int main()
     assert(aggregate_style.border.width == 1.0f);
     assert(aggregate_style.border_focused.width == 2.0f);
     assert(aggregate_style.radius.bottom_left == 16.0f);
+
+    {
+        ouif::Widget widget;
+        widget.add_class("gradient");
+        widget.set_stylesheet(R"css(
+            .gradient {
+                background: gradient(linear 45deg (0% #000) (100% white));
+                color: gradient(linear 90deg (0% #f00) (100% #00f));
+            }
+        )css");
+        assert(widget.get_style().background_gradient.has_value());
+        assert(widget.get_style().foreground_gradient.has_value());
+        widget.set_background(ouif::Gradient::Linear(180.0f, { { 0.0f, ouif::Color::hex(0x101218) }, { 1.0f, ouif::Color::hex(0x4692c4) } }));
+        assert(widget.get_background_gradient().has_value());
+        assert(std::fabs(widget.get_background_gradient()->angle_degrees - 180.0f) < 0.01f);
+    }
+
+    {
+        ouif::Input input("abc");
+        assert(input.can_focus());
+        assert(input.text() == "abc");
+        input.set_caret(3);
+        assert(input.event(ouif::TextInputEvent { 'd' }));
+        assert(input.text() == "abcd");
+        assert(input.event(ouif::KeyEvent { static_cast<std::uint32_t>(ouif::Key::Left), ouif::KeyAction::Press }));
+        assert(input.caret() == 3);
+        assert(input.event(ouif::KeyEvent { static_cast<std::uint32_t>(ouif::Key::Backspace), ouif::KeyAction::Press }));
+        assert(input.text() == "abd");
+        assert(input.event(ouif::KeyEvent { static_cast<std::uint32_t>(ouif::Key::A), ouif::KeyAction::Press, false, true }));
+        assert(input.has_selection());
+        assert(input.event(ouif::KeyEvent { static_cast<std::uint32_t>(ouif::Key::C), ouif::KeyAction::Press, false, true }));
+        assert(ouif::Input::clipboard_text() == "abd");
+        input.insert_text("ok");
+        assert(input.text() == "ok");
+        ouif::Input::set_clipboard_text(" pasted");
+        input.paste_clipboard();
+        assert(input.text() == "ok pasted");
+        input.select(2, input.text().size());
+        input.cut_selection();
+        assert(input.text() == "ok");
+        assert(ouif::Input::clipboard_text() == " pasted");
+        input.set_composition_text("...");
+        assert(input.composition_text() == "...");
+        input.clear_composition();
+        assert(input.composition_text().empty());
+    }
 
     ouif::RowLayout row;
     row.set_bounds({ 0.0f, 0.0f, 400.0f, 100.0f });
@@ -1050,6 +1104,7 @@ int main()
                 </Style>
                 <RowLayout id="surface" class="surface" gap="12" gravity="right bottom" policy="fill,fill" transition="200ms ease-out">
                     <Label id="caption" text="Hello Text" font-size="18" text-color="#e8edf3" transform="translate(2px, 3px) scale(1.1)" />
+                    <Input id="entry" value="Typed" placeholder="Name" font-size="16" text-color="#ffffff" />
                     <Image id="preview" src="assets/panel.png" fit="cover" filter="nearest" tint="#e8edf3" />
                     <VectorImage id="logo" svg="&lt;svg viewBox=&quot;0 0 16 16&quot;&gt;&lt;rect width=&quot;16&quot; height=&quot;16&quot; fill=&quot;#4692c4&quot; /&gt;&lt;/svg&gt;" fit="contain" tint="#ffffff" />
                     <XmlTile id="tile_a" class="tile" size="80,40" animation="xmlPulse 1s linear infinite" style="background: #2f6c9c; border: 2px solid #e8edf3;" />
@@ -1066,37 +1121,43 @@ int main()
         assert(row->gap() == 12.0f);
         assert(row->gravity().horizontal == ouif::HorizontalGravity::Right);
         assert(row->gravity().vertical == ouif::VerticalGravity::Bottom);
-        assert(row->children().size() == 7);
+        assert(row->children().size() == 8);
         auto* caption = dynamic_cast<ouif::Label*>(row->children()[0]);
         assert(caption != nullptr);
         assert(caption->text() == "Hello Text");
         assert(caption->font_size() == 18.0f);
         assert(caption->get_transform().translate_x == 2.0f);
         assert(caption->get_transform().scale_x == 1.1f);
-        auto* preview = dynamic_cast<ouif::Image*>(row->children()[1]);
+        auto* entry = dynamic_cast<ouif::Input*>(row->children()[1]);
+        assert(entry != nullptr);
+        assert(entry->text() == "Typed");
+        assert(entry->placeholder() == "Name");
+        assert(entry->font_size() == 16.0f);
+        assert(entry->text_color().r > 0.9f);
+        auto* preview = dynamic_cast<ouif::Image*>(row->children()[2]);
         assert(preview != nullptr);
         assert(preview->source().string().find("panel") != std::string::npos);
         assert(preview->fit() == ouif::ImageFit::Cover);
         assert(preview->filter() == ouif::ImageFilter::Nearest);
         assert(preview->tint().r > 0.8f);
-        auto* logo = dynamic_cast<ouif::VectorImage*>(row->children()[2]);
+        auto* logo = dynamic_cast<ouif::VectorImage*>(row->children()[3]);
         assert(logo != nullptr);
         assert(logo->svg().find("rect") != std::string_view::npos);
         assert(logo->fit() == ouif::ImageFit::Contain);
-        assert(row->children()[3]->name() == "tile_a");
-        assert(row->children()[3]->layout_rules().preferred_size.width == 80.0f);
-        assert(std::fabs(row->children()[3]->get_border().width - 2.0f) < 0.01f);
+        assert(row->children()[4]->name() == "tile_a");
+        assert(row->children()[4]->layout_rules().preferred_size.width == 80.0f);
+        assert(std::fabs(row->children()[4]->get_border().width - 2.0f) < 0.01f);
         assert(row->get_transition().enabled);
-        assert(row->children()[3]->get_animation().has_value());
-        auto* overlay = dynamic_cast<ouif::Overlay*>(row->children()[4]);
+        assert(row->children()[4]->get_animation().has_value());
+        auto* overlay = dynamic_cast<ouif::Overlay*>(row->children()[5]);
         assert(overlay != nullptr);
         assert(overlay->z_index() == 12);
         assert(overlay->ghost());
         assert(overlay->draggable());
         assert(overlay->accepts_drop());
         assert(overlay->stylesheet_layer_effects().size() == 1);
-        assert(dynamic_cast<ouif::Spacer*>(row->children()[5]) != nullptr);
-        auto* divider = dynamic_cast<ouif::Divider*>(row->children()[6]);
+        assert(dynamic_cast<ouif::Spacer*>(row->children()[6]) != nullptr);
+        auto* divider = dynamic_cast<ouif::Divider*>(row->children()[7]);
         assert(divider != nullptr);
         assert(divider->orientation() == ouif::Orientation::Vertical);
         assert(std::fabs(divider->thickness() - 2.0f) < 0.01f);

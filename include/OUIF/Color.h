@@ -1,8 +1,11 @@
 #pragma once
 
 #include <cstdint>
+#include <initializer_list>
 #include <optional>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace ouif {
 
@@ -75,7 +78,7 @@ struct Color {
             value.remove_prefix(1);
         }
 
-        if (value.size() != 6 && value.size() != 8) {
+        if (value.size() != 3 && value.size() != 4 && value.size() != 6 && value.size() != 8) {
             return std::nullopt;
         }
 
@@ -93,7 +96,74 @@ struct Color {
             }
         }
 
+        if (value.size() == 3 || value.size() == 4) {
+            std::uint32_t expanded = 0;
+            for (std::size_t index = 0; index < value.size(); ++index) {
+                const auto nibble = (parsed >> ((value.size() - index - 1U) * 4U)) & 0xfU;
+                expanded = (expanded << 8U) | (nibble << 4U) | nibble;
+            }
+            parsed = expanded;
+        }
+
+        if (value.size() == 4) {
+            return hexa(parsed);
+        }
+        if (value.size() == 3) {
+            return hex(parsed);
+        }
         return value.size() == 6 ? hex(parsed) : hexa(parsed);
+    }
+
+    static std::optional<Color> named(std::string_view value) noexcept
+    {
+        if (value == "black") {
+            return rgb(0, 0, 0);
+        }
+        if (value == "white") {
+            return rgb(255, 255, 255);
+        }
+        if (value == "red") {
+            return rgb(255, 0, 0);
+        }
+        if (value == "green") {
+            return rgb(0, 128, 0);
+        }
+        if (value == "blue") {
+            return rgb(0, 0, 255);
+        }
+        if (value == "transparent") {
+            return rgba(0, 0, 0, 0);
+        }
+        return std::nullopt;
+    }
+};
+
+struct GradientStop {
+    float offset = 0.0f;
+    Color color {};
+};
+
+struct Gradient {
+    enum class Kind : std::uint8_t {
+        Linear,
+    };
+
+    Kind kind = Kind::Linear;
+    float angle_degrees = 0.0f;
+    std::vector<GradientStop> stops;
+
+    static Gradient Linear(float angle, std::initializer_list<GradientStop> gradient_stops)
+    {
+        Gradient gradient;
+        gradient.kind = Kind::Linear;
+        gradient.angle_degrees = angle;
+        gradient.stops.assign(gradient_stops.begin(), gradient_stops.end());
+        return gradient;
+    }
+
+    [[nodiscard]] bool empty() const noexcept
+    {
+        return stops.empty();
     }
 };
 

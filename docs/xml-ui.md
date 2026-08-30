@@ -31,6 +31,7 @@ app.register_xml_widget("ColorTile", [](const ouif::XmlElement& element) {
 
     <RowLayout id="surface" class="panel" gap="32" alignment="center" policy="fill,fill">
         <ColorTile id="blue" class="tile" size="160,120" style="background: #2f6c9c;" />
+        <Input id="name" placeholder="Name" style="text-color: gradient(linear 90deg (0% #ffffff) (100% #8dc7ff));" />
     </RowLayout>
 </Window>
 ```
@@ -44,6 +45,11 @@ app.register_xml_widget("ColorTile", [](const ouif::XmlElement& element) {
 - `ColScroll`
 - `Spacer`
 - `Divider`
+- `Label`
+- `Input`
+- `Image`
+- `VectorImage`
+- `Overlay`
 
 Aliases:
 
@@ -52,6 +58,12 @@ Aliases:
 - `Column`
 - `HorizontalScroll`
 - `VerticalScroll`
+- `Text`
+- `InputField`
+- `TextInput`
+- `Img`
+- `Svg`
+- `SVG`
 
 ## Common Attributes
 
@@ -85,6 +97,8 @@ Aliases:
 - `style`
 - `transition`
 - `animation`
+
+Built-in widgets also accept their own attributes. `Label` and `Input` accept `text`, `value`, `placeholder`, `font-size`, `font-family`, `text-color`, and `placeholder-color` where applicable. `Image` accepts `src`, `source`, `image-source`, `resource`, `fit`, `filter`, and `tint`. `VectorImage` accepts the same source/resource/fit/tint pattern plus inline `svg`.
 
 ## CSS Order
 

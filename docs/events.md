@@ -11,7 +11,9 @@ OUIF exposes raw events so custom widgets can define their own behavior.
 - `MouseWheelEvent`
 - `MouseEvent`
 - `KeyEvent`
+- `TextInputEvent`
 - `ResizeEvent`
+- `DragEvent`
 
 ## Mouse Hooks
 
@@ -36,13 +38,28 @@ bool on_keyboard_activate(const ouif::KeyEvent&) override;
 
 `on_keyboard_activate` is called for Enter/Space when keyboard activation is enabled.
 
+`TextInputEvent` carries a Unicode codepoint for editable text. Use it from `on_event(...)` when building custom text controls:
+
+```cpp
+bool on_event(const ouif::Event& event) override
+{
+    if (auto* text = std::get_if<ouif::TextInputEvent>(&event)) {
+        insert_codepoint(text->codepoint);
+        return true;
+    }
+    return false;
+}
+```
+
+The built-in `Input` already handles character events, arrows, Home/End, Backspace, Delete, and Ctrl+A/C/X/V.
+
 ## Generic Hook
 
 ```cpp
 bool on_event(const ouif::Event& event) override;
 ```
 
-Use this for event types that do not have a specialized hook yet, such as mouse wheel.
+Use this for event types that do not have a specialized hook yet, such as mouse wheel or text input.
 
 ## Dispatch Order
 

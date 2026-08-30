@@ -169,6 +169,13 @@ void key_callback(GLFWwindow* window, int key, int, int action, int)
     }
 }
 
+void char_callback(GLFWwindow* window, unsigned int codepoint)
+{
+    if (auto* app = app_from(window)) {
+        app->dispatch_event(TextInputEvent { codepoint });
+    }
+}
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     if (auto* app = app_from(window)) {
@@ -198,6 +205,7 @@ void install_callbacks(GLFWwindow* window, Application* app)
     glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetScrollCallback(window, scroll_callback);
     glfwSetKeyCallback(window, key_callback);
+    glfwSetCharCallback(window, char_callback);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 }
 

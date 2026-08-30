@@ -3,6 +3,9 @@
 #include <OUIF/Color.h>
 #include <OUIF/Geometry.h>
 
+#include <optional>
+#include <utility>
+
 namespace ouif {
 
 struct Border {
@@ -69,6 +72,12 @@ struct Style {
     Color background_pressed = Color::rgba(54, 63, 79, 255);
     Color background_selected = Color::rgba(54, 63, 79, 255);
     Color foreground = Color::rgba(242, 244, 248, 255);
+    std::optional<Gradient> background_gradient {};
+    std::optional<Gradient> hovered_gradient {};
+    std::optional<Gradient> pressed_gradient {};
+    std::optional<Gradient> selected_gradient {};
+    std::optional<Gradient> focused_gradient {};
+    std::optional<Gradient> foreground_gradient {};
     Border border {};
     Border border_selected {};
     Border border_focused {};
@@ -83,6 +92,13 @@ struct Style {
     constexpr Style& with_background(Color color) noexcept
     {
         background = color;
+        background_gradient.reset();
+        return *this;
+    }
+
+    Style& with_background(Gradient gradient)
+    {
+        background_gradient = std::move(gradient);
         return *this;
     }
 
@@ -90,6 +106,13 @@ struct Style {
     {
         hovered = color;
         background_hovered = color;
+        hovered_gradient.reset();
+        return *this;
+    }
+
+    Style& with_background_hovered(Gradient gradient)
+    {
+        hovered_gradient = std::move(gradient);
         return *this;
     }
 
@@ -97,6 +120,13 @@ struct Style {
     {
         pressed = color;
         background_pressed = color;
+        pressed_gradient.reset();
+        return *this;
+    }
+
+    Style& with_background_pressed(Gradient gradient)
+    {
+        pressed_gradient = std::move(gradient);
         return *this;
     }
 
@@ -104,18 +134,39 @@ struct Style {
     {
         selected = color;
         background_selected = color;
+        selected_gradient.reset();
+        return *this;
+    }
+
+    Style& with_background_selected(Gradient gradient)
+    {
+        selected_gradient = std::move(gradient);
         return *this;
     }
 
     constexpr Style& with_background_focused(Color color) noexcept
     {
         focused = color;
+        focused_gradient.reset();
+        return *this;
+    }
+
+    Style& with_background_focused(Gradient gradient)
+    {
+        focused_gradient = std::move(gradient);
         return *this;
     }
 
     constexpr Style& with_foreground(Color color) noexcept
     {
         foreground = color;
+        foreground_gradient.reset();
+        return *this;
+    }
+
+    Style& with_foreground(Gradient gradient)
+    {
+        foreground_gradient = std::move(gradient);
         return *this;
     }
 

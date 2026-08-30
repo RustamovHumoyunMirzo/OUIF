@@ -91,6 +91,25 @@ bool radius_equals(CornerRadius left, CornerRadius right) noexcept
         && near(left.bottom_left, right.bottom_left);
 }
 
+bool gradient_equals(const std::optional<Gradient>& left, const std::optional<Gradient>& right) noexcept
+{
+    if (left.has_value() != right.has_value()) {
+        return false;
+    }
+    if (!left.has_value()) {
+        return true;
+    }
+    if (left->kind != right->kind || !near(left->angle_degrees, right->angle_degrees) || left->stops.size() != right->stops.size()) {
+        return false;
+    }
+    for (std::size_t i = 0; i < left->stops.size(); ++i) {
+        if (!near(left->stops[i].offset, right->stops[i].offset) || !color_equals(left->stops[i].color, right->stops[i].color)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 } // namespace
 
 float apply_easing(Easing easing, float progress) noexcept
@@ -132,6 +151,12 @@ Style interpolate_style(const Style& from, const Style& to, float progress) noex
     result.border_width_selected = lerp(from.border_width_selected, to.border_width_selected, t);
     result.radius = lerp_radius(from.radius, to.radius, t);
     result.opacity = lerp(from.opacity, to.opacity, t);
+    result.background_gradient = t < 0.5f ? from.background_gradient : to.background_gradient;
+    result.hovered_gradient = t < 0.5f ? from.hovered_gradient : to.hovered_gradient;
+    result.pressed_gradient = t < 0.5f ? from.pressed_gradient : to.pressed_gradient;
+    result.selected_gradient = t < 0.5f ? from.selected_gradient : to.selected_gradient;
+    result.focused_gradient = t < 0.5f ? from.focused_gradient : to.focused_gradient;
+    result.foreground_gradient = t < 0.5f ? from.foreground_gradient : to.foreground_gradient;
     return result;
 }
 
@@ -140,6 +165,7 @@ Style apply_animated_style(const Style& base, const Style& animated, StyleProper
     Style result = base;
     if (has_property(properties, StyleProperty::Background)) {
         result.background = animated.background;
+        result.background_gradient = animated.background_gradient;
     }
     if (has_property(properties, StyleProperty::StatefulBackgrounds)) {
         result.hovered = animated.hovered;
@@ -149,9 +175,14 @@ Style apply_animated_style(const Style& base, const Style& animated, StyleProper
         result.background_hovered = animated.background_hovered;
         result.background_pressed = animated.background_pressed;
         result.background_selected = animated.background_selected;
+        result.hovered_gradient = animated.hovered_gradient;
+        result.pressed_gradient = animated.pressed_gradient;
+        result.selected_gradient = animated.selected_gradient;
+        result.focused_gradient = animated.focused_gradient;
     }
     if (has_property(properties, StyleProperty::Foreground)) {
         result.foreground = animated.foreground;
+        result.foreground_gradient = animated.foreground_gradient;
     }
     if (has_property(properties, StyleProperty::Border)) {
         result.border = animated.border;
@@ -198,7 +229,13 @@ bool style_equals(const Style& left, const Style& right) noexcept
         && near(left.border_width, right.border_width)
         && near(left.border_width_selected, right.border_width_selected)
         && radius_equals(left.radius, right.radius)
-        && near(left.opacity, right.opacity);
+        && near(left.opacity, right.opacity)
+        && gradient_equals(left.background_gradient, right.background_gradient)
+        && gradient_equals(left.hovered_gradient, right.hovered_gradient)
+        && gradient_equals(left.pressed_gradient, right.pressed_gradient)
+        && gradient_equals(left.selected_gradient, right.selected_gradient)
+        && gradient_equals(left.focused_gradient, right.focused_gradient)
+        && gradient_equals(left.foreground_gradient, right.foreground_gradient);
 }
 
 } // namespace ouif

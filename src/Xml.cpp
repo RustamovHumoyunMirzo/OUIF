@@ -371,6 +371,9 @@ std::unique_ptr<Widget> make_builtin_widget(std::string_view tag)
     if (tag_is(tag, "Label") || tag_is(tag, "Text")) {
         return std::make_unique<Label>();
     }
+    if (tag_is(tag, "Input") || tag_is(tag, "InputField") || tag_is(tag, "TextInput")) {
+        return std::make_unique<Input>();
+    }
     if (tag_is(tag, "Image") || tag_is(tag, "Img")) {
         return std::make_unique<Image>();
     }
@@ -516,6 +519,39 @@ void apply_common_attributes(Widget& widget, const XmlElement& element, const st
             label->set_text_color(*color);
         } else if (auto color = element.attribute_color("text_color")) {
             label->set_text_color(*color);
+        }
+    }
+
+    if (auto* input = dynamic_cast<Input*>(&widget)) {
+        if (element.has_attribute("text")) {
+            input->set_text(std::string(element.attribute("text")));
+        } else if (element.has_attribute("value")) {
+            input->set_text(std::string(element.attribute("value")));
+        }
+        if (element.has_attribute("placeholder")) {
+            input->set_placeholder(std::string(element.attribute("placeholder")));
+        }
+        if (element.has_attribute("font-family")) {
+            input->set_font_family(std::string(element.attribute("font-family")));
+        } else if (element.has_attribute("font_family")) {
+            input->set_font_family(std::string(element.attribute("font_family")));
+        }
+        if (auto font_size = element.attribute_float("font-size")) {
+            input->set_font_size(*font_size);
+        } else if (auto font_size = element.attribute_float("font_size")) {
+            input->set_font_size(*font_size);
+        }
+        if (auto color = element.attribute_color("text-color")) {
+            input->set_text_color(*color);
+        } else if (auto color = element.attribute_color("text_color")) {
+            input->set_text_color(*color);
+        } else if (auto color = element.attribute_color("color")) {
+            input->set_text_color(*color);
+        }
+        if (auto color = element.attribute_color("placeholder-color")) {
+            input->set_placeholder_color(*color);
+        } else if (auto color = element.attribute_color("placeholder_color")) {
+            input->set_placeholder_color(*color);
         }
     }
 
@@ -727,6 +763,12 @@ std::unique_ptr<Widget> build_widget(
         const auto text = trim_copy(node.child_value());
         if (!text.empty()) {
             label->set_text(text);
+        }
+    }
+    if (auto* input = dynamic_cast<Input*>(widget.get()); input != nullptr && input->text().empty()) {
+        const auto text = trim_copy(node.child_value());
+        if (!text.empty()) {
+            input->set_text(text);
         }
     }
     if (auto* vector_image = dynamic_cast<VectorImage*>(widget.get()); vector_image != nullptr && vector_image->svg().empty() && vector_image->source().empty() && !vector_image->resource().has_value()) {

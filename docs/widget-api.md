@@ -143,6 +143,22 @@ ouif::Color color = "#2f6c9c";
 auto blue = ouif::Color::hex(0x2f6c9c);
 auto translucent = ouif::Color::hexa(0xe8edf3dc);
 auto parsed = ouif::Color::from_hex("#2f6c9c");
+auto short_hex = ouif::Color::from_hex("#abc");
+auto named = ouif::Color::named("transparent");
+```
+
+Gradients can be used anywhere OUIF exposes a background or foreground gradient field:
+
+```cpp
+tile.set_background(ouif::Gradient::Linear(45.0f, {
+    { 0.0f, "#101218" },
+    { 1.0f, "#4692c4" },
+}));
+
+title.set_text_color(ouif::Gradient::Linear(90.0f, {
+    { 0.0f, "#ffffff" },
+    { 1.0f, "#8dc7ff" },
+}));
 ```
 
 ## Stylesheets
@@ -155,8 +171,9 @@ tile.set_name("primary");
 
 root.set_stylesheet(R"css(
     .tile {
-        background: #2f6c9c;
+        background: gradient(linear 45deg (0% #2f6c9c) (100% #68b07e));
         background-hovered: #4692c4;
+        color: gradient(linear 90deg (0% #ffffff) (100% #8dc7ff));
         width: 50%;
         height: 120px;
         border-radius: 8px;
@@ -188,7 +205,7 @@ CSS property names intentionally mirror `Style` naming:
 - `border-radius`, `radius`, and per-corner radius names
 - `width`, `height`, `flex`, `margin`, `padding`, `clip-content`
 
-`width` and `height` support `px`, `%`, `vw`, and `vh`. `margin`, `padding`, and radius currently resolve as pixel values.
+`width` and `height` support `px`, `%`, `vw`, and `vh`. `margin`, `padding`, and radius currently resolve as pixel values. CSS colors support short hex, long hex, common aliases, and `gradient(linear 45deg (0% #000) (100% white))`.
 
 `set_style()` is treated as explicit C++ styling and wins over stylesheet styling for that widget. This keeps runtime behavior deterministic when both APIs are used. Use `get_style()` to inspect the effective style and `get_stylesheet()` to inspect the CSS string. `join_stylesheet()` appends more CSS and reapplies it to the tree.
 
@@ -196,6 +213,7 @@ For runtime changes, widgets also expose direct style setters and getters:
 
 ```cpp
 tile.set_background("#2f6c9c");
+tile.set_background(ouif::Gradient::Linear(45.0f, { { 0.0f, "#2f6c9c" }, { 1.0f, "#68b07e" } }));
 tile.set_background_hovered("#4692c4");
 tile.set_border("#e8edf3", 2.0f);
 tile.set_border_left("#9fd7ff", 8.0f);
@@ -204,6 +222,7 @@ tile.set_radius(8.0f);
 tile.set_opacity(0.85f);
 
 auto background = tile.get_background();
+auto background_gradient = tile.get_background_gradient();
 auto border = tile.get_border();
 auto left_border = tile.get_border_left();
 auto radius = tile.get_radius();

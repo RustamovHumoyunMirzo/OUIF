@@ -293,6 +293,50 @@ std::uint32_t pack_abgr(Color color)
     return (a << 24U) | (b << 16U) | (g << 8U) | r;
 }
 
+Color lerp_color(Color from, Color to, float progress) noexcept
+{
+    const float t = std::clamp(progress, 0.0f, 1.0f);
+    return {
+        from.r + (to.r - from.r) * t,
+        from.g + (to.g - from.g) * t,
+        from.b + (to.b - from.b) * t,
+        from.a + (to.a - from.a) * t,
+    };
+}
+
+Color sample_gradient(const Gradient& gradient, Rect rect, Point point) noexcept
+{
+    if (gradient.stops.empty()) {
+        return Color::rgba(255, 255, 255, 255);
+    }
+    if (gradient.stops.size() == 1U) {
+        return gradient.stops.front().color;
+    }
+
+    const float radians = gradient.angle_degrees * 3.1415926535f / 180.0f;
+    const Point center { rect.x + rect.width * 0.5f, rect.y + rect.height * 0.5f };
+    const Point dir { std::cos(radians), std::sin(radians) };
+    const float projection = (point.x - center.x) * dir.x + (point.y - center.y) * dir.y;
+    const float extent = std::max(1.0f, std::abs(rect.width * dir.x) + std::abs(rect.height * dir.y)) * 0.5f;
+    const float offset = std::clamp((projection / extent + 1.0f) * 0.5f, 0.0f, 1.0f);
+
+    auto stops = gradient.stops;
+    std::sort(stops.begin(), stops.end(), [](const auto& left, const auto& right) {
+        return left.offset < right.offset;
+    });
+
+    if (offset <= stops.front().offset) {
+        return stops.front().color;
+    }
+    for (std::size_t index = 1; index < stops.size(); ++index) {
+        if (offset <= stops[index].offset) {
+            const float span = std::max(0.0001f, stops[index].offset - stops[index - 1U].offset);
+            return lerp_color(stops[index - 1U].color, stops[index].color, (offset - stops[index - 1U].offset) / span);
+        }
+    }
+    return stops.back().color;
+}
+
 float clamp_radius(float radius, Rect rect)
 {
     const float maximum = std::max(0.0f, std::min(rect.width, rect.height) * 0.5f);
@@ -2632,6 +2676,48 @@ void Renderer::fill_rect(Rect rect, Color color)
 #endif
 }
 
+void Renderer::fill_rect(Rect rect, const Gradient& gradient)
+{
+#if OUIF_WITH_BGFX
+    if (!bgfx::isValid(impl_->rect_program) || rect.width <= 0.0f || rect.height <= 0.0f || gradient.empty()) {
+        return;
+    }
+
+    if (bgfx::getAvailTransientVertexBuffer(4, PosColorVertex::layout) < 4 || bgfx::getAvailTransientIndexBuffer(6) < 6) {
+        return;
+    }
+
+    bgfx::TransientVertexBuffer vertices;
+    bgfx::TransientIndexBuffer indices;
+    bgfx::allocTransientVertexBuffer(&vertices, 4, PosColorVertex::layout);
+    bgfx::allocTransientIndexBuffer(&indices, 6);
+
+    const std::array<Point, 4> points {
+        Point { rect.x, rect.y },
+        Point { rect.x + rect.width, rect.y },
+        Point { rect.x + rect.width, rect.y + rect.height },
+        Point { rect.x, rect.y + rect.height },
+    };
+
+    auto* vertex_data = reinterpret_cast<PosColorVertex*>(vertices.data);
+    for (std::size_t index = 0; index < points.size(); ++index) {
+        vertex_data[index] = transformed_vertex_from_point(*impl_, points[index], pack_abgr(sample_gradient(gradient, rect, points[index])));
+    }
+
+    auto* index_data = reinterpret_cast<std::uint16_t*>(indices.data);
+    const std::array<std::uint16_t, 6> quad_indices { 0, 1, 2, 0, 2, 3 };
+    std::copy(quad_indices.begin(), quad_indices.end(), index_data);
+
+    bgfx::setVertexBuffer(0, &vertices);
+    bgfx::setIndexBuffer(&indices);
+    bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
+    apply_scissor(*impl_);
+    bgfx::submit(impl_->draw_view, impl_->rect_program);
+#else
+    fill_rect(rect, gradient.stops.empty() ? Color {} : gradient.stops.front().color);
+#endif
+}
+
 void Renderer::fill_rounded_rect(Rect rect, CornerRadius radius, Color color)
 {
 #if OUIF_WITH_BGFX
@@ -2686,6 +2772,62 @@ void Renderer::fill_rounded_rect(Rect rect, CornerRadius radius, Color color)
 #else
     (void)radius;
     fill_rect(rect, color);
+#endif
+}
+
+void Renderer::fill_rounded_rect(Rect rect, CornerRadius radius, const Gradient& gradient)
+{
+#if OUIF_WITH_BGFX
+    if (!bgfx::isValid(impl_->rect_program) || rect.width <= 0.0f || rect.height <= 0.0f || gradient.empty()) {
+        return;
+    }
+
+    const float top_left = clamp_radius(radius.top_left, rect);
+    const float top_right = clamp_radius(radius.top_right, rect);
+    const float bottom_right = clamp_radius(radius.bottom_right, rect);
+    const float bottom_left = clamp_radius(radius.bottom_left, rect);
+
+    if (top_left == 0.0f && top_right == 0.0f && bottom_right == 0.0f && bottom_left == 0.0f) {
+        fill_rect(rect, gradient);
+        return;
+    }
+
+    const auto points = rounded_rect_points(rect, radius, impl_->quality.curve_segments);
+
+    const std::uint32_t vertex_count = static_cast<std::uint32_t>(points.size() + 1);
+    const std::uint32_t index_count = static_cast<std::uint32_t>(points.size() * 3);
+    if (vertex_count > bgfx::getAvailTransientVertexBuffer(vertex_count, PosColorVertex::layout)
+        || index_count > bgfx::getAvailTransientIndexBuffer(index_count)) {
+        return;
+    }
+
+    bgfx::TransientVertexBuffer vertices;
+    bgfx::TransientIndexBuffer indices;
+    bgfx::allocTransientVertexBuffer(&vertices, vertex_count, PosColorVertex::layout);
+    bgfx::allocTransientIndexBuffer(&indices, index_count);
+
+    auto* vertex_data = reinterpret_cast<PosColorVertex*>(vertices.data);
+    const Point center { rect.x + rect.width * 0.5f, rect.y + rect.height * 0.5f };
+    vertex_data[0] = transformed_vertex_from_point(*impl_, center, pack_abgr(sample_gradient(gradient, rect, center)));
+    for (std::size_t index = 0; index < points.size(); ++index) {
+        vertex_data[index + 1U] = transformed_vertex_from_point(*impl_, points[index], pack_abgr(sample_gradient(gradient, rect, points[index])));
+    }
+
+    auto* index_data = reinterpret_cast<std::uint16_t*>(indices.data);
+    for (std::uint16_t index = 0; index < static_cast<std::uint16_t>(points.size()); ++index) {
+        const std::uint16_t next = static_cast<std::uint16_t>((index + 1U) % points.size());
+        index_data[index * 3U + 0U] = 0;
+        index_data[index * 3U + 1U] = static_cast<std::uint16_t>(index + 1U);
+        index_data[index * 3U + 2U] = static_cast<std::uint16_t>(next + 1U);
+    }
+
+    bgfx::setVertexBuffer(0, &vertices);
+    bgfx::setIndexBuffer(&indices);
+    bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA);
+    apply_scissor(*impl_);
+    bgfx::submit(impl_->draw_view, impl_->rect_program);
+#else
+    fill_rounded_rect(rect, radius, gradient.stops.empty() ? Color {} : gradient.stops.front().color);
 #endif
 }
 
@@ -3569,7 +3711,6 @@ void Renderer::draw_text(std::string_view text, Rect rect, const TextStyle& styl
         if (auto* face = find_font(*impl_, style.font_family); face != nullptr && face->valid) {
             if (auto* atlas = ensure_atlas(*impl_, *face, style.font_size); atlas != nullptr && bgfx::isValid(atlas->texture)) {
                 float y = rect.y;
-                const auto abgr = pack_abgr(style.color);
 
                 for (const auto& line : lines) {
                     if (y > rect.y + rect.height) {
@@ -3624,10 +3765,13 @@ void Renderer::draw_text(std::string_view text, Rect rect, const TextStyle& styl
                         }
 
                         const auto base = static_cast<std::uint16_t>(vertex_data.size());
-                        vertex_data.push_back(transformed_text_vertex_from_point(*impl_, { quad.x0, quad.y0 }, abgr, quad.s0, quad.t0));
-                        vertex_data.push_back(transformed_text_vertex_from_point(*impl_, { quad.x1, quad.y0 }, abgr, quad.s1, quad.t0));
-                        vertex_data.push_back(transformed_text_vertex_from_point(*impl_, { quad.x1, quad.y1 }, abgr, quad.s1, quad.t1));
-                        vertex_data.push_back(transformed_text_vertex_from_point(*impl_, { quad.x0, quad.y1 }, abgr, quad.s0, quad.t1));
+                        const auto glyph_color = style.color_gradient
+                            ? pack_abgr(sample_gradient(*style.color_gradient, rect, { quad.x0 + (quad.x1 - quad.x0) * 0.5f, quad.y0 + (quad.y1 - quad.y0) * 0.5f }))
+                            : pack_abgr(style.color);
+                        vertex_data.push_back(transformed_text_vertex_from_point(*impl_, { quad.x0, quad.y0 }, glyph_color, quad.s0, quad.t0));
+                        vertex_data.push_back(transformed_text_vertex_from_point(*impl_, { quad.x1, quad.y0 }, glyph_color, quad.s1, quad.t0));
+                        vertex_data.push_back(transformed_text_vertex_from_point(*impl_, { quad.x1, quad.y1 }, glyph_color, quad.s1, quad.t1));
+                        vertex_data.push_back(transformed_text_vertex_from_point(*impl_, { quad.x0, quad.y1 }, glyph_color, quad.s0, quad.t1));
                         index_data.insert(index_data.end(), {
                             base,
                             static_cast<std::uint16_t>(base + 1U),
@@ -3709,7 +3853,7 @@ void Renderer::draw_text(std::string_view text, Rect rect, const TextStyle& styl
                         std::max(1.0f, cell),
                         std::max(1.0f, cell),
                     },
-                        style.color);
+                        style.color_gradient ? sample_gradient(*style.color_gradient, rect, { x + static_cast<float>(column) * cell, y + static_cast<float>(row) * cell }) : style.color);
                 }
             }
 
@@ -3720,6 +3864,13 @@ void Renderer::draw_text(std::string_view text, Rect rect, const TextStyle& styl
     }
 
     pop_clip();
+}
+
+void Renderer::draw_text(std::string_view text, Rect rect, const TextStyle& style, const Gradient& gradient)
+{
+    auto next = style;
+    next.color_gradient = gradient;
+    draw_text(text, rect, next);
 }
 
 void Renderer::push_transform(Rect bounds, Transform transform)

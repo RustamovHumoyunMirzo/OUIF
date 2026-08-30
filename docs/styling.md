@@ -21,12 +21,32 @@ set_style(ouif::Style()
 
 `set_style()` is explicit C++ styling and wins over stylesheet styling for that widget.
 
+Any background or foreground color field can also use a linear gradient:
+
+```cpp
+set_background(ouif::Gradient::Linear(45.0f, {
+    { 0.0f, "#101218" },
+    { 1.0f, ouif::Color::named("white").value() },
+}));
+
+set_style(ouif::Style()
+    .with_background(ouif::Gradient::Linear(90.0f, {
+        { 0.0f, "#2f6c9c" },
+        { 1.0f, "#68b07e" },
+    }))
+    .with_foreground(ouif::Gradient::Linear(0.0f, {
+        { 0.0f, "#ffffff" },
+        { 1.0f, "#8dc7ff" },
+    })));
+```
+
 ## Runtime Setters
 
 Use runtime setters for stateful or interactive changes:
 
 ```cpp
 tile.set_background("#2f6c9c");
+tile.set_background(ouif::Gradient::Linear(45.0f, { { 0.0f, "#2f6c9c" }, { 1.0f, "#68b07e" } }));
 tile.set_border_left("#9fd7ff", 8.0f);
 tile.set_radius({ 8.0f, 12.0f, 12.0f, 8.0f });
 tile.set_opacity(0.85f);
@@ -59,6 +79,7 @@ root.set_stylesheet(R"css(
     .tile {
         background: var("tile-bg");
         background-hovered: #4692c4;
+        color: gradient(linear 90deg (0% #ffffff) (100% #8dc7ff));
         border: 2px solid #e8edf3;
         radius: 12px;
     }
@@ -114,6 +135,22 @@ Selectors currently support type names, classes, names, and state pseudo classes
 - transforms: `transform`, `translate`, `translate-x`, `translate-y`, `scale`, `scale-x`, `scale-y`, `rotate`, `transform-origin`
 
 `width` and `height` support `px`, `%`, `vw`, and `vh`. Spacing and radius values currently resolve as pixels.
+
+Color values support `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, and the named aliases `black`, `white`, `red`, `green`, `blue`, and `transparent`.
+
+Gradient syntax is:
+
+```css
+.panel {
+    background: gradient(linear 45deg (0% #101218) (50% #2f6c9c) (100% white));
+}
+
+.title {
+    text-color: gradient(linear 90deg (0% #ffffff) (100% #8dc7ff));
+}
+```
+
+Stops can also be written without the inner stop parentheses, as `gradient(linear 45deg 0% #101218 100% white)`.
 
 Any supported property can use `inherit`:
 

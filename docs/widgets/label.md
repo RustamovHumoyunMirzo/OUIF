@@ -29,6 +29,15 @@ title.set_text_style(ouif::TextStyle()
 
 If no explicit text color is set, `Label` uses the widget style foreground color. That means CSS, state changes, and animations can drive label color through the normal style pipeline.
 
+Text color can also be a gradient:
+
+```cpp
+title.set_text_color(ouif::Gradient::Linear(90.0f, {
+    { 0.0f, "#ffffff" },
+    { 1.0f, "#8dc7ff" },
+}));
+```
+
 ## Fonts
 
 OUIF loads a platform native default font automatically as `OUIF Sans` when rendering starts. Applications can also load TTF files and use them from any `Label` or custom `draw()` method:
@@ -55,7 +64,7 @@ Use `app.set_default_font_family("Brand")` when you want labels that still say `
 
 ```css
 .title {
-    color: #e8edf3;
+    color: gradient(linear 90deg (0% #ffffff) (100% #8dc7ff));
     font-size: 22px;
     font-family: OUIF;
     text-align: center;

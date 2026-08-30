@@ -188,6 +188,13 @@ float Label::font_size() const noexcept
 void Label::set_text_color(Color color) noexcept
 {
     text_style_.color = color;
+    text_style_.color_gradient.reset();
+    has_text_color_ = true;
+}
+
+void Label::set_text_color(Gradient gradient)
+{
+    text_style_.color_gradient = std::move(gradient);
     has_text_color_ = true;
 }
 
@@ -195,6 +202,9 @@ void Label::set_text_color(InheritTag) noexcept
 {
     if (auto* parent_label = dynamic_cast<const Label*>(parent())) {
         set_text_color(parent_label->text_color());
+        if (parent_label->text_gradient()) {
+            text_style_.color_gradient = parent_label->text_gradient();
+        }
     } else if (parent() != nullptr) {
         set_text_color(parent()->get_foreground());
     }
@@ -203,6 +213,16 @@ void Label::set_text_color(InheritTag) noexcept
 Color Label::text_color() const noexcept
 {
     return has_text_color_ ? text_style_.color : get_style().foreground;
+}
+
+const std::optional<Gradient>& Label::text_gradient() const noexcept
+{
+    return text_style_.color_gradient;
+}
+
+const std::optional<Gradient>& Label::get_text_gradient() const noexcept
+{
+    return text_gradient();
 }
 
 void Label::set_text_align(TextAlign align) noexcept
@@ -249,7 +269,454 @@ void Label::draw(Renderer& renderer)
     Widget::draw(renderer);
     auto style = text_style_;
     style.color = text_color();
+    if (get_style().foreground_gradient) {
+        style.color_gradient = get_style().foreground_gradient;
+    }
     renderer.draw_text(text_, bounds().inset(layout_rules().padding), style);
+}
+
+namespace {
+
+std::string utf8_from_codepoint(std::uint32_t codepoint)
+{
+    std::string text;
+    if (codepoint <= 0x7fU) {
+        text.push_back(static_cast<char>(codepoint));
+    } else if (codepoint <= 0x7ffU) {
+        text.push_back(static_cast<char>(0xc0U | ((codepoint >> 6U) & 0x1fU)));
+        text.push_back(static_cast<char>(0x80U | (codepoint & 0x3fU)));
+    } else if (codepoint <= 0xffffU) {
+        text.push_back(static_cast<char>(0xe0U | ((codepoint >> 12U) & 0x0fU)));
+        text.push_back(static_cast<char>(0x80U | ((codepoint >> 6U) & 0x3fU)));
+        text.push_back(static_cast<char>(0x80U | (codepoint & 0x3fU)));
+    } else if (codepoint <= 0x10ffffU) {
+        text.push_back(static_cast<char>(0xf0U | ((codepoint >> 18U) & 0x07U)));
+        text.push_back(static_cast<char>(0x80U | ((codepoint >> 12U) & 0x3fU)));
+        text.push_back(static_cast<char>(0x80U | ((codepoint >> 6U) & 0x3fU)));
+        text.push_back(static_cast<char>(0x80U | (codepoint & 0x3fU)));
+    }
+    return text;
+}
+
+std::string& input_clipboard_storage()
+{
+    static std::string text;
+    return text;
+}
+
+} // namespace
+
+Input::Input()
+{
+    set_accepts_children(false);
+    set_focusable(true);
+    set_accessibility_role(AccessibilityRole::TextInput);
+    set_size({ 220.0f, 40.0f });
+    set_padding(Insets(10.0f, 8.0f, 10.0f, 8.0f));
+    set_style(Style()
+        .with_background(Color::hex(0x151b24))
+        .with_background_hovered(Color::hex(0x192230))
+        .with_background_focused(Color::hex(0x1d2735))
+        .with_border(Color::hexa(0x56657a99), 1.0f)
+        .with_border_focused(Color::hex(0x8dc7ff), 2.0f)
+        .with_radius(8.0f));
+}
+
+Input::Input(std::string text)
+    : Input()
+{
+    set_text(std::move(text));
+}
+
+void Input::set_text(std::string text)
+{
+    text_ = std::move(text);
+    caret_ = std::min(caret_, text_.size());
+    selection_anchor_ = caret_;
+}
+
+std::string_view Input::text() const noexcept
+{
+    return text_;
+}
+
+std::string_view Input::get_text() const noexcept
+{
+    return text();
+}
+
+void Input::clear_text() noexcept
+{
+    text_.clear();
+    caret_ = 0;
+    selection_anchor_ = 0;
+}
+
+void Input::set_placeholder(std::string placeholder)
+{
+    placeholder_ = std::move(placeholder);
+}
+
+std::string_view Input::placeholder() const noexcept
+{
+    return placeholder_;
+}
+
+std::string_view Input::get_placeholder() const noexcept
+{
+    return placeholder();
+}
+
+void Input::set_composition_text(std::string text)
+{
+    composition_text_ = std::move(text);
+}
+
+std::string_view Input::composition_text() const noexcept
+{
+    return composition_text_;
+}
+
+std::string_view Input::get_composition_text() const noexcept
+{
+    return composition_text();
+}
+
+void Input::clear_composition() noexcept
+{
+    composition_text_.clear();
+}
+
+void Input::set_text_style(TextStyle style) noexcept
+{
+    text_style_ = std::move(style);
+}
+
+void Input::set_text_style(InheritTag) noexcept
+{
+    if (auto* parent_input = dynamic_cast<const Input*>(parent())) {
+        set_text_style(parent_input->text_style());
+    } else if (parent() != nullptr) {
+        text_style_.color = parent()->get_foreground();
+    }
+}
+
+const TextStyle& Input::text_style() const noexcept
+{
+    return text_style_;
+}
+
+const TextStyle& Input::get_text_style() const noexcept
+{
+    return text_style();
+}
+
+void Input::set_font_family(std::string family)
+{
+    text_style_.font_family = std::move(family);
+}
+
+std::string_view Input::font_family() const noexcept
+{
+    return text_style_.font_family;
+}
+
+void Input::set_font_size(float size) noexcept
+{
+    text_style_.font_size = std::max(1.0f, size);
+}
+
+float Input::font_size() const noexcept
+{
+    return text_style_.font_size;
+}
+
+void Input::set_text_color(Color color) noexcept
+{
+    text_style_.color = color;
+    text_style_.color_gradient.reset();
+}
+
+void Input::set_text_color(Gradient gradient)
+{
+    text_style_.color_gradient = std::move(gradient);
+}
+
+void Input::set_placeholder_color(Color color) noexcept
+{
+    placeholder_color_ = color;
+}
+
+Color Input::text_color() const noexcept
+{
+    return text_style_.color;
+}
+
+const std::optional<Gradient>& Input::text_gradient() const noexcept
+{
+    return text_style_.color_gradient;
+}
+
+const std::optional<Gradient>& Input::get_text_gradient() const noexcept
+{
+    return text_gradient();
+}
+
+Color Input::placeholder_color() const noexcept
+{
+    return placeholder_color_;
+}
+
+void Input::set_caret(std::size_t index) noexcept
+{
+    caret_ = std::min(index, text_.size());
+    selection_anchor_ = caret_;
+}
+
+std::size_t Input::caret() const noexcept
+{
+    return caret_;
+}
+
+std::size_t Input::get_caret() const noexcept
+{
+    return caret();
+}
+
+void Input::select(std::size_t anchor, std::size_t caret) noexcept
+{
+    selection_anchor_ = std::min(anchor, text_.size());
+    caret_ = std::min(caret, text_.size());
+}
+
+void Input::select_all() noexcept
+{
+    selection_anchor_ = 0;
+    caret_ = text_.size();
+}
+
+void Input::clear_selection() noexcept
+{
+    selection_anchor_ = caret_;
+}
+
+bool Input::has_selection() const noexcept
+{
+    return selection_anchor_ != caret_;
+}
+
+std::pair<std::size_t, std::size_t> Input::selection() const noexcept
+{
+    return ordered_selection();
+}
+
+void Input::insert_text(std::string_view text)
+{
+    erase_selection();
+    text_.insert(caret_, text);
+    caret_ += text.size();
+    selection_anchor_ = caret_;
+}
+
+void Input::erase_selection()
+{
+    const auto [first, last] = ordered_selection();
+    if (first == last) {
+        return;
+    }
+    text_.erase(first, last - first);
+    caret_ = first;
+    selection_anchor_ = caret_;
+}
+
+void Input::erase_previous()
+{
+    if (has_selection()) {
+        erase_selection();
+        return;
+    }
+    if (caret_ == 0) {
+        return;
+    }
+    text_.erase(caret_ - 1U, 1U);
+    --caret_;
+    selection_anchor_ = caret_;
+}
+
+void Input::erase_next()
+{
+    if (has_selection()) {
+        erase_selection();
+        return;
+    }
+    if (caret_ >= text_.size()) {
+        return;
+    }
+    text_.erase(caret_, 1U);
+    selection_anchor_ = caret_;
+}
+
+void Input::copy_selection()
+{
+    const auto [first, last] = ordered_selection();
+    input_clipboard_storage() = text_.substr(first, last - first);
+}
+
+void Input::cut_selection()
+{
+    if (!has_selection()) {
+        return;
+    }
+    copy_selection();
+    erase_selection();
+}
+
+void Input::paste_text(std::string_view text)
+{
+    insert_text(text);
+}
+
+void Input::paste_clipboard()
+{
+    paste_text(input_clipboard_storage());
+}
+
+void Input::set_clipboard_text(std::string text)
+{
+    input_clipboard_storage() = std::move(text);
+}
+
+std::string_view Input::clipboard_text() noexcept
+{
+    return input_clipboard_storage();
+}
+
+bool Input::event(const Event& event)
+{
+    return Widget::event(event);
+}
+
+void Input::draw(Renderer& renderer)
+{
+    Widget::draw(renderer);
+
+    const Rect content = bounds().inset(layout_rules().padding);
+    auto style = text_style_;
+    style.color = text_.empty() && !focused() ? placeholder_color_ : text_style_.color;
+    if (get_style().foreground_gradient && (!text_.empty() || !composition_text_.empty())) {
+        style.color_gradient = get_style().foreground_gradient;
+    }
+    std::string display_text;
+    std::string_view text_to_draw = text_.empty() && !focused() ? std::string_view(placeholder_) : std::string_view(text_);
+    if (!composition_text_.empty()) {
+        display_text.reserve(text_.size() + composition_text_.size());
+        display_text.append(text_);
+        display_text.append(composition_text_);
+        text_to_draw = display_text;
+    }
+    renderer.draw_text(text_to_draw, content, style);
+
+    if (focused()) {
+        const float advance = std::max(1.0f, style.font_size * 0.6f + style.letter_spacing);
+        const float caret_x = std::min(content.x + advance * static_cast<float>(caret_), content.x + content.width - 1.0f);
+        renderer.fill_rect({ caret_x, content.y + 4.0f, 1.5f, std::max(1.0f, content.height - 8.0f) }, get_style().foreground);
+    }
+}
+
+bool Input::on_event(const Event& event)
+{
+    if (const auto* text = std::get_if<TextInputEvent>(&event)) {
+        if (text->codepoint >= 32U) {
+            insert_text(utf8_from_codepoint(text->codepoint));
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Input::on_key_down(const KeyEvent& event)
+{
+    if (event.action != KeyAction::Press && event.action != KeyAction::Repeat) {
+        return false;
+    }
+    if (event.control && event.key == static_cast<std::uint32_t>(Key::A)) {
+        select_all();
+        return true;
+    }
+    if (event.control && event.key == static_cast<std::uint32_t>(Key::C)) {
+        copy_selection();
+        return true;
+    }
+    if (event.control && event.key == static_cast<std::uint32_t>(Key::X)) {
+        cut_selection();
+        return true;
+    }
+    if (event.control && event.key == static_cast<std::uint32_t>(Key::V)) {
+        paste_clipboard();
+        return true;
+    }
+    if (event.key == static_cast<std::uint32_t>(Key::Backspace)) {
+        erase_previous();
+        return true;
+    }
+    if (event.key == static_cast<std::uint32_t>(Key::Delete)) {
+        erase_next();
+        return true;
+    }
+    if (event.key == static_cast<std::uint32_t>(Key::Left)) {
+        if (caret_ > 0) {
+            --caret_;
+        }
+        if (!event.shift) {
+            selection_anchor_ = caret_;
+        }
+        return true;
+    }
+    if (event.key == static_cast<std::uint32_t>(Key::Right)) {
+        if (caret_ < text_.size()) {
+            ++caret_;
+        }
+        if (!event.shift) {
+            selection_anchor_ = caret_;
+        }
+        return true;
+    }
+    if (event.key == static_cast<std::uint32_t>(Key::Home)) {
+        caret_ = 0;
+        if (!event.shift) {
+            selection_anchor_ = caret_;
+        }
+        return true;
+    }
+    if (event.key == static_cast<std::uint32_t>(Key::End)) {
+        caret_ = text_.size();
+        if (!event.shift) {
+            selection_anchor_ = caret_;
+        }
+        return true;
+    }
+    return false;
+}
+
+bool Input::on_mouse_down(const MouseEvent& event)
+{
+    set_caret(caret_from_point(event.position));
+    return true;
+}
+
+std::size_t Input::caret_from_point(Point point) const noexcept
+{
+    const Rect content = bounds().inset(layout_rules().padding);
+    const float advance = std::max(1.0f, text_style_.font_size * 0.6f + text_style_.letter_spacing);
+    if (point.x <= content.x) {
+        return 0;
+    }
+    return std::min<std::size_t>(text_.size(), static_cast<std::size_t>((point.x - content.x) / advance + 0.5f));
+}
+
+std::pair<std::size_t, std::size_t> Input::ordered_selection() const noexcept
+{
+    return { std::min(selection_anchor_, caret_), std::max(selection_anchor_, caret_) };
 }
 
 Image::Image()

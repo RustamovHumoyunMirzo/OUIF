@@ -115,6 +115,7 @@ Static constructors:
 - `hex(std::uint32_t rgb) noexcept -> Color`
 - `hexa(std::uint32_t rgba) noexcept -> Color`
 - `from_hex(std::string_view value) noexcept -> std::optional<Color>`
+- `named(std::string_view value) noexcept -> std::optional<Color>`
 
 Fields:
 
@@ -122,6 +123,31 @@ Fields:
 - `float g`
 - `float b`
 - `float a`
+
+`from_hex(...)` accepts `#rgb`, `#rgba`, `#rrggbb`, and `#rrggbbaa`. Named colors currently include `black`, `white`, `red`, `green`, `blue`, and `transparent`.
+
+### `ouif::GradientStop`
+
+Fields:
+
+- `float offset`
+- `Color color`
+
+### `ouif::Gradient`
+
+Static constructors:
+
+- `Linear(float angle_degrees, std::initializer_list<GradientStop> stops) -> Gradient`
+
+Methods:
+
+- `empty() const noexcept -> bool`
+
+Fields:
+
+- `Gradient::Kind kind`
+- `float angle_degrees`
+- `std::vector<GradientStop> stops`
 
 ## Style
 
@@ -161,11 +187,17 @@ Fields:
 Fluent methods return `Style&`:
 
 - `with_background(Color color) noexcept`
+- `with_background(Gradient gradient)`
 - `with_background_hovered(Color color) noexcept`
+- `with_background_hovered(Gradient gradient)`
 - `with_background_pressed(Color color) noexcept`
+- `with_background_pressed(Gradient gradient)`
 - `with_background_selected(Color color) noexcept`
+- `with_background_selected(Gradient gradient)`
 - `with_background_focused(Color color) noexcept`
+- `with_background_focused(Gradient gradient)`
 - `with_foreground(Color color) noexcept`
+- `with_foreground(Gradient gradient)`
 - `with_border(Color color, float width) noexcept`
 - `with_border_selected(Color color, float width) noexcept`
 - `with_border_focused(Color color, float width) noexcept`
@@ -185,9 +217,33 @@ Fluent methods return `Style&`:
 - `with_radius(CornerRadius value) noexcept`
 - `with_opacity(float value) noexcept`
 
-Public fields include base/state colors, foreground, uniform borders, directional borders, radius, and opacity.
+Public fields include base/state colors, optional base/state gradients, foreground, optional foreground gradient, uniform borders, directional borders, radius, and opacity.
 
 ## Widget
+
+### Events
+
+`ouif::Event` is `std::variant<MouseMoveEvent, MouseButtonEvent, MouseWheelEvent, MouseEvent, KeyEvent, TextInputEvent, ResizeEvent, DragEvent>`.
+
+Common enums:
+
+- `MouseButton`: `Left`, `Right`, `Middle`
+- `KeyAction`: `Press`, `Release`, `Repeat`
+- `MouseEventType`: `Move`, `Enter`, `Leave`, `Down`, `Up`, `Click`
+- `DragEventType`: `Start`, `Move`, `Drop`, `End`
+
+`ouif::Key` includes Space, punctuation keys, number keys, `A`, `C`, `V`, `X`, Enter, Escape, Tab, Backspace, Insert, Delete, arrows, Home, and End.
+
+Event structs:
+
+- `MouseMoveEvent`: `Point position`, `Point local_position`
+- `MouseButtonEvent`: `Point position`, `Point local_position`, `MouseButton button`, `bool pressed`
+- `MouseWheelEvent`: `Point position`, `Point local_position`, `float delta_x`, `float delta_y`
+- `MouseEvent`: `MouseEventType type`, `Point position`, `Point local_position`, `MouseButton button`
+- `KeyEvent`: `std::uint32_t key`, `KeyAction action`, `bool shift`, `bool control`, `bool alt`, `bool super`
+- `TextInputEvent`: `std::uint32_t codepoint`
+- `ResizeEvent`: `Size size`
+- `DragEvent`: `DragEventType type`, `Point position`, `Point start_position`, `Point delta`
 
 ### `ouif::Layout`
 
@@ -306,23 +362,35 @@ Style:
 - `style() const noexcept -> const Style&`
 - `get_style() const noexcept -> const Style&`
 - `set_background(Color color) noexcept -> void`
+- `set_background(Gradient gradient) -> void`
 - `set_background(InheritTag) noexcept -> void`
 - `get_background() const noexcept -> Color`
+- `get_background_gradient() const noexcept -> const std::optional<Gradient>&`
 - `set_background_hovered(Color color) noexcept -> void`
+- `set_background_hovered(Gradient gradient) -> void`
 - `set_background_hovered(InheritTag) noexcept -> void`
 - `get_background_hovered() const noexcept -> Color`
+- `get_background_hovered_gradient() const noexcept -> const std::optional<Gradient>&`
 - `set_background_pressed(Color color) noexcept -> void`
+- `set_background_pressed(Gradient gradient) -> void`
 - `set_background_pressed(InheritTag) noexcept -> void`
 - `get_background_pressed() const noexcept -> Color`
+- `get_background_pressed_gradient() const noexcept -> const std::optional<Gradient>&`
 - `set_background_selected(Color color) noexcept -> void`
+- `set_background_selected(Gradient gradient) -> void`
 - `set_background_selected(InheritTag) noexcept -> void`
 - `get_background_selected() const noexcept -> Color`
+- `get_background_selected_gradient() const noexcept -> const std::optional<Gradient>&`
 - `set_background_focused(Color color) noexcept -> void`
+- `set_background_focused(Gradient gradient) -> void`
 - `set_background_focused(InheritTag) noexcept -> void`
 - `get_background_focused() const noexcept -> Color`
+- `get_background_focused_gradient() const noexcept -> const std::optional<Gradient>&`
 - `set_foreground(Color color) noexcept -> void`
+- `set_foreground(Gradient gradient) -> void`
 - `set_foreground(InheritTag) noexcept -> void`
 - `get_foreground() const noexcept -> Color`
+- `get_foreground_gradient() const noexcept -> const std::optional<Gradient>&`
 - `set_border(Color color, float width) noexcept -> void`
 - `set_border(InheritTag) noexcept -> void`
 - `get_border() const noexcept -> Border`
@@ -640,14 +708,67 @@ Overlay widgets do not consume Row/Col/Scroll layout space. Use `z-index` or `se
 - `set_font_size(InheritTag) noexcept -> void`
 - `font_size() const noexcept -> float`
 - `set_text_color(Color color) noexcept -> void`
+- `set_text_color(Gradient gradient) -> void`
 - `set_text_color(InheritTag) noexcept -> void`
 - `text_color() const noexcept -> Color`
+- `text_gradient() const noexcept -> const std::optional<Gradient>&`
+- `get_text_gradient() const noexcept -> const std::optional<Gradient>&`
 - `set_text_align(TextAlign align) noexcept -> void`
 - `set_text_align(InheritTag) noexcept -> void`
 - `text_align() const noexcept -> TextAlign`
 - `set_text_overflow(TextOverflow overflow) noexcept -> void`
 - `set_text_overflow(InheritTag) noexcept -> void`
 - `text_overflow() const noexcept -> TextOverflow`
+- `event(const Event& event) -> bool`
+
+### `ouif::Input`
+
+- `Input()`
+- `Input(std::string text)`
+- `set_text(std::string text) -> void`
+- `text() const noexcept -> std::string_view`
+- `get_text() const noexcept -> std::string_view`
+- `clear_text() noexcept -> void`
+- `set_placeholder(std::string placeholder) -> void`
+- `placeholder() const noexcept -> std::string_view`
+- `get_placeholder() const noexcept -> std::string_view`
+- `set_composition_text(std::string text) -> void`
+- `composition_text() const noexcept -> std::string_view`
+- `get_composition_text() const noexcept -> std::string_view`
+- `clear_composition() noexcept -> void`
+- `set_text_style(TextStyle style) noexcept -> void`
+- `set_text_style(InheritTag) noexcept -> void`
+- `text_style() const noexcept -> const TextStyle&`
+- `get_text_style() const noexcept -> const TextStyle&`
+- `set_font_family(std::string family) -> void`
+- `font_family() const noexcept -> std::string_view`
+- `set_font_size(float size) noexcept -> void`
+- `font_size() const noexcept -> float`
+- `set_text_color(Color color) noexcept -> void`
+- `set_text_color(Gradient gradient) -> void`
+- `set_placeholder_color(Color color) noexcept -> void`
+- `text_color() const noexcept -> Color`
+- `text_gradient() const noexcept -> const std::optional<Gradient>&`
+- `get_text_gradient() const noexcept -> const std::optional<Gradient>&`
+- `placeholder_color() const noexcept -> Color`
+- `set_caret(std::size_t index) noexcept -> void`
+- `caret() const noexcept -> std::size_t`
+- `get_caret() const noexcept -> std::size_t`
+- `select(std::size_t anchor, std::size_t caret) noexcept -> void`
+- `select_all() noexcept -> void`
+- `clear_selection() noexcept -> void`
+- `has_selection() const noexcept -> bool`
+- `selection() const noexcept -> std::pair<std::size_t, std::size_t>`
+- `insert_text(std::string_view text) -> void`
+- `erase_selection() -> void`
+- `erase_previous() -> void`
+- `erase_next() -> void`
+- `copy_selection() -> void`
+- `cut_selection() -> void`
+- `paste_text(std::string_view text) -> void`
+- `paste_clipboard() -> void`
+- `static set_clipboard_text(std::string text) -> void`
+- `static clipboard_text() noexcept -> std::string_view`
 - `event(const Event& event) -> bool`
 
 ### `ouif::Image`
@@ -711,6 +832,21 @@ Overlay widgets do not consume Row/Col/Scroll layout space. Use `z-index` or `se
 
 ## Rendering
 
+### `ouif::TextStyle`
+
+Fluent methods return `TextStyle&`:
+
+- `with_font_family(std::string value) -> TextStyle&`
+- `with_font_size(float value) noexcept -> TextStyle&`
+- `with_line_height(float value) noexcept -> TextStyle&`
+- `with_letter_spacing(float value) noexcept -> TextStyle&`
+- `with_color(Color value) noexcept -> TextStyle&`
+- `with_color(Gradient value) -> TextStyle&`
+- `with_align(TextAlign value) noexcept -> TextStyle&`
+- `with_overflow(TextOverflow value) noexcept -> TextStyle&`
+
+Public fields include font family, font size, line height, letter spacing, color, optional color gradient, alignment, and overflow.
+
 ### `ouif::Renderer`
 
 - `Renderer()`
@@ -721,7 +857,9 @@ Overlay widgets do not consume Row/Col/Scroll layout space. Use `z-index` or `se
 - `resize(std::uint32_t width, std::uint32_t height) -> void`
 - `begin_frame(Color clear_color) -> void`
 - `fill_rect(Rect rect, Color color) -> void`
+- `fill_rect(Rect rect, const Gradient& gradient) -> void`
 - `fill_rounded_rect(Rect rect, CornerRadius radius, Color color) -> void`
+- `fill_rounded_rect(Rect rect, CornerRadius radius, const Gradient& gradient) -> void`
 - `stroke_rect(Rect rect, Color color, float width) -> void`
 - `stroke_rounded_rect(Rect rect, CornerRadius radius, Color color, float width) -> void`
 - `stroke_rounded_rect(Rect rect, CornerRadius radius, BorderEdges borders) -> void`
@@ -749,6 +887,7 @@ Overlay widgets do not consume Row/Col/Scroll layout space. Use `z-index` or `se
 - `default_font_family() const noexcept -> std::string_view`
 - `measure_text(std::string_view text, const TextStyle& style) const noexcept -> Size`
 - `draw_text(std::string_view text, Rect rect, const TextStyle& style) -> void`
+- `draw_text(std::string_view text, Rect rect, const TextStyle& style, const Gradient& gradient) -> void`
 - `push_transform(Rect bounds, Transform transform) -> void`
 - `pop_transform() -> void`
 - `push_clip(Rect rect) -> void`

@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -158,6 +159,7 @@ struct TextStyle {
     float line_height = 1.25f;
     float letter_spacing = 0.0f;
     Color color = Color::rgba(242, 244, 248, 255);
+    std::optional<Gradient> color_gradient {};
     TextAlign align = TextAlign::Start;
     TextOverflow overflow = TextOverflow::Clip;
 
@@ -188,6 +190,13 @@ struct TextStyle {
     TextStyle& with_color(Color value) noexcept
     {
         color = value;
+        color_gradient.reset();
+        return *this;
+    }
+
+    TextStyle& with_color(Gradient value)
+    {
+        color_gradient = std::move(value);
         return *this;
     }
 
@@ -219,7 +228,9 @@ public:
     void resize(std::uint32_t width, std::uint32_t height);
     void begin_frame(Color clear_color);
     void fill_rect(Rect rect, Color color);
+    void fill_rect(Rect rect, const Gradient& gradient);
     void fill_rounded_rect(Rect rect, CornerRadius radius, Color color);
+    void fill_rounded_rect(Rect rect, CornerRadius radius, const Gradient& gradient);
     void stroke_rect(Rect rect, Color color, float width);
     void stroke_rounded_rect(Rect rect, CornerRadius radius, Color color, float width);
     void stroke_rounded_rect(Rect rect, CornerRadius radius, BorderEdges borders);
@@ -247,6 +258,7 @@ public:
     [[nodiscard]] std::string_view default_font_family() const noexcept;
     [[nodiscard]] Size measure_text(std::string_view text, const TextStyle& style) const noexcept;
     void draw_text(std::string_view text, Rect rect, const TextStyle& style);
+    void draw_text(std::string_view text, Rect rect, const TextStyle& style, const Gradient& gradient);
     void push_transform(Rect bounds, Transform transform);
     void pop_transform();
     void push_clip(Rect rect);

@@ -11,6 +11,7 @@
 #include <cstring>
 #include <functional>
 #include <iterator>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -258,6 +259,37 @@ std::string normalize_effect_css(std::string_view css)
 
     normalize_property("layer-effect");
     normalize_property("backdrop-effect");
+
+    std::size_t cursor = 0;
+    while ((cursor = lower_copy(result).find("gradient", cursor)) != std::string::npos) {
+        const auto open = result.find('(', cursor + 8U);
+        if (open == std::string::npos) {
+            break;
+        }
+
+        int depth = 0;
+        bool closed = false;
+        for (std::size_t index = open; index < result.size(); ++index) {
+            if (result[index] == '(') {
+                if (depth > 0) {
+                    result[index] = ' ';
+                }
+                ++depth;
+            } else if (result[index] == ')') {
+                --depth;
+                if (depth == 0) {
+                    cursor = index + 1U;
+                    closed = true;
+                    break;
+                }
+                result[index] = ' ';
+            }
+        }
+
+        if (!closed) {
+            break;
+        }
+    }
     return result;
 }
 
@@ -310,10 +342,119 @@ std::optional<Color> color_from_value(const KatanaValue& value)
     }
 
     if (value.unit == KATANA_VALUE_IDENT || value.unit == KATANA_VALUE_STRING) {
-        return Color::from_hex(text_or_empty(value.string));
+        const auto text = lower_copy(text_or_empty(value.string));
+        if (auto named = Color::named(text)) {
+            return named;
+        }
+        return Color::from_hex(text);
     }
 
     return std::nullopt;
+}
+
+std::optional<Color> color_from_text(std::string_view value)
+{
+    auto text = lower_copy(trim_copy(value));
+    if (text.empty()) {
+        return std::nullopt;
+    }
+    while (!text.empty() && (text.back() == ',' || text.back() == ')')) {
+        text.pop_back();
+    }
+    if (auto named = Color::named(text)) {
+        return named;
+    }
+    return Color::from_hex(text);
+}
+
+std::string declaration_value_text(KatanaDeclaration& declaration)
+{
+    std::string raw = std::string(text_or_empty(declaration.raw));
+    if (raw.empty()) {
+        raw = std::string(text_or_empty(declaration.string));
+    }
+    if (const auto colon = raw.find(':'); colon != std::string::npos) {
+        raw.erase(0, colon + 1U);
+    }
+    if (const auto semicolon = raw.rfind(';'); semicolon != std::string::npos) {
+        raw.erase(semicolon);
+    }
+    return trim_copy(raw);
+}
+
+std::optional<Gradient> gradient_from_text(std::string_view value)
+{
+    const auto lower = lower_copy(value);
+    const auto open = lower.find("gradient(");
+    if (open == std::string::npos) {
+        return std::nullopt;
+    }
+    const auto close = lower.rfind(')');
+    if (close == std::string::npos || close <= open + 9U) {
+        return std::nullopt;
+    }
+
+    const auto body = lower.substr(open + 9U, close - open - 9U);
+    if (body.find("linear") == std::string::npos) {
+        return std::nullopt;
+    }
+
+    Gradient gradient;
+    gradient.kind = Gradient::Kind::Linear;
+    gradient.angle_degrees = 0.0f;
+
+    if (const auto deg = body.find("deg"); deg != std::string::npos) {
+        std::size_t start = deg;
+        while (start > 0 && (std::isdigit(static_cast<unsigned char>(body[start - 1U])) != 0 || body[start - 1U] == '.' || body[start - 1U] == '-' || body[start - 1U] == '+')) {
+            --start;
+        }
+        gradient.angle_degrees = std::strtof(body.c_str() + start, nullptr);
+    }
+
+    std::size_t cursor = 0;
+    while ((cursor = body.find('(', cursor)) != std::string::npos) {
+        const auto stop_close = body.find(')', cursor + 1U);
+        if (stop_close == std::string::npos) {
+            break;
+        }
+        const auto stop = body.substr(cursor + 1U, stop_close - cursor - 1U);
+        const auto percent = stop.find('%');
+        if (percent != std::string::npos) {
+            std::size_t number_start = percent;
+            while (number_start > 0 && (std::isdigit(static_cast<unsigned char>(stop[number_start - 1U])) != 0 || stop[number_start - 1U] == '.' || stop[number_start - 1U] == '-' || stop[number_start - 1U] == '+')) {
+                --number_start;
+            }
+            const float offset = std::clamp(std::strtof(stop.c_str() + number_start, nullptr) / 100.0f, 0.0f, 1.0f);
+            const auto color_text = trim_copy(std::string_view(stop).substr(percent + 1U));
+            if (auto color = color_from_text(color_text)) {
+                gradient.stops.push_back({ offset, *color });
+            }
+        }
+        cursor = stop_close + 1U;
+    }
+
+    if (gradient.stops.empty()) {
+        std::istringstream stream(body);
+        std::string token;
+        while (stream >> token) {
+            if (token == "linear" || token.find("deg") != std::string::npos) {
+                continue;
+            }
+            if (token.find('%') == std::string::npos) {
+                continue;
+            }
+            const float offset = std::clamp(std::strtof(token.c_str(), nullptr) / 100.0f, 0.0f, 1.0f);
+            std::string color_token;
+            if (!(stream >> color_token)) {
+                break;
+            }
+            if (auto color = color_from_text(color_token)) {
+                gradient.stops.push_back({ offset, *color });
+            }
+        }
+    }
+
+    return gradient.stops.size() >= 2U ? std::optional<Gradient>(std::move(gradient)) : std::nullopt;
 }
 
 std::optional<float> pixels_from_value(const KatanaValue& value)
@@ -1044,7 +1185,28 @@ void apply_declaration(
     }
 
     if (property == "background" || property == "background-color" || property == "with-background") {
-        if (auto color = color_from_value(*first)) {
+        if (auto gradient = gradient_from_text(declaration_value_text(declaration))) {
+            apply_background(style, state, gradient->stops.front().color);
+            switch (state) {
+            case CssState::Hover:
+                style.hovered_gradient = std::move(*gradient);
+                break;
+            case CssState::Pressed:
+                style.pressed_gradient = std::move(*gradient);
+                break;
+            case CssState::Selected:
+                style.selected_gradient = std::move(*gradient);
+                break;
+            case CssState::Focus:
+                style.focused_gradient = std::move(*gradient);
+                break;
+            case CssState::Base:
+                style.background_gradient = std::move(*gradient);
+                break;
+            }
+            mark_property(touched_properties, state == CssState::Base ? StyleProperty::Background : StyleProperty::StatefulBackgrounds);
+            touched_style = true;
+        } else if (auto color = color_from_value(*first)) {
             apply_background(style, state, *color);
             mark_property(touched_properties, state == CssState::Base ? StyleProperty::Background : StyleProperty::StatefulBackgrounds);
             touched_style = true;
@@ -1053,7 +1215,11 @@ void apply_declaration(
     }
 
     if (property == "background-hovered" || property == "hover-background" || property == "with-background-hovered") {
-        if (auto color = color_from_value(*first)) {
+        if (auto gradient = gradient_from_text(declaration_value_text(declaration))) {
+            style.with_background_hovered(std::move(*gradient));
+            mark_property(touched_properties, StyleProperty::StatefulBackgrounds);
+            touched_style = true;
+        } else if (auto color = color_from_value(*first)) {
             style.with_background_hovered(*color);
             mark_property(touched_properties, StyleProperty::StatefulBackgrounds);
             touched_style = true;
@@ -1062,7 +1228,11 @@ void apply_declaration(
     }
 
     if (property == "background-pressed" || property == "pressed-background" || property == "with-background-pressed") {
-        if (auto color = color_from_value(*first)) {
+        if (auto gradient = gradient_from_text(declaration_value_text(declaration))) {
+            style.with_background_pressed(std::move(*gradient));
+            mark_property(touched_properties, StyleProperty::StatefulBackgrounds);
+            touched_style = true;
+        } else if (auto color = color_from_value(*first)) {
             style.with_background_pressed(*color);
             mark_property(touched_properties, StyleProperty::StatefulBackgrounds);
             touched_style = true;
@@ -1071,7 +1241,11 @@ void apply_declaration(
     }
 
     if (property == "background-selected" || property == "selected-background" || property == "with-background-selected") {
-        if (auto color = color_from_value(*first)) {
+        if (auto gradient = gradient_from_text(declaration_value_text(declaration))) {
+            style.with_background_selected(std::move(*gradient));
+            mark_property(touched_properties, StyleProperty::StatefulBackgrounds);
+            touched_style = true;
+        } else if (auto color = color_from_value(*first)) {
             style.with_background_selected(*color);
             mark_property(touched_properties, StyleProperty::StatefulBackgrounds);
             touched_style = true;
@@ -1080,7 +1254,11 @@ void apply_declaration(
     }
 
     if (property == "background-focused" || property == "focused-background" || property == "with-background-focused") {
-        if (auto color = color_from_value(*first)) {
+        if (auto gradient = gradient_from_text(declaration_value_text(declaration))) {
+            style.with_background_focused(std::move(*gradient));
+            mark_property(touched_properties, StyleProperty::StatefulBackgrounds);
+            touched_style = true;
+        } else if (auto color = color_from_value(*first)) {
             style.with_background_focused(*color);
             mark_property(touched_properties, StyleProperty::StatefulBackgrounds);
             touched_style = true;
@@ -1089,7 +1267,11 @@ void apply_declaration(
     }
 
     if (property == "foreground" || property == "color" || property == "with-foreground") {
-        if (auto color = color_from_value(*first)) {
+        if (auto gradient = gradient_from_text(declaration_value_text(declaration))) {
+            style.with_foreground(std::move(*gradient));
+            mark_property(touched_properties, StyleProperty::Foreground);
+            touched_style = true;
+        } else if (auto color = color_from_value(*first)) {
             style.with_foreground(*color);
             mark_property(touched_properties, StyleProperty::Foreground);
             touched_style = true;
@@ -1431,7 +1613,9 @@ void apply_declaration(
             return;
         }
         if (property == "text-color") {
-            if (auto color = color_from_value(*first)) {
+            if (auto gradient = gradient_from_text(declaration_value_text(declaration))) {
+                label->set_text_color(std::move(*gradient));
+            } else if (auto color = color_from_value(*first)) {
                 label->set_text_color(*color);
             }
             return;
@@ -1452,6 +1636,47 @@ void apply_declaration(
         if (property == "text-overflow") {
             if (auto overflow = ident_from_value(*first)) {
                 label->set_text_overflow(equals_ignore_case(*overflow, "wrap") ? TextOverflow::Wrap : TextOverflow::Clip);
+            }
+            return;
+        }
+    }
+
+    if (auto* input = dynamic_cast<Input*>(&widget)) {
+        if (property == "text" || property == "value") {
+            if (auto value = ident_from_value(*first)) {
+                input->set_text(std::move(*value));
+            }
+            return;
+        }
+        if (property == "placeholder") {
+            if (auto value = ident_from_value(*first)) {
+                input->set_placeholder(std::move(*value));
+            }
+            return;
+        }
+        if (property == "font-size") {
+            if (auto size = pixels_from_value(*first)) {
+                input->set_font_size(*size);
+            }
+            return;
+        }
+        if (property == "font-family") {
+            if (auto family = ident_from_value(*first)) {
+                input->set_font_family(std::move(*family));
+            }
+            return;
+        }
+        if (property == "text-color") {
+            if (auto gradient = gradient_from_text(declaration_value_text(declaration))) {
+                input->set_text_color(std::move(*gradient));
+            } else if (auto color = color_from_value(*first)) {
+                input->set_text_color(*color);
+            }
+            return;
+        }
+        if (property == "placeholder-color" || property == "placeholder_color") {
+            if (auto color = color_from_value(*first)) {
+                input->set_placeholder_color(*color);
             }
             return;
         }
@@ -2210,16 +2435,32 @@ void Widget::set_background(Color color) noexcept
     set_style(next);
 }
 
+void Widget::set_background(Gradient gradient)
+{
+    auto next = style_;
+    next.with_background(std::move(gradient));
+    set_style(next);
+}
+
 void Widget::set_background(InheritTag) noexcept
 {
     if (parent_ != nullptr) {
-        set_background(parent_->get_background());
+        if (parent_->get_background_gradient()) {
+            set_background(*parent_->get_background_gradient());
+        } else {
+            set_background(parent_->get_background());
+        }
     }
 }
 
 Color Widget::get_background() const noexcept
 {
     return style_.background;
+}
+
+const std::optional<Gradient>& Widget::get_background_gradient() const noexcept
+{
+    return style_.background_gradient;
 }
 
 void Widget::set_background_hovered(Color color) noexcept
@@ -2229,16 +2470,32 @@ void Widget::set_background_hovered(Color color) noexcept
     set_style(next);
 }
 
+void Widget::set_background_hovered(Gradient gradient)
+{
+    auto next = style_;
+    next.with_background_hovered(std::move(gradient));
+    set_style(next);
+}
+
 void Widget::set_background_hovered(InheritTag) noexcept
 {
     if (parent_ != nullptr) {
-        set_background_hovered(parent_->get_background_hovered());
+        if (parent_->get_background_hovered_gradient()) {
+            set_background_hovered(*parent_->get_background_hovered_gradient());
+        } else {
+            set_background_hovered(parent_->get_background_hovered());
+        }
     }
 }
 
 Color Widget::get_background_hovered() const noexcept
 {
     return style_.hovered;
+}
+
+const std::optional<Gradient>& Widget::get_background_hovered_gradient() const noexcept
+{
+    return style_.hovered_gradient;
 }
 
 void Widget::set_background_pressed(Color color) noexcept
@@ -2248,16 +2505,32 @@ void Widget::set_background_pressed(Color color) noexcept
     set_style(next);
 }
 
+void Widget::set_background_pressed(Gradient gradient)
+{
+    auto next = style_;
+    next.with_background_pressed(std::move(gradient));
+    set_style(next);
+}
+
 void Widget::set_background_pressed(InheritTag) noexcept
 {
     if (parent_ != nullptr) {
-        set_background_pressed(parent_->get_background_pressed());
+        if (parent_->get_background_pressed_gradient()) {
+            set_background_pressed(*parent_->get_background_pressed_gradient());
+        } else {
+            set_background_pressed(parent_->get_background_pressed());
+        }
     }
 }
 
 Color Widget::get_background_pressed() const noexcept
 {
     return style_.pressed;
+}
+
+const std::optional<Gradient>& Widget::get_background_pressed_gradient() const noexcept
+{
+    return style_.pressed_gradient;
 }
 
 void Widget::set_background_selected(Color color) noexcept
@@ -2267,16 +2540,32 @@ void Widget::set_background_selected(Color color) noexcept
     set_style(next);
 }
 
+void Widget::set_background_selected(Gradient gradient)
+{
+    auto next = style_;
+    next.with_background_selected(std::move(gradient));
+    set_style(next);
+}
+
 void Widget::set_background_selected(InheritTag) noexcept
 {
     if (parent_ != nullptr) {
-        set_background_selected(parent_->get_background_selected());
+        if (parent_->get_background_selected_gradient()) {
+            set_background_selected(*parent_->get_background_selected_gradient());
+        } else {
+            set_background_selected(parent_->get_background_selected());
+        }
     }
 }
 
 Color Widget::get_background_selected() const noexcept
 {
     return style_.selected;
+}
+
+const std::optional<Gradient>& Widget::get_background_selected_gradient() const noexcept
+{
+    return style_.selected_gradient;
 }
 
 void Widget::set_background_focused(Color color) noexcept
@@ -2286,16 +2575,32 @@ void Widget::set_background_focused(Color color) noexcept
     set_style(next);
 }
 
+void Widget::set_background_focused(Gradient gradient)
+{
+    auto next = style_;
+    next.with_background_focused(std::move(gradient));
+    set_style(next);
+}
+
 void Widget::set_background_focused(InheritTag) noexcept
 {
     if (parent_ != nullptr) {
-        set_background_focused(parent_->get_background_focused());
+        if (parent_->get_background_focused_gradient()) {
+            set_background_focused(*parent_->get_background_focused_gradient());
+        } else {
+            set_background_focused(parent_->get_background_focused());
+        }
     }
 }
 
 Color Widget::get_background_focused() const noexcept
 {
     return style_.focused;
+}
+
+const std::optional<Gradient>& Widget::get_background_focused_gradient() const noexcept
+{
+    return style_.focused_gradient;
 }
 
 void Widget::set_foreground(Color color) noexcept
@@ -2305,16 +2610,32 @@ void Widget::set_foreground(Color color) noexcept
     set_style(next);
 }
 
+void Widget::set_foreground(Gradient gradient)
+{
+    auto next = style_;
+    next.with_foreground(std::move(gradient));
+    set_style(next);
+}
+
 void Widget::set_foreground(InheritTag) noexcept
 {
     if (parent_ != nullptr) {
-        set_foreground(parent_->get_foreground());
+        if (parent_->get_foreground_gradient()) {
+            set_foreground(*parent_->get_foreground_gradient());
+        } else {
+            set_foreground(parent_->get_foreground());
+        }
     }
 }
 
 Color Widget::get_foreground() const noexcept
 {
     return style_.foreground;
+}
+
+const std::optional<Gradient>& Widget::get_foreground_gradient() const noexcept
+{
+    return style_.foreground_gradient;
 }
 
 void Widget::set_border(Color color, float width) noexcept
@@ -3584,6 +3905,13 @@ bool Widget::event(const Event& event)
         return handle_key_event(*key);
     }
 
+    if (std::holds_alternative<TextInputEvent>(event)) {
+        if (focused_widget_ != nullptr && contains_widget(*focused_widget_)) {
+            return focused_widget_->on_event(event);
+        }
+        return on_event(event);
+    }
+
     const auto mouse = mouse_event_from(event);
     if (mouse.has_value() && mouse->type == MouseEventType::Leave) {
         clear_mouse_state(mouse->position);
@@ -3711,7 +4039,18 @@ void Widget::draw(Renderer& renderer)
     }
 
     const Color background = selected_ ? style_.selected : (focused_ ? style_.focused : (pressed_ ? style_.pressed : (hovered_ ? style_.hovered : style_.background)));
-    renderer.fill_rounded_rect(bounds_, style_.radius, background);
+    const auto* background_gradient = selected_
+        ? (style_.selected_gradient ? &*style_.selected_gradient : nullptr)
+        : (focused_
+                ? (style_.focused_gradient ? &*style_.focused_gradient : nullptr)
+                : (pressed_
+                        ? (style_.pressed_gradient ? &*style_.pressed_gradient : nullptr)
+                        : (hovered_ ? (style_.hovered_gradient ? &*style_.hovered_gradient : nullptr) : (style_.background_gradient ? &*style_.background_gradient : nullptr))));
+    if (background_gradient != nullptr) {
+        renderer.fill_rounded_rect(bounds_, style_.radius, *background_gradient);
+    } else {
+        renderer.fill_rounded_rect(bounds_, style_.radius, background);
+    }
     const auto borders = active_border_edges(style_, selected_, focused_);
     if (borders.empty()) {
         return;

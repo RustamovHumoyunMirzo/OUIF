@@ -5,6 +5,7 @@
 
 #include <filesystem>
 #include <optional>
+#include <utility>
 #include <string>
 #include <string_view>
 
@@ -70,8 +71,11 @@ public:
     void set_font_size(InheritTag) noexcept;
     [[nodiscard]] float font_size() const noexcept;
     void set_text_color(Color color) noexcept;
+    void set_text_color(Gradient gradient);
     void set_text_color(InheritTag) noexcept;
     [[nodiscard]] Color text_color() const noexcept;
+    [[nodiscard]] const std::optional<Gradient>& text_gradient() const noexcept;
+    [[nodiscard]] const std::optional<Gradient>& get_text_gradient() const noexcept;
     void set_text_align(TextAlign align) noexcept;
     void set_text_align(InheritTag) noexcept;
     [[nodiscard]] TextAlign text_align() const noexcept;
@@ -88,6 +92,80 @@ private:
     std::string text_;
     TextStyle text_style_ {};
     bool has_text_color_ = false;
+};
+
+class OUIF_API Input : public Widget {
+public:
+    Input();
+    explicit Input(std::string text);
+
+    void set_text(std::string text);
+    [[nodiscard]] std::string_view text() const noexcept;
+    [[nodiscard]] std::string_view get_text() const noexcept;
+    void clear_text() noexcept;
+
+    void set_placeholder(std::string placeholder);
+    [[nodiscard]] std::string_view placeholder() const noexcept;
+    [[nodiscard]] std::string_view get_placeholder() const noexcept;
+    void set_composition_text(std::string text);
+    [[nodiscard]] std::string_view composition_text() const noexcept;
+    [[nodiscard]] std::string_view get_composition_text() const noexcept;
+    void clear_composition() noexcept;
+
+    void set_text_style(TextStyle style) noexcept;
+    void set_text_style(InheritTag) noexcept;
+    [[nodiscard]] const TextStyle& text_style() const noexcept;
+    [[nodiscard]] const TextStyle& get_text_style() const noexcept;
+    void set_font_family(std::string family);
+    [[nodiscard]] std::string_view font_family() const noexcept;
+    void set_font_size(float size) noexcept;
+    [[nodiscard]] float font_size() const noexcept;
+    void set_text_color(Color color) noexcept;
+    void set_text_color(Gradient gradient);
+    void set_placeholder_color(Color color) noexcept;
+    [[nodiscard]] Color text_color() const noexcept;
+    [[nodiscard]] const std::optional<Gradient>& text_gradient() const noexcept;
+    [[nodiscard]] const std::optional<Gradient>& get_text_gradient() const noexcept;
+    [[nodiscard]] Color placeholder_color() const noexcept;
+
+    void set_caret(std::size_t index) noexcept;
+    [[nodiscard]] std::size_t caret() const noexcept;
+    [[nodiscard]] std::size_t get_caret() const noexcept;
+    void select(std::size_t anchor, std::size_t caret) noexcept;
+    void select_all() noexcept;
+    void clear_selection() noexcept;
+    [[nodiscard]] bool has_selection() const noexcept;
+    [[nodiscard]] std::pair<std::size_t, std::size_t> selection() const noexcept;
+    void insert_text(std::string_view text);
+    void erase_selection();
+    void erase_previous();
+    void erase_next();
+    void copy_selection();
+    void cut_selection();
+    void paste_text(std::string_view text);
+    void paste_clipboard();
+    static void set_clipboard_text(std::string text);
+    [[nodiscard]] static std::string_view clipboard_text() noexcept;
+
+    bool event(const Event& event) override;
+
+protected:
+    void draw(Renderer& renderer) override;
+    bool on_event(const Event& event) override;
+    bool on_key_down(const KeyEvent& event) override;
+    bool on_mouse_down(const MouseEvent& event) override;
+
+private:
+    [[nodiscard]] std::size_t caret_from_point(Point point) const noexcept;
+    [[nodiscard]] std::pair<std::size_t, std::size_t> ordered_selection() const noexcept;
+
+    std::string text_;
+    std::string placeholder_;
+    std::string composition_text_;
+    TextStyle text_style_ {};
+    Color placeholder_color_ = Color::rgba(160, 172, 190, 255);
+    std::size_t caret_ = 0;
+    std::size_t selection_anchor_ = 0;
 };
 
 class OUIF_API Image : public Widget {
